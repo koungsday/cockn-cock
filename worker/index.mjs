@@ -188,7 +188,7 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
         if (clubs.length === 1) {
           return new Response(null, {
             status: 302,
-            headers: { Location: `/clubs/${clubs[0].slug}/`, 'Cache-Control': 'no-store' }
+            headers: { Location: `/clubs/${clubs[0].slug}/${url.search}`, 'Cache-Control': 'no-store' }
           });
         }
         return htmlResponse(request, renderCatalog({ clubs: catalogClubs, basePath: '/', mode: 'live' }), {

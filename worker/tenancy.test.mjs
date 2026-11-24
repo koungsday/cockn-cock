@@ -310,9 +310,9 @@ test('administration shell contains no private data and scoped admin API still r
 test('a single registered club is the domain login entry point', async t => {
   const {env} = setup(t);
   const worker = createWorker([first]);
-  const response = await worker.fetch(new Request(origin), env);
+  const response = await worker.fetch(new Request(origin + '/?from=homescreen'), env);
   assert.equal(response.status, 302);
-  assert.equal(response.headers.get('Location'), '/clubs/first-club/');
+  assert.equal(response.headers.get('Location'), '/clubs/first-club/?from=homescreen');
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
 });
 

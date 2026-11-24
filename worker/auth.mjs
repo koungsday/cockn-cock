@@ -255,7 +255,7 @@ export async function login(request, env, body) {
   const candidates = (await membersNamed(env, name, input)).filter(row => row.active);
   if (!candidates.length) await credentialHash(env, credential, '00000000000000000000000000000000');
   const matching = await matchingCredentials(env, candidates, credential);
-  if (matching.length !== 1 || input === id) {
+  if (matching.length !== 1) {
     await env.DB.batch(cleanExpired(env));
     throw new ApiError(401, invalidLogin);
   }

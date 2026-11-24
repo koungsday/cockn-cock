@@ -244,9 +244,12 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   assert.equal((await admin.request('/api/session')).user, null);
   await admin.request('/api/public', {expect:401});
   await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPassword}, expect:404});
-  await admin.request('/api/admin/members', {
-    method:'POST', expect:400, body:{name:adminId, birthday:'19890810'}
+  const sharedName = await admin.request('/api/admin/members', {
+    method:'POST', expect:201, body:{name:adminId, birthday:'19890810'}
   });
+  const memberWithSharedName = client();
+  assert.equal((await memberWithSharedName.login(adminId, '19890810')).user.id, sharedName.member.id);
+  await memberWithSharedName.request('/api/admin', {expect:401});
 
   const {member} = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:'가상 별도 로그인 회원', birthday:'19890810'}
@@ -259,9 +262,6 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   assert.doesNotMatch(memberClient.setCookie, /Max-Age/);
   const memberLifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='member'").first()).seconds;
   assert.ok(memberLifetime <= 43200 && memberLifetime >= 43199);
-  await admin.request('/api/admin/members/' + member.id, {
-    method:'PATCH', expect:400, body:{name:adminId}
-  });
   const both = admin.cookie + '; ' + memberClient.cookie;
   assert.equal((await admin.request('/api/admin/session', {headerCookie:both})).user.role, 'admin');
   assert.equal((await admin.request('/api/session', {headerCookie:both})).user.id, member.id);
