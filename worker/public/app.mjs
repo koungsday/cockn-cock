@@ -1,6 +1,6 @@
 import {
   adminLoginScreen, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
-  guestForm, homeScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
+  guestForm, homeScreen, memberForm, memberLoginScreen, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
 
@@ -8,6 +8,7 @@ const main = document.querySelector('#main');
 const account = document.querySelector('#account');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
+const loadingMarkup = '<p role="status">모임을 불러오는 중이에요.</p>';
 
 const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.trim() ?? '';
 const clubBase = meta('club-base');
@@ -44,6 +45,32 @@ const state = {
 let busy = false;
 let messageTimer;
 let eventSnapshot = null;
+let navigationVersion = 0;
+
+const authRole = route?.kind === 'admin' ? 'admin' : 'member';
+const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
+const savedNameKey = `cockcockcock:member-name:${clubBase}`;
+const savedNameLifetime = 30 * 24 * 60 * 60 * 1000;
+
+function rememberedName() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(savedNameKey));
+    if (typeof saved?.name === 'string' && saved.name.length <= 60 && saved.expiresAt > Date.now()) return saved.name;
+    localStorage.removeItem(savedNameKey);
+  } catch {
+    // Signing in still works if browser storage is unavailable.
+  }
+  return '';
+}
+
+function rememberName(name, optedIn) {
+  try {
+    if (optedIn) localStorage.setItem(savedNameKey, JSON.stringify({ name, expiresAt: Date.now() + savedNameLifetime }));
+    else localStorage.removeItem(savedNameKey);
+  } catch {
+    // Signing in still works if browser storage is unavailable.
+  }
+}
 
 class RequestError extends Error {
   constructor(text, status) {
@@ -53,6 +80,7 @@ class RequestError extends Error {
 }
 
 async function request(url, method = 'GET', body = undefined) {
+  const version = navigationVersion;
   let response;
   try {
     response = await fetch(`${clubBase}${url}`, {
@@ -63,9 +91,11 @@ async function request(url, method = 'GET', body = undefined) {
       cache: 'no-store',
     });
   } catch {
+    if (version !== navigationVersion) throw new DOMException('페이지가 이동했습니다.', 'AbortError');
     throw new RequestError('서버에 연결하지 못했어요. 네트워크를 확인한 뒤 다시 시도해 주세요.', 0);
   }
   const result = await response.json().catch(() => null);
+  if (version !== navigationVersion) throw new DOMException('페이지가 이동했습니다.', 'AbortError');
   if (!response.ok) throw new RequestError(result?.error || '저장한 내용을 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.', response.status);
   if (!result) throw new RequestError('서버의 응답을 확인하지 못했어요.', response.status);
   return result;
@@ -90,7 +120,7 @@ function renderAccount() {
   }
   const user = state.user;
   account.innerHTML = `<span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
-    ${user.role === 'member' && !user.mustChange ? button('PIN 변경', 'pin', { css: 'quiet compact' }) : ''}
+    ${user.role === 'member' ? button('PIN 설정·변경', 'pin', { css: 'quiet compact' }) : ''}
     ${button('로그아웃', 'logout', { css: 'quiet compact' })}`;
 }
 
@@ -113,17 +143,16 @@ async function loadProgress() {
 }
 
 async function load() {
+  if (state.user?.role !== authRole) return;
   if (route.kind === 'vote') {
     ({ event: state.event } = await request(`/api/public/vote/${id(route.id)}`));
     state.vote = null;
     state.eligible = false;
-    if (state.user?.role === 'member' && !state.user.mustChange) {
-      try {
-        ({ vote: state.vote } = await request(votePath()));
-        state.eligible = true;
-      } catch (error) {
-        if (error.status !== 403 && error.status !== 404) throw error;
-      }
+    try {
+      ({ vote: state.vote } = await request(votePath()));
+      state.eligible = true;
+    } catch (error) {
+      if (error.status !== 403 && error.status !== 404) throw error;
     }
   } else if (route.kind === 'notice') {
     ({ notice: state.notice } = await request(`/api/public/notice/${id(route.id)}`));
@@ -146,12 +175,14 @@ function render() {
   renderAccount();
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
-  if (route.kind === 'vote') {
-    main.innerHTML = memberVoteScreen(state.event, state.user, state.vote, state.eligible, club);
+  if (!state.user) {
+    main.innerHTML = authRole === 'admin' ? adminLoginScreen(club) : memberLoginScreen(club, rememberedName(), route.kind);
+  } else if (route.kind === 'vote') {
+    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club);
   } else if (route.kind === 'notice') {
     main.innerHTML = noticeScreen(state.notice, club);
   } else if (route.kind === 'home') {
-    main.innerHTML = homeScreen(state.user, state.listing, club);
+    main.innerHTML = homeScreen(state.listing, club);
   } else if (isAdmin) {
     let body;
     if (state.section === 'members') body = membersScreen(state.admin.members);
@@ -164,18 +195,67 @@ function render() {
       newSearch.value = search.value;
       applyFilter(newSearch);
     }
-  } else {
-    main.innerHTML = adminLoginScreen(club);
   }
+}
+
+function clearProtectedView() {
+  navigationVersion++;
+  busy = false;
+  Object.assign(state, {
+    user: null, section: 'event', selectedEvent: null, admin: null, listing: { events: [], notices: [] },
+    detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
+  });
+  eventSnapshot = null;
+  if (dialog.open) dialog.close();
+  dialog.replaceChildren();
+  account.replaceChildren();
+  clearTimeout(messageTimer);
+  message.textContent = '';
+  message.hidden = true;
+  main.classList.add('narrow');
+  main.innerHTML = loadingMarkup;
+}
+
+function loginExpired() {
+  clearProtectedView();
+  render();
+  showMessage('로그인이 만료됐어요. 다시 로그인해 주세요.', true);
 }
 
 async function initialize() {
   try {
-    ({ user: state.user } = await request('/api/session'));
+    const { user } = await request(authPath('session'));
+    state.user = user?.role === authRole ? user : null;
     await load();
     render();
   } catch (error) {
+    if (error.name === 'AbortError') return;
+    if (error.status === 401) return loginExpired();
     failedPage(error);
+  }
+}
+
+async function openSignedInPage() {
+  main.innerHTML = loadingMarkup;
+  try {
+    await load();
+    render();
+  } catch (error) {
+    if (error.name === 'AbortError' || error.status === 401) throw error;
+    failedPage(error);
+  }
+  if (route.kind === 'admin') window.scrollTo(0, 0);
+  main.focus({ preventScroll: route.kind === 'admin' });
+}
+
+async function checkAdminSession() {
+  const user = state.user;
+  if (document.hidden || user?.role !== 'admin') return;
+  try {
+    const { user: detected } = await request(authPath('session'));
+    if (state.user === user && detected?.role !== 'admin') loginExpired();
+  } catch (error) {
+    if (state.user === user && error.status === 401) loginExpired();
   }
 }
 
@@ -186,13 +266,10 @@ function openDialog(title, body) {
   dialog.showModal();
 }
 
-function credentialDialog(name, memberCode, temporaryPin) {
-  const guide = temporaryPin
-    ? `${club.name} 회원 코드 ${memberCode}\n한 번 사용할 임시 번호 ${temporaryPin}\n로그인 후 새 PIN을 설정해 주세요.`
-    : `${club.name} 회원 코드 ${memberCode}\n처음에는 생년월일 8자리로 로그인하고 새 PIN을 설정해 주세요.`;
-  const text = `${guide}\n${new URL(club.home, location.origin).href}`;
+function credentialDialog(name, temporaryPin) {
+  const text = `${club.name} 접속 안내\n이름 ${name}\n임시 번호 ${temporaryPin}\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
   openDialog('회원에게 보낼 접속 안내', `<p>${esc(name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요.</p>
-    <textarea class="copy-text" readonly rows="4" aria-label="회원 접속 안내">${esc(text)}</textarea>
+    <textarea class="copy-text" readonly rows="5" aria-label="회원 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
 }
 
@@ -227,7 +304,8 @@ async function refreshVoteCounts() {
   try {
     const { roster, guests } = await request(adminEventPath());
     if (target.isConnected && !busy) target.innerHTML = voteMetrics(countEvent(roster, guests));
-  } catch {
+  } catch (error) {
+    if (error.status === 401 && target.isConnected) loginExpired();
     // The existing counts remain visible when a background refresh cannot reach the server.
   }
 }
@@ -249,17 +327,13 @@ async function doAction(action, itemId) {
       dialog.close();
       break;
     case 'logout':
-      await request('/api/logout', 'POST', {});
-      state.user = null;
-      state.admin = null;
-      state.detail = null;
-      state.vote = null;
-      await load();
+      await request(authPath('logout'), 'POST', {});
+      clearProtectedView();
       render();
       showMessage('로그아웃했어요.');
       break;
     case 'pin':
-      openDialog('PIN 변경', pinForm(false));
+      openDialog('PIN 설정·변경', pinForm());
       break;
     case 'tab':
       state.section = itemId;
@@ -332,13 +406,13 @@ async function doAction(action, itemId) {
       openDialog('회원 수정', memberForm(state.admin.members.find(member => member.id === itemId)));
       break;
     case 'reset-member':
-      openDialog('회원 접속 재설정', '<p>재설정하면 기존 회원 코드와 로그인 상태가 만료됩니다. 새 코드를 받을 회원이 맞는지 확인해 주세요.</p>'
+      openDialog('회원 접속 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>'
         + button('새 임시 번호 만들기', 'confirm-reset-member', { id: itemId }));
       break;
     case 'confirm-reset-member': {
       const member = state.admin.members.find(person => person.id === itemId);
       const result = await request(`/api/admin/members/${id(itemId)}/reset`, 'POST', {});
-      credentialDialog(member.name, result.memberCode, result.temporaryPin);
+      credentialDialog(member.name, result.temporaryPin);
       break;
     }
     case 'copy-invitation':
@@ -358,7 +432,8 @@ async function doAction(action, itemId) {
   }
 }
 
-const read = (data, key) => String(data.get(key) ?? '').trim();
+const raw = (data, key) => String(data.get(key) ?? '');
+const read = (data, key) => raw(data, key).trim();
 
 function buildEvent(data) {
   const fields = ['title', 'date', 'time', 'endTime', 'place', 'deadline', 'earlyTime', 'lateTime', 'notes'];
@@ -372,21 +447,21 @@ function buildEvent(data) {
 async function doSubmit(kind, itemId, data) {
   switch (kind) {
     case 'login': {
-      const memberCode = route.kind === 'admin' ? 'admin' : read(data, 'memberCode').toLowerCase();
-      if (route.kind !== 'admin' && !/^[0-9a-f]{16}$/.test(memberCode)) {
-        throw new Error('모임에서 받은 회원 코드 16자리를 확인해 주세요.');
-      }
-      ({ user: state.user } = await request('/api/login', 'POST', { memberCode, credential: read(data, 'credential') }));
-      await load();
-      render();
-      if (route.kind === 'admin') window.scrollTo(0, 0);
-      main.focus({ preventScroll: route.kind === 'admin' });
+      const credential = raw(data, 'credential');
+      const input = authRole === 'admin'
+        ? { adminId: read(data, 'adminId'), credential, remember: data.has('remember') }
+        : { name: read(data, 'name'), credential };
+      const { user } = await request(authPath('login'), 'POST', input);
+      if (user?.role !== authRole) throw new Error('로그인 권한을 확인하지 못했어요.');
+      state.user = user;
+      if (authRole === 'member') rememberName(user.name, data.has('rememberName'));
+      await openSignedInPage();
       break;
     }
     case 'pin': {
       const newPin = read(data, 'newPin');
       if (newPin !== read(data, 'confirmPin')) throw new Error('새 PIN이 서로 달라요. 다시 확인해 주세요.');
-      ({ user: state.user } = await request('/api/pin', 'POST', { currentPin: read(data, 'currentPin'), newPin }));
+      ({ user: state.user } = await request('/api/pin', 'POST', { currentPin: raw(data, 'currentPin'), newPin }));
       dialog.close();
       await load();
       render();
@@ -456,17 +531,15 @@ async function doSubmit(kind, itemId, data) {
       if (itemId) {
         await update(`/api/admin/members/${id(itemId)}`, 'PATCH', { name, active: data.has('active') }, '회원 정보를 저장했어요.');
       } else {
-        const result = await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
-        credentialDialog(name, result.memberCode);
+        await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
+        dialog.close();
         try {
           await load();
           render();
-        } catch {
-          const warning = dialog.querySelector('.inline-error');
-          if (warning) {
-            warning.textContent = '회원 코드를 먼저 복사한 뒤 회원 목록을 다시 열어 주세요.';
-            warning.hidden = false;
-          }
+          showMessage('회원을 등록했어요.');
+        } catch (error) {
+          if (error.status === 401 || error.name === 'AbortError') throw error;
+          showMessage('회원을 등록했어요. 회원 목록은 다시 열어 주세요.', true);
         }
       }
       break;
@@ -488,6 +561,7 @@ async function doSubmit(kind, itemId, data) {
 async function run(work, control) {
   if (busy) return;
   busy = true;
+  const version = navigationVersion;
   const saved = control.disabled;
   control.disabled = true;
   const inline = dialog.open ? dialog.querySelector('.inline-error') : null;
@@ -495,24 +569,8 @@ async function run(work, control) {
   try {
     await work();
   } catch (error) {
-    if (error.status === 401 && state.user) {
-      try {
-        const { user } = await request('/api/session');
-        if (!user) {
-          state.user = null;
-          state.admin = null;
-          state.detail = null;
-          dialog.close();
-          await load();
-          render();
-          showMessage('로그인이 만료됐어요. 다시 로그인해 주세요.', true);
-          return;
-        }
-      } catch (loadError) {
-        showMessage(loadError.message, true);
-        return;
-      }
-    }
+    if (error.name === 'AbortError') return;
+    if (error.status === 401 && state.user) return loginExpired();
     if (inline?.isConnected && dialog.open) {
       inline.textContent = error.message;
       inline.hidden = false;
@@ -521,7 +579,7 @@ async function run(work, control) {
     }
   } finally {
     if (control.isConnected) control.disabled = saved;
-    busy = false;
+    if (version === navigationVersion) busy = false;
   }
 }
 
@@ -545,6 +603,7 @@ document.addEventListener('submit', event => {
 
 main.addEventListener('change', event => {
   const control = event.target;
+  if (control.matches('[name="rememberName"]') && !control.checked) rememberName('', false);
   if (!control.matches('[data-action=switch-event]')) return;
   void run(async () => {
     state.selectedEvent = control.value;
@@ -575,6 +634,11 @@ if (route && club.name) {
   document.querySelector('#club-name').textContent = club.name;
   document.querySelector('#club-subtitle').textContent = club.subtitle;
   clubLink.hidden = false;
+  window.addEventListener('pagehide', clearProtectedView);
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) void initialize();
+  });
+  if (authRole === 'admin') document.addEventListener('visibilitychange', checkAdminSession);
   await initialize();
   setInterval(refreshVoteCounts, 15_000);
 } else {

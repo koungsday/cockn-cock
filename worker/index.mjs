@@ -1,6 +1,7 @@
 import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 import { handleApi } from './api.mjs';
+import { isAdminId } from './auth.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const bindingPattern = /^[A-Z][A-Z0-9_]*$/;
@@ -15,13 +16,10 @@ function meta(attr, key, value) {
   return `<meta ${attr}="${key}" content="${escape(value)}">`;
 }
 
-function shareTags(url, club, kind, record) {
-  const isVote = kind === 'vote';
-  const type = isVote ? '참석 투표' : '공지';
-  const title = `${record.title} · ${type} | ${club.name} · ${PLATFORM_NAME}`;
-  const description = isVote
-    ? `${record.date} ${record.time}–${record.endTime} · ${record.place}`
-    : `${club.name} 공지 내용을 확인하세요.`;
+function shareTags(url, club, kind) {
+  const type = kind === 'vote' ? '참석 투표' : '공지';
+  const title = `${club.name} ${type} · ${PLATFORM_NAME}`;
+  const description = '회원 로그인 후 확인할 수 있어요.';
   const canonical = url.origin + url.pathname.replace(/\/$/, '');
   const tags = [
     ['og:type', 'website'],
@@ -97,7 +95,7 @@ function registryIndex(clubs) {
     if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
       throw new Error('Each registered club must have a unique slug.');
     }
-    for (const key of [club.databaseBinding, club.adminPasswordBinding, club.authPepperBinding]) {
+    for (const key of [club.databaseBinding, club.adminIdBinding, club.adminPasswordBinding, club.authPepperBinding]) {
       if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
         throw new Error('Each registered club must use distinct database and secret bindings.');
       }
@@ -110,10 +108,12 @@ function registryIndex(clubs) {
 
 function scopeEnv(club, clubs, env) {
   const db = env[club.databaseBinding];
+  const adminId = env[club.adminIdBinding];
   const adminPassword = env[club.adminPasswordBinding];
   const authPepper = env[club.authPepperBinding];
   if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function' ||
-      typeof adminPassword !== 'string' || adminPassword.length < 16 ||
+      !isAdminId(adminId) || typeof adminPassword !== 'string' || adminPassword.length < 16 || adminPassword.length > 128 ||
+      !adminPassword.trim() || adminPassword === adminId ||
       typeof authPepper !== 'string' || authPepper.length < 32 || adminPassword === authPepper) return null;
 
   for (const other of clubs) {
@@ -125,31 +125,45 @@ function scopeEnv(club, clubs, env) {
   }
   return {
     DB: db,
+    CLUB_ADMIN_ID: adminId,
     CLUB_ADMIN_PASSWORD: adminPassword,
     CLUB_AUTH_PEPPER: authPepper,
     CLUB_SCOPE: club.slug
   };
 }
 
-async function clubPage(request, env, scoped, url, club, share) {
-  let tags = '';
-  if (share) {
-    const [, kind, id] = share;
-    const route = new URL(`/api/public/${kind}/${id}`, url.origin);
-    const result = await handleApi(new Request(route), scoped);
-    if (result.status === 404) return errorPage(request, 404, '공유 내용을 찾을 수 없어요');
-    if (!result.ok) return errorPage(request, 503, '공유 내용을 잠시 불러올 수 없어요');
-    const payload = await result.json();
-    const record = kind === 'vote' ? payload.event : payload.notice;
-    if (!record) return errorPage(request, 404, '공유 내용을 찾을 수 없어요');
-    tags = shareTags(url, club, kind, record);
-  }
-  const index = await env.ASSETS.fetch(new Request(new URL('/index.html', url.origin)));
+function adminManifest(request, club) {
+  const start = `/clubs/${club.slug}/admin/`;
+  const manifest = {
+    id: start, start_url: start, scope: start, display: 'standalone', lang: 'ko',
+    name: `${club.name} 운영진 · ${PLATFORM_NAME}`, short_name: `${club.name} 운영진`,
+    background_color: '#f3f5ec', theme_color: '#f3f5ec',
+    icons: [192, 512].map(size => ({
+      src: `/assets/admin-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
+    }))
+  };
+  return new Response(request.method === 'HEAD' ? null : JSON.stringify(manifest), {
+    headers: {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+}
+
+async function clubPage(request, env, url, club, share, admin) {
+  const tags = share ? shareTags(url, club, share[1]) : '';
+  const path = admin ? '/admin-shell.html' : '/index.html';
+  const index = await env.ASSETS.fetch(new Request(new URL(path, url.origin)));
   if (!index.ok) return errorPage(request, 503, '화면을 불러올 수 없어요');
   const html = (await index.text())
     .replace(/<title>[^<]*<\/title>/, () => `<title>${escape(club.name)} · ${escape(PLATFORM_NAME)}</title>`)
     .replace('<!-- club-context -->', () => clubContext(club))
-    .replace('<!-- share-meta -->', () => tags);
+    .replace('<!-- share-meta -->', () => tags)
+    .replace('<!-- admin-app -->', () => admin
+      ? `<link rel="manifest" href="/clubs/${club.slug}/admin/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/assets/admin-icon-192.png">`
+      : '');
   return htmlResponse(request, html, { headers: index.headers });
 }
 
@@ -161,13 +175,18 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       const url = new URL(request.url);
       const { pathname: path } = url;
       if (path === '/') {
-        return canView(request)
-          ? htmlResponse(request, renderCatalog({ clubs: catalogClubs, basePath: '/', mode: 'live' }), {
-            cacheControl: 'public, max-age=60, s-maxage=60'
-          })
-          : methodNotAllowed();
+        if (!canView(request)) return methodNotAllowed();
+        if (clubs.length === 1) {
+          return new Response(null, {
+            status: 302,
+            headers: { Location: `/clubs/${clubs[0].slug}/`, 'Cache-Control': 'no-store' }
+          });
+        }
+        return htmlResponse(request, renderCatalog({ clubs: catalogClubs, basePath: '/', mode: 'live' }), {
+          cacheControl: 'public, max-age=60, s-maxage=60'
+        });
       }
-      if (path === '/index.html') return Response.redirect(new URL('/', url.origin), 308);
+      if (path === '/index.html' || path === '/admin-shell.html') return Response.redirect(new URL('/', url.origin), 308);
       if (path === '/api' || path.startsWith('/api/')) return apiError(request, 404, 'API 주소를 찾을 수 없어요.');
 
       const legacy = sharePath.exec(path);
@@ -198,6 +217,9 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
         url.pathname = remainder;
         return handleApi(new Request(url, request), scoped);
       }
+      if (remainder === '/admin/manifest.webmanifest') {
+        return canView(request) ? adminManifest(request, club) : methodNotAllowed();
+      }
       const share = sharePath.exec(remainder);
       if (!share && !['', '/', '/admin', '/admin/'].includes(remainder)) return errorPage(request, 404, '공유 내용을 찾을 수 없어요');
       if (!canView(request)) return methodNotAllowed();
@@ -205,7 +227,7 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
         url.pathname += '/';
         return Response.redirect(url, 308);
       }
-      return clubPage(request, env, scoped, url, club, share);
+      return clubPage(request, env, url, club, share, remainder === '/admin/');
     }
   };
 }

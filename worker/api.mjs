@@ -1,6 +1,6 @@
 import {
-  ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  readSession, sql, temporaryPin
+  ApiError, changePin, clientUser, currentSeconds, login, loginAdmin, logout, makeMemberCredential,
+  matchingCredentials, membersNamed, randomHex, readSession, sql, temporaryPin
 } from './auth.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -40,10 +40,9 @@ function methodNotAllowed() {
   throw new ApiError(405, '지원하지 않는 요청 방식이에요.');
 }
 
-function requireUser(user, role, allowActivation = false) {
+function requireUser(user, role) {
   if (!user) throw new ApiError(401, '먼저 로그인해 주세요.');
   if (user.role !== role) throw new ApiError(403, '이 작업을 할 수 있는 권한이 없어요.');
-  if (user.mustChange && !allowActivation) throw new ApiError(403, '첫 로그인 PIN을 먼저 바꿔 주세요.');
   return user;
 }
 
@@ -88,6 +87,10 @@ function text(value, label, max, optional = false) {
     bad(label + '을 확인해 주세요.');
   }
   return trimmed;
+}
+
+function memberName(value) {
+  return text(typeof value === 'string' ? value.normalize('NFC') : value, '회원 이름', 60);
 }
 
 function boolean(value, label) {
@@ -268,7 +271,7 @@ async function memberVote(db, method, id, user, body = {}) {
     INSERT INTO votes (event_id, member_id, slot, lunch)
     SELECT r.event_id, r.member_id, ?, ?
     FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
-    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND m.must_change = 0
+    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1
       AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()
     ON CONFLICT (event_id, member_id) DO UPDATE SET slot = excluded.slot, lunch = excluded.lunch
   `, slot, +lunch, id, user.id, user.version).run();
@@ -301,22 +304,34 @@ function rosterOpenEvents(db, id) {
 
 async function addMember(env, body) {
   const db = env.DB;
-  const name = text(body.name, '회원 이름', 60);
+  const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
-  const { memberCode, hashedCode, hash, salt, version } = await makeMemberCredential(env, birthday);
+  const candidates = await membersNamed(env, name);
+  if ((await matchingCredentials(env, candidates, birthday)).length) {
+    throw new ApiError(409, '같은 이름과 로그인 번호를 사용하는 회원이 있어요. 회원 목록을 확인해 주세요.');
+  }
+  const { hash, salt, version } = await makeMemberCredential(env, birthday);
   const id = crypto.randomUUID();
-  await db.batch([
+  // The legacy column is still NOT NULL on existing databases.
+  const legacyPlaceholder = randomHex(32);
+  const [insert] = await db.batch([
     sql(db, `
       INSERT INTO members (id, name, code_hash, credential_salt, credential_hash, credential_version)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, id, name, hashedCode, salt, hash, version),
+      SELECT ?, ?, ?, ?, ?, ?
+      WHERE NOT EXISTS (
+        SELECT 1 FROM members WHERE name IN (?, ?)
+          AND credential_version NOT IN (SELECT value FROM json_each(?))
+      )
+    `, id, name, legacyPlaceholder, salt, hash, version, name, name.normalize('NFD'),
+    JSON.stringify(candidates.map(row => row.credential_version))),
     rosterOpenEvents(db, id)
   ]);
-  return { member: { id, name, active: true }, memberCode };
+  if (!insert.meta.changes) throw new ApiError(409, '같은 이름의 회원 정보가 바뀌었어요. 다시 등록해 주세요.');
+  return { member: { id, name, active: true } };
 }
 
 async function updateMember(db, id, body) {
-  const name = body.name === undefined ? null : text(body.name, '회원 이름', 60);
+  const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
   const statements = [sql(db, 'UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ?', name, active, id)];
   if (active === 0) statements.push(sql(db, 'DELETE FROM sessions WHERE member_id = ?', id));
@@ -332,16 +347,16 @@ async function resetMember(env, id) {
   const db = env.DB;
   if (!await sql(db, 'SELECT id FROM members WHERE id = ?', id).first()) missing();
   const temporary = temporaryPin();
-  const { memberCode, hashedCode, hash, salt, version } = await makeMemberCredential(env, temporary);
+  const { hash, salt, version } = await makeMemberCredential(env, temporary);
   await db.batch([
     sql(db, `
-      UPDATE members SET code_hash = ?, credential_salt = ?, credential_hash = ?,
+      UPDATE members SET credential_salt = ?, credential_hash = ?,
         credential_version = ?, must_change = 1 WHERE id = ?
-    `, hashedCode, salt, hash, version, id),
-    sql(db, 'DELETE FROM sessions WHERE member_id = ?', id),
-    sql(db, 'DELETE FROM attempts WHERE key IN (?, ?)', 'login-member:' + id, 'pin-member:' + id)
+    `, salt, hash, version, id),
+    sql(db, `DELETE FROM sessions WHERE role = 'member' AND member_id = ?`, id),
+    sql(db, 'DELETE FROM attempts WHERE key = ?', 'pin-member:' + id)
   ]);
-  return { memberCode, temporaryPin: temporary };
+  return { temporaryPin: temporary };
 }
 
 async function addEvent(db, body) {
@@ -608,30 +623,38 @@ async function route(request, env) {
   const { pathname: path } = url;
   const method = request.method;
   if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH'].includes(method)) methodNotAllowed();
+  const adminRoute = path === '/api/admin' || path.startsWith('/api/admin/');
+  const role = adminRoute ? 'admin' : 'member';
   const exposed = publicPath.exec(path);
   if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
+    requireUser(await readSession(request, env, 'member'), 'member');
     const publicData = exposed ? await fetchPublic(env.DB, exposed[1], exposed[2]) : await listPublic(env.DB);
-    const response = json(publicData);
-    return method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
+    return json(publicData);
   }
 
   const body = method !== 'GET' && method !== 'HEAD' ? await readBody(request, url) : null;
-  if (path === '/api/login' && method === 'POST') {
-    const session = await login(request, env, body);
+  const authPath = adminRoute ? '/api/admin' : '/api';
+  if (path === authPath + '/login') {
+    if (method !== 'POST') methodNotAllowed();
+    const session = adminRoute ? await loginAdmin(request, env, body) : await login(request, env, body);
     return json({ user: session.user }, 200, session.cookie);
   }
-  if (path === '/api/logout' && method === 'POST') {
-    return json({ user: null }, 200, await logout(request, env));
+  if (path === authPath + '/logout') {
+    if (method !== 'POST') methodNotAllowed();
+    return json({ user: null }, 200, await logout(request, env, role));
   }
 
-  const user = await readSession(request, env);
-  if (path === '/api/session' && method === 'GET') return json({ user: clientUser(user) });
+  const user = await readSession(request, env, role);
+  if (path === authPath + '/session') {
+    if (method !== 'GET') methodNotAllowed();
+    return json({ user: clientUser(user) });
+  }
   if (path === '/api/pin' && method === 'POST') {
-    const session = await changePin(request, env, requireUser(user, 'member', true), body);
+    const session = await changePin(request, env, requireUser(user, 'member'), body);
     return json({ user: session.user }, 200, session.cookie);
   }
-  if (path === '/api/admin' || path.startsWith('/api/admin/')) {
+  if (adminRoute) {
     requireUser(user, 'admin');
     return routeAdmin(env.DB, env, url, method, body);
   }
@@ -641,11 +664,15 @@ async function route(request, env) {
 }
 
 export async function handleApi(request, env) {
+  let response;
   try {
-    return await route(request, env);
+    response = await route(request, env);
   } catch (error) {
-    if (error instanceof ApiError) return json({ error: error.message }, error.status);
     // Avoid printing request bodies, credentials or database-specific errors.
-    return json({ error: '기록을 처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요.' }, 500);
+    response = error instanceof ApiError ? json({ error: error.message }, error.status)
+      : json({ error: '기록을 처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요.' }, 500);
   }
+  return request.method === 'HEAD'
+    ? new Response(null, { status: response.status, headers: response.headers })
+    : response;
 }

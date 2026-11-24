@@ -1,5 +1,6 @@
 const encoder = new TextEncoder();
-const sessionAge = 14 * 24 * 60 * 60;
+const browserSessionAge = 12 * 60 * 60;
+const rememberedAdminAge = 30 * 24 * 60 * 60;
 const attemptWindow = 15 * 60;
 
 export class ApiError extends Error {
@@ -56,36 +57,40 @@ export function equalDigest(a, b) {
   return difference === 0;
 }
 
-async function codeHash(env, code) {
-  return sha256('member\0' + pepper(env) + '\0' + code);
+export function isAdminId(value) {
+  return typeof value === 'string' && value === value.trim()
+    && /^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$/.test(value);
 }
 
-async function adminVersion(env, password) {
-  return sha256('admin\0' + pepper(env) + '\0' + password);
+async function adminVersion(env, id, password) {
+  return sha256('admin\0' + pepper(env) + '\0' + id + '\0' + password);
 }
 
-function adminPassword(env) {
+function adminSettings(env) {
+  const id = env.CLUB_ADMIN_ID;
   const password = env.CLUB_ADMIN_PASSWORD;
-  if (typeof password !== 'string' || password.length < 16) {
+  if (!isAdminId(id) || typeof password !== 'string' || password.length < 16
+    || password.length > 128 || !password.trim() || password === id) {
     throw new ApiError(503, '운영진 인증 설정을 확인해 주세요.');
   }
-  return password;
+  return { id, password };
 }
 
-function cookieName(request, env) {
-  const scope = env.CLUB_SCOPE ?? 'suncok19';
-  return new URL(request.url).protocol === 'https:' ? '__Host-' + scope : scope + '_dev';
+function cookieName(request, env, role) {
+  const scope = (env.CLUB_SCOPE ?? 'suncok19') + '-' + role;
+  return new URL(request.url).protocol === 'https:' ? '__Host-' + scope : scope + '-dev';
 }
 
-export function sessionCookie(request, env, token = '') {
-  const name = cookieName(request, env);
+function sessionCookie(request, env, role, token = '', remember = false) {
+  const name = cookieName(request, env, role);
   const secure = name.startsWith('__Host-') ? '; Secure' : '';
-  const maxAge = token ? sessionAge : 0;
-  return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  const maxAge = !token ? '; Max-Age=0'
+    : role === 'admin' && remember ? '; Max-Age=' + rememberedAdminAge : '';
+  return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 
-function cookieToken(request, env) {
-  const name = cookieName(request, env) + '=';
+function cookieToken(request, env, role) {
+  const name = cookieName(request, env, role) + '=';
   for (const cookie of (request.headers.get('cookie') || '').split(';')) {
     const value = cookie.trim();
     if (value.startsWith(name) && /^[0-9a-f]{64}$/.test(value.slice(name.length))) {
@@ -95,8 +100,8 @@ function cookieToken(request, env) {
   return null;
 }
 
-async function sessionHash(env, token) {
-  return sha256('session\0' + pepper(env) + '\0' + token);
+async function sessionHash(env, role, token) {
+  return sha256('session\0' + role + '\0' + pepper(env) + '\0' + token);
 }
 
 export function clientUser(user) {
@@ -105,20 +110,21 @@ export function clientUser(user) {
   return { id, name, role, mustChange };
 }
 
-export async function readSession(request, env) {
-  const token = cookieToken(request, env);
+export async function readSession(request, env, role) {
+  const token = cookieToken(request, env, role);
   if (!token) return null;
-  const tokenHash = await sessionHash(env, token);
+  const tokenHash = await sessionHash(env, role, token);
   const found = await sql(env.DB, `
     SELECT s.role, s.member_id, s.credential_version AS session_version,
       m.name, m.active, m.must_change, m.credential_version AS member_version
     FROM sessions s LEFT JOIN members m ON s.member_id = m.id
-    WHERE s.token_hash = ? AND s.expires_at > ?
-  `, tokenHash, currentSeconds()).first();
+    WHERE s.token_hash = ? AND s.role = ? AND s.expires_at > ?
+  `, tokenHash, role, currentSeconds()).first();
   if (!found) return null;
 
   if (found.role === 'admin') {
-    const version = await adminVersion(env, adminPassword(env));
+    const { id, password } = adminSettings(env);
+    const version = await adminVersion(env, id, password);
     if (!equalDigest(version, found.session_version)) return null;
     return { id: 'admin', name: '운영진', role: 'admin', mustChange: false, tokenHash, version };
   }
@@ -129,10 +135,11 @@ export async function readSession(request, env) {
   };
 }
 
-async function sessionInsert(env, user) {
+async function sessionInsert(env, user, remember = false) {
   const token = randomHex(32);
-  const hash = await sessionHash(env, token);
-  const expiresAt = currentSeconds() + sessionAge;
+  const hash = await sessionHash(env, user.role, token);
+  const age = user.role === 'admin' && remember ? rememberedAdminAge : browserSessionAge;
+  const expiresAt = currentSeconds() + age;
   const statement = user.role === 'admin'
     ? sql(env.DB, `
       INSERT INTO sessions (token_hash, role, member_id, credential_version, expires_at)
@@ -168,10 +175,10 @@ function releaseAttempt(env, key, expiresAt) {
   ];
 }
 
-async function ipLimit(env, request, namespace) {
+async function ipLimit(env, request, namespace, name = '') {
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
-  const key = await sha256(namespace + '-source\0' + pepper(env) + '\0' + ip);
-  const expiresAt = await reserveAttempt(env, key, 30);
+  const key = await sha256(namespace + '-source\0' + pepper(env) + '\0' + ip + '\0' + name);
+  const expiresAt = await reserveAttempt(env, key, name ? 5 : 30);
   return { key, expiresAt };
 }
 
@@ -191,54 +198,83 @@ function cleanExpired(env) {
   ];
 }
 
-export async function login(request, env, body) {
-  const memberCode = typeof body.memberCode === 'string' ? body.memberCode.trim().toLowerCase() : '';
-  const credential = typeof body.credential === 'string' ? body.credential : '';
-  if ((memberCode !== 'admin' && !/^[0-9a-f]{16}$/.test(memberCode)) || !credential || credential.length > 128) {
-    throw new ApiError(400, '회원 코드와 비밀번호를 확인해 주세요.');
+async function startSession(request, env, user, limits, remember = false) {
+  const { token, statement } = await sessionInsert(env, user, remember);
+  const previous = cookieToken(request, env, user.role);
+  const statements = [statement, ...cleanExpired(env)];
+  for (const { key, expiresAt } of limits) statements.push(...releaseAttempt(env, key, expiresAt));
+  if (previous) {
+    statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ?',
+      await sessionHash(env, user.role, previous), user.role));
   }
-  const source = await ipLimit(env, request, 'login');
-  const row = memberCode === 'admin' ? null : await sql(env.DB, `
-    SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
-    FROM members WHERE code_hash = ?
-  `, await codeHash(env, memberCode)).first();
-  // Admin uses a high-entropy secret and the source limit. A shared counter
-  // for the public username would let unauthenticated requests lock out the organizer.
-  const limitKey = row ? memberLimitKey('login', row.id) : null;
-  const expiresAt = limitKey ? await reserveAttempt(env, limitKey, 5) : null;
-
-  let user;
-  if (memberCode === 'admin') {
-    const version = await adminVersion(env, adminPassword(env));
-    const actual = await adminVersion(env, credential);
-    if (equalDigest(version, actual)) {
-      user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
-    }
-  } else {
-    const actual = await credentialHash(env, credential, row?.credential_salt || '00000000000000000000000000000000');
-    if (row?.active && equalDigest(row.credential_hash, actual)) {
-      user = { id: row.id, name: row.name, role: 'member', mustChange: Boolean(row.must_change), version: row.credential_version };
-    }
-  }
-  if (!user) {
-    await env.DB.batch(cleanExpired(env));
-    throw new ApiError(401, '회원 코드 또는 비밀번호가 맞지 않아요.');
-  }
-
-  const { token, statement } = await sessionInsert(env, user);
-  const previous = cookieToken(request, env);
-  const statements = [statement, ...cleanExpired(env), ...releaseAttempt(env, source.key, source.expiresAt)];
-  if (limitKey) statements.push(...releaseAttempt(env, limitKey, expiresAt));
-  if (previous) statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ?', await sessionHash(env, previous)));
   const results = await env.DB.batch(statements);
   if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
-  return { user: clientUser(user), cookie: sessionCookie(request, env, token) };
+  return { user: clientUser(user), cookie: sessionCookie(request, env, user.role, token, remember) };
 }
 
-export async function logout(request, env) {
-  const token = cookieToken(request, env);
-  if (token) await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ?', await sessionHash(env, token)).run();
-  return sessionCookie(request, env);
+export async function membersNamed(env, name, input = name) {
+  // New rows use NFC. Preserve exact and decomposed spellings already stored.
+  const { results } = await sql(env.DB, `
+    SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
+    FROM members WHERE name IN (?, ?, ?)
+  `, name, name.normalize('NFD'), input).all();
+  return results;
+}
+
+export async function matchingCredentials(env, candidates, credential) {
+  const matches = await Promise.all(candidates.map(async row => {
+    const actual = await credentialHash(env, credential, row.credential_salt);
+    return equalDigest(row.credential_hash, actual) ? row : null;
+  }));
+  return matches.filter(Boolean);
+}
+
+export async function login(request, env, body) {
+  const input = typeof body.name === 'string' ? body.name.trim() : '';
+  const name = input.normalize('NFC');
+  const { credential } = body;
+  if (!name || name.length > 60 || name.includes('\0')
+    || typeof credential !== 'string' || !credential || credential.length > 128) {
+    throw new ApiError(400, '이름과 비밀번호를 확인해 주세요.');
+  }
+  const source = await ipLimit(env, request, 'member-login');
+  const namedSource = await ipLimit(env, request, 'member-login', name);
+  const candidates = (await membersNamed(env, name, input)).filter(row => row.active);
+  if (!candidates.length) await credentialHash(env, credential, '00000000000000000000000000000000');
+  const matching = await matchingCredentials(env, candidates, credential);
+  if (matching.length !== 1) {
+    await env.DB.batch(cleanExpired(env));
+    throw new ApiError(401, '이름 또는 비밀번호가 맞지 않아요.');
+  }
+  const row = matching[0];
+  const user = { id: row.id, name: row.name, role: 'member', mustChange: Boolean(row.must_change), version: row.credential_version };
+  return startSession(request, env, user, [source, namedSource]);
+}
+
+export async function loginAdmin(request, env, body) {
+  const { adminId, credential, remember = false } = body;
+  if (!isAdminId(adminId) || typeof credential !== 'string' || !credential || credential.length > 128
+    || typeof remember !== 'boolean') {
+    throw new ApiError(400, '아이디와 비밀번호를 확인해 주세요.');
+  }
+  const source = await ipLimit(env, request, 'admin-login');
+  const { id, password } = adminSettings(env);
+  const version = await adminVersion(env, id, password);
+  const actual = await adminVersion(env, adminId, credential);
+  if (!equalDigest(version, actual)) {
+    await env.DB.batch(cleanExpired(env));
+    throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요.');
+  }
+  const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
+  return startSession(request, env, user, [source], remember);
+}
+
+export async function logout(request, env, role) {
+  const token = cookieToken(request, env, role);
+  if (token) {
+    await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ?', await sessionHash(env, role, token), role).run();
+  }
+  return sessionCookie(request, env, role);
 }
 
 function weakPin(pin) {
@@ -274,7 +310,7 @@ export async function changePin(request, env, user, body) {
       UPDATE members SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
       WHERE id = ? AND active = 1 AND credential_version = ?
     `, version, salt, hash, user.id, user.version),
-    sql(env.DB, 'DELETE FROM sessions WHERE member_id = ? AND credential_version = ?', user.id, user.version),
+    sql(env.DB, `DELETE FROM sessions WHERE role = 'member' AND member_id = ? AND credential_version = ?`, user.id, user.version),
     statement,
     ...releaseAttempt(env, source.key, source.expiresAt),
     ...releaseAttempt(env, limitKey, expiresAt),
@@ -282,17 +318,16 @@ export async function changePin(request, env, user, body) {
   if (!results[0].meta.changes || !results[2].meta.changes) {
     throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
   }
-  return { user: clientUser(updated), cookie: sessionCookie(request, env, token) };
+  return { user: clientUser(updated), cookie: sessionCookie(request, env, 'member', token) };
 }
 
 export async function makeMemberCredential(env, activationSecret) {
-  const memberCode = randomHex(8);
   const salt = randomHex(16);
-  const [hashedCode, hash] = await Promise.all([codeHash(env, memberCode), credentialHash(env, activationSecret, salt)]);
-  return { memberCode, hashedCode, hash, salt, version: randomHex(16) };
+  const hash = await credentialHash(env, activationSecret, salt);
+  return { hash, salt, version: randomHex(16) };
 }
 
 export function temporaryPin() {
-  // A reset secret is a random one-time code rather than another birthday.
+  // A reset replaces the current credential with a randomly generated secret.
   return randomHex(8);
 }

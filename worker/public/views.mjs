@@ -96,44 +96,35 @@ function voteLabel(slot, event) {
   return '미응답';
 }
 
-export function loginForm(admin = false) {
-  const member = admin ? '' : field('회원 코드', 'memberCode', '', {
-    attrs: 'autocomplete="username" autocapitalize="off" spellcheck="false" pattern="[0-9a-fA-F]{16}" minlength="16" maxlength="16" required',
-    help: '운영진이 개인에게 보내준 코드를 입력해 주세요.',
-  });
-  const password = field(admin ? '운영진 비밀번호' : '생년월일 또는 PIN', 'credential', '', {
-    type: 'password',
-    attrs: admin ? 'autocomplete="current-password" required' : 'autocomplete="current-password" maxlength="20" required',
-    help: admin ? '' : '처음이면 생년월일 8자리, 재설정한 경우에는 운영진에게 받은 임시 번호를 입력합니다.',
-  });
-  return form('login', member + password, admin ? '운영진 로그인' : '회원 로그인');
+function memberLoginForm(savedName) {
+  return form('login', field('이름', 'name', savedName, {
+    attrs: 'autocomplete="off" maxlength="60" required',
+    help: '모임에 등록된 이름을 입력해 주세요.',
+  }) + field('생년월일 또는 PIN', 'credential', '', {
+    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
+    help: '처음에는 생년월일 8자리, PIN을 설정한 뒤에는 PIN을 입력합니다. 재설정했다면 운영진이 준 임시 번호를 입력해 주세요.',
+  }) + check('이 기기에서 30일 동안 이름 기억', 'rememberName', Boolean(savedName)), '회원 로그인');
 }
 
-export function pinForm(mustChange) {
-  return form('pin', field(mustChange ? '처음 로그인한 번호' : '현재 PIN', 'currentPin', '', {
-    type: 'password', attrs: 'autocomplete="current-password" pattern="[0-9a-fA-F]{6,20}" maxlength="20" required',
-    help: mustChange ? '처음 로그인에 사용한 생년월일 또는 임시 번호를 한 번 더 입력해 주세요.' : '',
+export function pinForm() {
+  return form('pin', field('현재 로그인 번호', 'currentPin', '', {
+    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
+    help: '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
   }) + field('새 PIN', 'newPin', '', {
     type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required',
     help: '6~10자리 숫자를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
   }) + field('새 PIN 확인', 'confirmPin', '', {
     type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required',
-  }), mustChange ? 'PIN 정하고 계속하기' : 'PIN 변경');
+  }), '새 PIN 저장');
 }
 
-export function memberVoteScreen(event, user, vote, eligible, club) {
+export function memberVoteScreen(event, vote, eligible, club) {
   const head = hero(event.title, `${club.name} 참석 투표`, [dateLine(event), event.place]);
   const hint = `<div class="help-box">응답 마감 ${esc(deadlineLabel(event.deadline))}${event.notes ? `<p class="preserve">${esc(event.notes)}</p>` : ''}</div>`;
   let panel = '<p>투표가 마감됐습니다.</p>';
-  if (user?.role === 'admin') {
-    panel = `<p>운영진 화면에서 응답을 확인하거나 수정할 수 있어요.</p><a class="button secondary" href="${esc(club.admin)}">운영진 화면 열기</a>`;
-  } else if (user?.mustChange) {
-    panel = '<h2>사용할 PIN을 정해 주세요</h2><p>다음부터는 생년월일 대신 새 PIN으로 로그인합니다.</p>' + pinForm(true);
-  } else if (event.canVote && !user) {
-    panel = '<h2>운동 참석을 알려 주세요</h2>' + loginForm();
-  } else if (event.canVote && eligible && user) {
+  if (event.canVote && eligible) {
     panel = '<h2>운동 참석을 알려 주세요</h2>' + form('vote', voteFields(event, vote), vote ? '응답 변경' : '응답 저장', event.id);
-  } else if (user && !eligible && event.canVote) {
+  } else if (event.canVote) {
     panel = '<h2>이 회차에 응답할 수 없어요</h2><p>운영진에게 참석 명단을 확인해 주세요.</p>';
   }
   const current = vote ? `<p role="status" class="badge">내 응답 ${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' / 점심 참여' : ''}</p>` : '';
@@ -154,7 +145,7 @@ export function adminShell(section, contents) {
   return `<div class="stack stack-wide"><nav class="tabbar" aria-label="운영 메뉴">${tabs.map(([name, title]) => `<button type="button" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${title}</button>`).join('')}</nav>${contents}</div>`;
 }
 
-export function homeScreen(user, { events, notices }, club) {
+export function homeScreen({ events, notices }, club) {
   const eventRows = events.map(event => {
     const action = event.canVote ? '투표하기' : '일정 확인';
     return `<li class="row public-record"><div><b>${esc(event.title)}</b>
@@ -163,19 +154,29 @@ export function homeScreen(user, { events, notices }, club) {
   });
   const noticeRows = notices.map(notice => `<li class="row public-record"><div><a href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">${esc(notice.title)}</a></div>
     <time class="sub" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></li>`);
-  const adminLink = user?.role === 'admin' ? '운영진 화면' : '운영진 로그인';
   return `<div class="stack">${hero(club.name, '모임 홈', club.subtitle ? [club.subtitle] : [])}
-    ${user?.mustChange ? `<section class="panel"><h2>사용할 PIN을 정해 주세요</h2>${pinForm(true)}</section>` : ''}
-    <section class="panel"><h2>운동 일정</h2>${list(eventRows, '공개된 운동 일정이 없습니다.')}</section>
-    <section class="panel"><h2>공지</h2>${list(noticeRows, '공개된 공지가 없습니다.')}</section>
-    ${!user ? `<details class="panel member-access"><summary>회원 로그인</summary>${loginForm()}</details>` : ''}
-    <div class="actions club-admin-link"><a href="${esc(club.admin)}">${adminLink}</a></div></div>`;
+    <section class="panel"><h2>운동 일정</h2>${list(eventRows, '게시된 운동 일정이 없습니다.')}</section>
+    <section class="panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section>
+    <div class="actions club-admin-link"><a href="${esc(club.admin)}">운영진 화면</a></div></div>`;
+}
+
+export function memberLoginScreen(club, savedName, kind) {
+  const prompt = kind === 'vote' ? '로그인하면 투표 화면이 열려요.'
+    : kind === 'notice' ? '로그인하면 공지를 볼 수 있어요.' : '로그인하면 이 모임의 일정과 공지를 볼 수 있어요.';
+  return `<div class="stack">${hero(club.name, '회원 로그인', club.subtitle ? [club.subtitle] : [])}
+    <section class="panel"><p>${prompt}</p>${memberLoginForm(savedName)}</section>
+    <div class="actions club-admin-link"><a href="${esc(club.admin)}">운영진 로그인</a></div></div>`;
 }
 
 export function adminLoginScreen(club) {
+  const login = form('login', field('운영진 ID', 'adminId', '', {
+    attrs: 'autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="64" required',
+  }) + field('운영진 비밀번호', 'credential', '', {
+    type: 'password', attrs: 'autocomplete="current-password" maxlength="128" required',
+  }) + check('이 기기에서 30일 동안 로그인 유지', 'remember'), '운영진 로그인');
   return `<div class="stack">${hero('운영진 로그인', club.name)}
-    <section class="panel"><p>이 모임의 운영진 비밀번호로 로그인해 주세요.</p>${loginForm(true)}</section>
-    <div class="actions"><a href="${esc(club.home)}">모임 홈으로</a></div></div>`;
+    <section class="panel"><p>이 모임의 운영진 계정으로 로그인해 주세요.</p>${login}</section>
+    <div class="actions"><a href="${esc(club.home)}">회원 화면으로</a></div></div>`;
 }
 
 export function eventForm(event, id = '') {
@@ -192,7 +193,7 @@ export function eventForm(event, id = '') {
       ${field('투표 마감 (한국 시간)', 'deadline', event.deadline, { type: 'datetime-local', wide: true, attrs: 'required' })}
     </div>`
     + textarea('공개 안내', 'notes', event.notes, 'maxlength="3000" placeholder="날짜별 준비물이나 안내를 적어 주세요."')
-    + '<p class="help">투표 링크에서 누구나 볼 수 있는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.</p>'
+    + '<p class="help">로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.</p>'
     + check('카톡 공유 링크 공개', 'published', event.published)
     + check('웹 투표 열기', 'open', event.open),
     id ? '회차 저장' : '회차 만들기', id);
@@ -326,7 +327,7 @@ export function membersScreen(members) {
   const rows = members.map(member => `<li class="row" data-search="${esc(member.name)}"><div><b>${esc(member.name)}</b> <span class="badge">${member.active ? '활동 중' : '비활성'}</span></div><div class="actions">
     ${button('회원 수정', 'edit-member', { id: member.id, css: 'secondary compact' })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'quiet compact', disabled: !member.active })}</div></li>`);
   return `<div class="stack"><div class="heading-line"><h1>회원 관리</h1>${button('회원 추가', 'new-member')}</div>
-    <section class="panel"><p class="help">회원 코드는 가입할 때 한 번 보여드립니다. 개인 메시지로 전달해 주세요.</p>
+    <section class="panel"><p class="help">회원은 등록한 이름과 생년월일 8자리로 처음 로그인합니다.</p>
     ${search('회원 이름 검색', 'members')}${list(rows, '등록된 회원이 없습니다.')}</section></div>`;
 }
 
@@ -336,14 +337,14 @@ export function memberForm(member = null) {
     + (member ? check('활동 회원', 'active', member.active) : field('생년월일 8자리', 'birthday', '', {
       type: 'password', attrs: 'inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" required',
       help: '회원이 첫 로그인에 입력합니다. 가입 처리 후에는 이 화면에서 조회할 수 없어요.',
-    })), member ? '회원 저장' : '등록하고 회원 코드 받기', member?.id);
+    })), member ? '회원 저장' : '회원 등록', member?.id);
 }
 
 export function noticeForm(notice = null) {
   return form('notice',
     field('제목', 'title', notice?.title, { attrs: 'required maxlength="120"' })
     + textarea('공지 내용', 'body', notice?.body, 'required maxlength="4000"')
-    + '<p class="help">공개한 공지는 링크를 가진 누구나 볼 수 있습니다. 계좌번호와 개인 정보는 공지에서 빼 주세요.</p>'
+    + '<p class="help">공개한 공지는 로그인한 회원이 볼 수 있습니다. 계좌번호와 개인 정보는 공지에서 빼 주세요.</p>'
     + check('링크 공개', 'published', notice?.published), '공지 저장', notice?.id);
 }
 

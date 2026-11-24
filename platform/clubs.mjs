@@ -8,6 +8,7 @@ export const CLUBS = [
     schedule: '일요일',
     defaultPlace: '당고개 배드민턴체육관',
     databaseBinding: 'DB',
+    adminIdBinding: 'CLUB_ADMIN_ID',
     adminPasswordBinding: 'CLUB_ADMIN_PASSWORD',
     authPepperBinding: 'CLUB_AUTH_PEPPER',
   },
