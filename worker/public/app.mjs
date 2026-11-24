@@ -117,10 +117,11 @@ function hideMessage() {
   message.hidden = true;
 }
 
-function showMessage(text, error = false) {
+function showMessage(text, error = false, { visuallyHidden = false } = {}) {
   clearTimeout(messageTimer);
   message.textContent = text;
   message.classList.toggle('error', error);
+  message.classList.toggle('visually-hidden', visuallyHidden);
   message.hidden = false;
   messageTimer = setTimeout(() => { message.hidden = true; }, 5000);
 }
@@ -187,7 +188,7 @@ async function load() {
   }
 }
 
-function render() {
+function render({ voteSaved = false } = {}) {
   const search = main.querySelector('input[data-filter]');
   renderAccount();
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
@@ -195,7 +196,7 @@ function render() {
   if (!state.user) {
     main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, signIn.otherCredential);
   } else if (route.kind === 'vote') {
-    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club);
+    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved);
   } else if (route.kind === 'notice') {
     main.innerHTML = noticeScreen(state.notice, club);
   } else if (route.kind === 'home') {
@@ -587,9 +588,9 @@ async function doSubmit(kind, itemId, data) {
     }
     case 'vote':
       ({ vote: state.vote } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') }));
-      render();
+      render({ voteSaved: true });
       main.querySelector('[data-form="vote"] button[type="submit"]')?.focus({ preventScroll: true });
-      showMessage('응답을 저장했어요.');
+      showMessage('응답을 저장했어요.', false, { visuallyHidden: true });
       break;
     case 'event': {
       const values = buildEvent(data);

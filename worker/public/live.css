@@ -277,6 +277,7 @@ button.login-help-button { width: 44px; flex: none; color: var(--muted); font-si
 .member-record-arrow { padding-inline: .35rem; color: var(--muted); font-size: 1.3rem; line-height: 1; }
 .member-answer { display: flex; flex-wrap: wrap; gap: .2rem .65rem; align-items: baseline; padding: .45rem .6rem; border-radius: 6px; background: var(--hint); }
 .member-answer span { color: var(--muted); font-size: .88rem; }
+.member-answer .member-confirmed { margin-inline-start: auto; color: var(--action); font-weight: 700; }
 .member-vote .choice, .member-vote .check { min-height: var(--touch-target); }
 .member-vote .choice { padding: .5rem .7rem; border-color: #8b949e; border-radius: 5px; background: white; }
 .member-vote .choice:has(input:checked) { border-color: var(--action); background: var(--leaf); }
@@ -315,8 +316,10 @@ hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: .15rem 0
   background: var(--court);
   color: #fff;
   box-shadow: 0 5px 18px #19443a30;
+  pointer-events: none;
 }
 .message.error { background: var(--alert); }
+.message.visually-hidden { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 dialog {
   position: fixed;
   max-width: none;

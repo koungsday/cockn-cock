@@ -117,7 +117,7 @@ function memberDetailHeader(title, type, club, meta = '') {
   </header>`;
 }
 
-export function memberVoteScreen(event, vote, eligible, club) {
+export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
   const notes = event.notes ? `<div class="member-guidance"><h2>운동 안내</h2><p class="preserve member-copy">${esc(event.notes)}</p></div>` : '';
   const brief = `<div class="member-brief"><dl class="member-facts">
     <div><dt>일시</dt><dd>${esc(dateLine(event))}</dd></div>
@@ -131,7 +131,7 @@ export function memberVoteScreen(event, vote, eligible, club) {
   } else if (event.canVote) {
     panel = '<h2>이 회차에 응답할 수 없어요</h2><p>운영진에게 참석 명단을 확인해 주세요.</p>';
   }
-  const current = vote ? `<p role="status" class="member-answer"><span>내 응답</span><strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' / 점심 참여' : ''}</strong></p>` : '';
+  const current = vote ? `<p class="member-answer"><span>내 응답</span><strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' / 점심 참여' : ''}</strong>${voteSaved ? '<span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   return `<div class="member-content">${head}<section class="panel member-panel member-vote" aria-label="투표 응답">${current}${panel}</section></div>`;
 }
 
