@@ -18,13 +18,14 @@ const bodyLimit = 24 * 1024;
 const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published';
 const noticeFields = 'id, title, body, date, published';
 
-function json(body, status = 200, cookie) {
+function json(body, status = 200, cookie, deviceCookie) {
   const headers = new Headers({
     'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
     'Cross-Origin-Resource-Policy': 'same-origin'
   });
   if (cookie) headers.set('Set-Cookie', cookie);
+  if (deviceCookie) headers.append('Set-Cookie', deviceCookie);
   return Response.json(body, { status, headers });
 }
 
@@ -140,11 +141,17 @@ function toEpoch(value) {
 
 function parseBirthday(value) {
   if (typeof value !== 'string') bad('생년월일을 확인해 주세요.');
-  const birthday = /^\d{8}$/.test(value)
-    ? value.slice(0, 4) + '-' + value.slice(4, 6) + '-' + value.slice(6, 8)
-    : value;
-  if (!validDate(birthday) || birthday > kstToday()) bad('생년월일을 확인해 주세요.');
-  return birthday.replaceAll('-', '');
+  const raw = datePattern.test(value) ? value.replaceAll('-', '') : value;
+  const candidates = /^\d{6}$/.test(raw) ? ['19' + raw, '20' + raw] : [raw];
+  const today = kstToday();
+  if (!candidates.some(digits => {
+    if (!/^\d{8}$/.test(digits)) return false;
+    const birthday = digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8);
+    return validDate(birthday) && birthday <= today;
+  })) {
+    bad('생년월일을 확인해 주세요.');
+  }
+  return raw.slice(-6);
 }
 
 function serializeEvent(row) {
@@ -307,7 +314,7 @@ async function addMember(env, body) {
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
-  if ((await matchingCredentials(env, candidates, birthday)).length) {
+  if ((await matchingCredentials(env, candidates, birthday, true)).length) {
     throw new ApiError(409, '같은 이름과 로그인 번호를 사용하는 회원이 있어요. 회원 목록을 확인해 주세요.');
   }
   const { hash, salt, version } = await makeMemberCredential(env, birthday);
@@ -639,7 +646,7 @@ async function route(request, env) {
   if (path === '/api/login') {
     if (method !== 'POST') methodNotAllowed();
     const session = await login(request, env, body);
-    return json({ user: session.user }, 200, session.cookie);
+    return json({ user: session.user }, 200, session.cookie, session.deviceCookie);
   }
   if (path === authPath + '/logout') {
     if (method !== 'POST') methodNotAllowed();

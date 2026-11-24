@@ -1,6 +1,8 @@
 const encoder = new TextEncoder();
 const memberSessionAge = 12 * 60 * 60;
 const adminSessionAge = 30 * 24 * 60 * 60;
+const adminDeviceAge = 90 * 24 * 60 * 60;
+const adminDeviceCookie = 'admin-device';
 const invalidLogin = '입력한 로그인 정보를 확인해 주세요.';
 const attemptWindow = 15 * 60;
 
@@ -59,8 +61,12 @@ export function equalDigest(a, b) {
 }
 
 export function isAdminId(value) {
-  return typeof value === 'string' && value === value.trim()
-    && /^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$/.test(value);
+  return typeof value === 'string' && value.length <= 64 && value === value.trim()
+    && (/^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$/.test(value) || /^[가-힣]+(?: [가-힣]+)*$/.test(value));
+}
+
+export function isAdminPin(value) {
+  return typeof value === 'string' && value.length === 6 && /^\d{6}$/.test(value);
 }
 
 async function adminVersion(env, id, password) {
@@ -70,11 +76,13 @@ async function adminVersion(env, id, password) {
 function adminSettings(env) {
   const id = env.CLUB_ADMIN_ID;
   const password = env.CLUB_ADMIN_PASSWORD;
+  const pin = env.CLUB_ADMIN_PIN;
   if (!isAdminId(id) || typeof password !== 'string' || password.length < 16
-    || password.length > 128 || !password.trim() || password === id) {
+    || password.length > 128 || !password.trim() || password === id
+    || (pin !== undefined && !isAdminPin(pin))) {
     throw new ApiError(503, '운영진 인증 설정을 확인해 주세요.');
   }
-  return { id, password };
+  return { id, password, pin };
 }
 
 function cookieName(request, env, role) {
@@ -90,15 +98,40 @@ function sessionCookie(request, env, role, token = '') {
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 
-function cookieToken(request, env, role) {
+function cookieToken(request, env, role, format = /^[0-9a-f]{64}$/) {
   const name = cookieName(request, env, role) + '=';
   for (const cookie of (request.headers.get('cookie') || '').split(';')) {
     const value = cookie.trim();
-    if (value.startsWith(name) && /^[0-9a-f]{64}$/.test(value.slice(name.length))) {
-      return value.slice(name.length);
-    }
+    if (value.startsWith(name) && format.test(value.slice(name.length))) return value.slice(name.length);
   }
   return null;
+}
+
+async function adminPinVersion(env, strongVersion, pin) {
+  return sha256('admin-pin\0' + pepper(env) + '\0' + strongVersion + '\0' + pin);
+}
+
+async function adminDeviceSignature(env, pinVersion, timestamp, nonce) {
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(pepper(env)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const data = ['admin-device', env.CLUB_SCOPE ?? 'suncok19', pinVersion, timestamp, nonce].join('\0');
+  return bytesAsHex(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(data))));
+}
+
+async function makeAdminDevice(request, env, pinVersion) {
+  const expiry = currentSeconds() + adminDeviceAge;
+  const nonce = randomHex(16);
+  const signature = await adminDeviceSignature(env, pinVersion, expiry, nonce);
+  return `${cookieName(request, env, adminDeviceCookie)}=${expiry}.${nonce}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${adminDeviceAge}; Secure`;
+}
+
+async function hasAdminDevice(request, env, pinVersion) {
+  const proof = cookieToken(request, env, adminDeviceCookie, /^\d{1,12}\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
+  if (!proof) return false;
+  const [expiry, nonce, signature] = proof.split('.');
+  if (Number(expiry) <= currentSeconds()) return false;
+  return equalDigest(signature, await adminDeviceSignature(env, pinVersion, expiry, nonce));
 }
 
 async function sessionHash(env, role, token) {
@@ -124,10 +157,13 @@ export async function readSession(request, env, role) {
   if (!found) return null;
 
   if (found.role === 'admin') {
-    const { id, password } = adminSettings(env);
+    const { id, password, pin } = adminSettings(env);
     const version = await adminVersion(env, id, password);
-    if (!equalDigest(version, found.session_version)) return null;
-    return { id: 'admin', name: '운영진', role: 'admin', mustChange: false, tokenHash, version };
+    if (!equalDigest(version, found.session_version)) {
+      const pinVersion = pin && await adminPinVersion(env, version, pin);
+      if (!equalDigest(pinVersion, found.session_version)) return null;
+    }
+    return { id: 'admin', name: '운영진', role: 'admin', mustChange: false, tokenHash, version: found.session_version };
   }
   if (!found.active || found.member_version !== found.session_version) return null;
   return {
@@ -222,10 +258,31 @@ export async function membersNamed(env, name, input = name) {
   return results;
 }
 
-export async function matchingCredentials(env, candidates, credential) {
+function fullBirthday(value) {
+  if (!/^(?:19|20)\d{6}$/.test(value)) return false;
+  const date = value.slice(0, 4) + '-' + value.slice(4, 6) + '-' + value.slice(6, 8);
+  const parsed = new Date(date + 'T00:00:00Z');
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === date;
+}
+
+async function matchedMemberSecret(env, row, credential, checkLegacyBirthdays = false) {
+  const variants = [credential];
+  if (row.must_change) {
+    if (fullBirthday(credential)) variants.push(credential.slice(2));
+    if (checkLegacyBirthdays && /^\d{6}$/.test(credential)) {
+      variants.push(...['19' + credential, '20' + credential].filter(fullBirthday));
+    }
+  }
+  for (const value of variants) {
+    const actual = await credentialHash(env, value, row.credential_salt);
+    if (equalDigest(row.credential_hash, actual)) return value;
+  }
+  return null;
+}
+
+export async function matchingCredentials(env, candidates, credential, checkLegacyBirthdays = false) {
   const matches = await Promise.all(candidates.map(async row => {
-    const actual = await credentialHash(env, credential, row.credential_salt);
-    return equalDigest(row.credential_hash, actual) ? row : null;
+    return await matchedMemberSecret(env, row, credential, checkLegacyBirthdays) ? row : null;
   }));
   return matches.filter(Boolean);
 }
@@ -241,14 +298,22 @@ export async function login(request, env, body) {
   const source = await ipLimit(env, request, 'login');
   const namedSource = await ipLimit(env, request, 'login', name);
   const limits = [source, namedSource];
-  const { id, password } = adminSettings(env);
+  const { id, password, pin } = adminSettings(env);
   const [version, submitted] = await Promise.all([
     adminVersion(env, id, password),
-    adminVersion(env, input, credential)
+    adminVersion(env, name, credential)
   ]);
-  if (equalDigest(version, submitted)) {
-    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
-    return startSession(request, env, user, limits);
+  const strong = equalDigest(version, submitted);
+  const secure = new URL(request.url).protocol === 'https:';
+  let adminSessionVersion = strong ? version : null;
+  const pinVersion = secure && pin && (strong || (name === id && equalDigest(credential, pin)))
+    ? await adminPinVersion(env, version, pin) : null;
+  if (pinVersion && !strong && await hasAdminDevice(request, env, pinVersion)) adminSessionVersion = pinVersion;
+  if (adminSessionVersion) {
+    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version: adminSessionVersion };
+    const session = await startSession(request, env, user, limits);
+    if (strong && pinVersion) session.deviceCookie = await makeAdminDevice(request, env, pinVersion);
+    return session;
   }
 
   // Failed attempts follow the same path and message regardless of the account type.
@@ -288,12 +353,13 @@ export async function changePin(request, env, user, body) {
   const limitKey = memberLimitKey('pin', user.id);
   const expiresAt = await reserveAttempt(env, limitKey, 5);
   const row = await sql(env.DB, `
-    SELECT credential_salt, credential_hash FROM members
+    SELECT credential_salt, credential_hash, must_change FROM members
     WHERE id = ? AND active = 1 AND credential_version = ?
   `, user.id, user.version).first();
   if (!row) throw new ApiError(401, '다시 로그인해 주세요.');
-  const actual = await credentialHash(env, currentPin, row.credential_salt);
-  if (!equalDigest(row.credential_hash, actual)) throw new ApiError(400, '현재 비밀번호가 맞지 않아요.');
+  const matched = await matchedMemberSecret(env, row, currentPin);
+  if (!matched) throw new ApiError(400, '현재 비밀번호가 맞지 않아요.');
+  if (matched === newPin) throw new ApiError(400, '현재 비밀번호와 다른 PIN을 입력해 주세요.');
 
   const version = randomHex(16);
   const salt = randomHex(16);

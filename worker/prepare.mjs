@@ -11,7 +11,10 @@ await rm(site, { recursive: true, force: true });
 await cp(new URL('./public/', import.meta.url), site, { recursive: true });
 await copyFile(new URL('../platform/platform.css', import.meta.url), new URL('./platform.css', site));
 await mkdir(new URL('./assets/', site), { recursive: true });
-for (const file of ['court.webp', 'kakao-vote.png', 'kakao-notice.png', 'admin-icon-192.png', 'admin-icon-512.png']) {
+for (const file of [
+  'court.webp', 'kakao-vote.png', 'kakao-notice.png', 'admin-icon-192.png', 'admin-icon-512.png',
+  'shuttlecock-icon-96.png', 'shuttlecock-icon-192.png', 'shuttlecock-icon-512.png',
+]) {
   await copyFile(new URL('../assets/' + file, import.meta.url), new URL('./assets/' + file, site));
 }
 

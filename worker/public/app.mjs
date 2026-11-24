@@ -1,6 +1,6 @@
 import {
   adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
-  guestForm, homeScreen, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
+  guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
 
@@ -46,6 +46,7 @@ let busy = false;
 let messageTimer;
 let eventSnapshot = null;
 let navigationVersion = 0;
+const signIn = { name: null, numberStep: false, otherCredential: false };
 
 const authRole = route?.kind === 'admin' ? 'admin' : 'member';
 const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
@@ -104,6 +105,12 @@ async function request(url, method = 'GET', body = undefined) {
 const id = value => encodeURIComponent(value);
 const adminEventPath = () => `/api/admin/events/${id(state.selectedEvent)}`;
 const votePath = () => `/api/votes/${id(route.id)}`;
+
+function hideMessage() {
+  clearTimeout(messageTimer);
+  message.textContent = '';
+  message.hidden = true;
+}
 
 function showMessage(text, error = false) {
   clearTimeout(messageTimer);
@@ -177,7 +184,7 @@ function render() {
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
   if (!state.user) {
-    main.innerHTML = loginScreen(club, rememberedName());
+    main.innerHTML = loginScreen(signIn.name ?? rememberedName(), signIn.numberStep, signIn.otherCredential);
   } else if (route.kind === 'vote') {
     main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club);
   } else if (route.kind === 'notice') {
@@ -207,13 +214,12 @@ function clearProtectedView() {
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
+  Object.assign(signIn, { name: null, numberStep: false, otherCredential: false });
   if (dialog.open) dialog.close();
   dialog.replaceChildren();
   account.replaceChildren();
   document.title = clubTitle;
-  clearTimeout(messageTimer);
-  message.textContent = '';
-  message.hidden = true;
+  hideMessage();
   main.classList.add('narrow');
   main.innerHTML = loadingMarkup;
 }
@@ -279,9 +285,9 @@ function openDialog(title, body) {
 }
 
 function credentialDialog(name, temporaryPin) {
-  const text = `${club.name} 접속 안내\n이름 ${name}\n임시 번호 ${temporaryPin}\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
+  const text = `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력한 뒤 도움말 ⓘ에서 ‘다른 번호 입력’을 선택해 임시 번호를 붙여넣어 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
   openDialog('회원에게 보낼 접속 안내', `<p>${esc(name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요.</p>
-    <textarea class="copy-text" readonly rows="5" aria-label="회원 접속 안내">${esc(text)}</textarea>
+    <textarea class="copy-text" readonly rows="6" aria-label="회원 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
 }
 
@@ -330,6 +336,19 @@ function shareLink(kind, itemId) {
   return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
 }
 
+function showLoginStep() {
+  hideMessage();
+  render();
+  main.querySelector('.login-form input').focus();
+}
+
+function updateLoginCode(input) {
+  const cells = input.nextElementSibling.children;
+  for (let index = 0; index < cells.length; index++) {
+    cells[index].toggleAttribute('data-filled', index < input.value.length);
+  }
+}
+
 async function doAction(action, itemId) {
   switch (action) {
     case 'reload':
@@ -337,6 +356,20 @@ async function doAction(action, itemId) {
       break;
     case 'close':
       dialog.close();
+      break;
+    case 'login-help':
+      hideMessage();
+      openDialog('로그인 도움말', loginHelp(signIn.numberStep, signIn.otherCredential));
+      break;
+    case 'login-back':
+      signIn.numberStep = false;
+      signIn.otherCredential = false;
+      showLoginStep();
+      break;
+    case 'login-credential-mode':
+      signIn.otherCredential = !signIn.otherCredential;
+      dialog.close();
+      showLoginStep();
       break;
     case 'logout':
       await request(authPath('logout'), 'POST', {});
@@ -458,9 +491,17 @@ function buildEvent(data) {
 
 async function doSubmit(kind, itemId, data) {
   switch (kind) {
+    case 'login-name': {
+      const name = read(data, 'name');
+      if (!name) throw new Error('성함을 입력해 주세요.');
+      signIn.name = name;
+      signIn.numberStep = true;
+      showLoginStep();
+      break;
+    }
     case 'login': {
       const { user } = await request('/api/login', 'POST', {
-        name: read(data, 'name'), credential: raw(data, 'credential'),
+        name: signIn.name, credential: raw(data, 'credential'),
       });
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);
@@ -634,7 +675,27 @@ function applyFilter(control) {
 }
 
 main.addEventListener('input', event => {
-  if (event.target.dataset.filter) applyFilter(event.target);
+  const input = event.target;
+  if (input.hasAttribute('data-login-code')) {
+    const digits = input.value.replace(/[^0-9]/g, '');
+    if (input.value !== digits) input.value = digits;
+    updateLoginCode(input);
+  } else if (input.dataset.filter) applyFilter(input);
+});
+
+main.addEventListener('paste', event => {
+  const input = event.target;
+  if (!input.hasAttribute('data-login-code') || !event.clipboardData) return;
+  const digits = event.clipboardData.getData('text').replace(/[\s.-]/g, '');
+  event.preventDefault();
+  if (!/^[0-9]{1,6}$/.test(digits)) return;
+  if (digits.length === 6) input.value = digits;
+  else {
+    const { selectionStart, selectionEnd } = input;
+    const available = 6 - input.value.length + selectionEnd - selectionStart;
+    input.setRangeText(digits.slice(0, available), selectionStart, selectionEnd, 'end');
+  }
+  updateLoginCode(input);
 });
 
 dialog.addEventListener('close', () => {

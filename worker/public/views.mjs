@@ -149,15 +149,38 @@ export function homeScreen({ events, notices }, club) {
     <section class="panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section></div>`;
 }
 
-export function loginScreen(club, savedName) {
-  const login = form('login', field('이름 또는 아이디', 'name', savedName, {
-    attrs: 'autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" required',
-  }) + field('생년월일 또는 비밀번호', 'credential', '', {
-    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
-    help: '회원은 처음에 생년월일 8자리를 입력해 주세요. PIN을 설정했거나 임시 번호를 받았다면 그 번호를 입력해 주세요.',
-  }), '로그인');
-  return `<div class="stack">${hero(club.name, '로그인', club.subtitle ? [club.subtitle] : [])}
-    <section class="panel">${login}</section></div>`;
+export function loginScreen(name, numberStep, otherCredential) {
+  const input = !numberStep
+    ? field('성함', 'name', name, {
+      attrs: 'autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" enterkeyhint="next" required',
+    }) : otherCredential
+    ? field('생년월일 또는 비밀번호', 'credential', '', {
+      type: 'password', attrs: 'autocomplete="off" maxlength="128" enterkeyhint="go" required',
+    }) : `<label class="field"><span>생년월일</span><span class="login-code">
+      <input name="credential" type="password" inputmode="numeric" autocomplete="off" enterkeyhint="go"
+        maxlength="6" pattern="[0-9]{6}" aria-label="생년월일 또는 6자리 번호" data-login-code required>
+      <span class="login-code-cells" aria-hidden="true">${'<span></span>'.repeat(6)}</span>
+    </span></label>`;
+  return `<section class="login-card" aria-labelledby="login-heading">
+    <div class="login-heading"><h1 id="login-heading">로그인</h1>
+      <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog"><span aria-hidden="true">ⓘ</span></button>
+    </div>
+    <form class="form login-form" data-form="${numberStep ? 'login' : 'login-name'}">
+      ${input}
+      <div class="login-actions">${numberStep ? button('이전', 'login-back', { css: 'secondary' }) : ''}
+        <button type="submit">${numberStep ? '로그인' : '다음'}</button>
+      </div>
+    </form>
+  </section>`;
+}
+
+export function loginHelp(numberStep, otherCredential) {
+  return `<div class="login-guide">
+    <p><strong>회원</strong> 처음에는 생년월일 6자리(연·월·일 각 두 자리)를 입력해 주세요. 기존 8자리 생년월일, PIN, 임시 번호도 사용할 수 있어요.</p>
+    <p><strong>운영진</strong> 성함을 입력한 뒤 등록한 기기에서는 6자리 번호를 사용해 주세요. 새 기기에서는 기존 비밀번호를 한 번 입력해 주세요.</p>
+  </div>
+    ${numberStep ? button(otherCredential ? '숫자 6자리 입력' : '다른 번호 입력', 'login-credential-mode')
+      : '<p class="help">6자리 숫자가 아니면 다음 화면의 도움말에서 ‘다른 번호 입력’을 선택해 주세요.</p>'}`;
 }
 
 export function eventForm(event, id = '') {
@@ -308,15 +331,15 @@ export function membersScreen(members) {
   const rows = members.map(member => `<li class="row" data-search="${esc(member.name)}"><div><b>${esc(member.name)}</b> <span class="badge">${member.active ? '활동 중' : '비활성'}</span></div><div class="actions">
     ${button('회원 수정', 'edit-member', { id: member.id, css: 'secondary compact' })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'quiet compact', disabled: !member.active })}</div></li>`);
   return `<div class="stack"><div class="heading-line"><h1>회원 관리</h1>${button('회원 추가', 'new-member')}</div>
-    <section class="panel"><p class="help">회원은 등록한 이름과 생년월일 8자리로 처음 로그인합니다.</p>
+    <section class="panel"><p class="help">회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.</p>
     ${search('회원 이름 검색', 'members')}${list(rows, '등록된 회원이 없습니다.')}</section></div>`;
 }
 
 export function memberForm(member = null) {
   return form('member',
     field('이름', 'name', member?.name, { attrs: 'maxlength="60" required' })
-    + (member ? check('활동 회원', 'active', member.active) : field('생년월일 8자리', 'birthday', '', {
-      type: 'password', attrs: 'inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" required',
+    + (member ? check('활동 회원', 'active', member.active) : field('생년월일 6자리', 'birthday', '', {
+      type: 'password', attrs: 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required',
       help: '회원이 첫 로그인에 입력합니다. 가입 처리 후에는 이 화면에서 조회할 수 없어요.',
     })), member ? '회원 저장' : '회원 등록', member?.id);
 }

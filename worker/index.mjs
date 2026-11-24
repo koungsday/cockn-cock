@@ -1,7 +1,7 @@
 import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 import { handleApi } from './api.mjs';
-import { isAdminId } from './auth.mjs';
+import { isAdminId, isAdminPin } from './auth.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const bindingPattern = /^[A-Z][A-Z0-9_]*$/;
@@ -97,7 +97,9 @@ function registryIndex(clubs) {
     if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
       throw new Error('Each registered club must have a unique slug.');
     }
-    for (const key of [club.databaseBinding, club.adminIdBinding, club.adminPasswordBinding, club.authPepperBinding]) {
+    const keys = [club.databaseBinding, club.adminIdBinding, club.adminPasswordBinding, club.authPepperBinding];
+    if (club.adminPinBinding !== undefined) keys.push(club.adminPinBinding);
+    for (const key of keys) {
       if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
         throw new Error('Each registered club must use distinct database and secret bindings.');
       }
@@ -112,10 +114,11 @@ function scopeEnv(club, clubs, env) {
   const db = env[club.databaseBinding];
   const adminId = env[club.adminIdBinding];
   const adminPassword = env[club.adminPasswordBinding];
+  const adminPin = club.adminPinBinding === undefined ? undefined : env[club.adminPinBinding];
   const authPepper = env[club.authPepperBinding];
   if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function' ||
       !isAdminId(adminId) || typeof adminPassword !== 'string' || adminPassword.length < 16 || adminPassword.length > 128 ||
-      !adminPassword.trim() || adminPassword === adminId ||
+      !adminPassword.trim() || adminPassword === adminId || (adminPin !== undefined && !isAdminPin(adminPin)) ||
       typeof authPepper !== 'string' || authPepper.length < 32 || adminPassword === authPepper) return null;
 
   for (const other of clubs) {
@@ -129,6 +132,7 @@ function scopeEnv(club, clubs, env) {
     DB: db,
     CLUB_ADMIN_ID: adminId,
     CLUB_ADMIN_PASSWORD: adminPassword,
+    CLUB_ADMIN_PIN: adminPin,
     CLUB_AUTH_PEPPER: authPepper,
     CLUB_SCOPE: club.slug
   };
@@ -141,7 +145,7 @@ function adminManifest(request, club) {
     name: `${club.name} 운영진 · ${PLATFORM_NAME}`, short_name: `${club.name} 운영진`,
     background_color: '#f3f5ec', theme_color: '#f3f5ec',
     icons: [192, 512].map(size => ({
-      src: `/assets/admin-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
+      src: `/assets/shuttlecock-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
     }))
   };
   return new Response(request.method === 'HEAD' ? null : JSON.stringify(manifest), {
@@ -164,7 +168,7 @@ async function clubPage(request, env, url, club, share, admin) {
     .replace('<!-- share-meta -->', () => tags)
     .replace('<!-- admin-app -->', () => admin
       ? `<link rel="manifest" href="/clubs/${club.slug}/admin/manifest.webmanifest">
-    <link rel="apple-touch-icon" href="/assets/admin-icon-192.png">`
+    <link rel="apple-touch-icon" href="/assets/shuttlecock-icon-192.png">`
       : '');
   return htmlResponse(request, html, { headers: index.headers });
 }

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { handleApi } from './api.mjs';
+import { credentialHash } from './auth.mjs';
 
 const migrations = await Promise.all(['0001.sql', '0002_member_name.sql'].map(
   file => readFile(new URL('./migrations/' + file, import.meta.url), 'utf8')
@@ -61,9 +62,11 @@ function setup(t) {
   function client(ip = '203.0.113.10') {
     let cookie = '';
     let setCookie = '';
+    let setCookies = [];
     return {
       get cookie() { return cookie; },
       get setCookie() { return setCookie; },
+      get setCookies() { return setCookies; },
       async request(path, {method = 'GET', body, expect = 200, requestOrigin = origin, headerCookie = cookie} = {}) {
         const headers = {'CF-Connecting-IP': ip, 'Cookie': headerCookie};
         if (body !== undefined) {
@@ -79,7 +82,8 @@ function setup(t) {
           + ', received ' + response.status + ' for ' + JSON.stringify(payload));
         assert.match(response.headers.get('cache-control') ?? '', /no-store/);
         if (response.headers.has('set-cookie')) {
-          const header = response.headers.get('set-cookie');
+          setCookies = response.headers.getSetCookie();
+          const [header] = setCookies;
           setCookie = header;
           assert.match(header, /HttpOnly/);
           assert.match(header, /Secure/);
@@ -278,6 +282,78 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   const expiredCookie = admin.cookie;
   await DB.prepare("UPDATE sessions SET expires_at = unixepoch() WHERE role='admin'").run();
   await admin.request('/api/admin', {headerCookie:expiredCookie, expect:401});
+});
+
+test('a short operator PIN needs a current proof issued by a strong login on this club', async t => {
+  const { client, env } = setup(t);
+  env.CLUB_ADMIN_ID = '가상 운영진';
+  env.CLUB_ADMIN_PIN = '583471';
+  const enrolled = client();
+  const otherBrowser = client('203.0.113.25');
+  const { CLUB_ADMIN_ID: name, CLUB_ADMIN_PIN: pin } = env;
+  await otherBrowser.login(name, pin, 401);
+  assert.equal((await enrolled.login(name.normalize('NFD'), adminPassword)).user.role, 'admin');
+  const strongSession = enrolled.cookie;
+  const [, proof] = enrolled.setCookies;
+  assert.match(proof, /^__Host-suncok19-admin-device=/);
+  assert.match(proof, /Path=\/; HttpOnly; SameSite=Lax; Max-Age=7776000; Secure$/);
+  assert.doesNotMatch(proof, /Domain=/i);
+  const deviceCookie = proof.split(';')[0];
+  const pinLogin = (browser, credential, headerCookie, expect = 200) => browser.request('/api/login', {
+    method:'POST', body:{name, credential}, headerCookie, expect
+  });
+  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:deviceCookie})).user, null);
+  await pinLogin(otherBrowser, pin, strongSession, 401);
+  await pinLogin(otherBrowser, pin, deviceCookie + '0', 401);
+  assert.equal((await pinLogin(enrolled, pin, deviceCookie)).user.role, 'admin');
+  assert.equal(enrolled.setCookies.length, 1);
+  const pinSession = enrolled.cookie;
+  assert.equal((await enrolled.request('/api/admin/session')).user.role, 'admin');
+
+  env.CLUB_ADMIN_PIN = '316794';
+  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:pinSession})).user, null);
+  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:strongSession})).user.role, 'admin');
+  await pinLogin(otherBrowser, env.CLUB_ADMIN_PIN, deviceCookie, 401);
+  env.CLUB_ADMIN_PIN = pin;
+  const otherClub = env.CLUB_SCOPE = 'second-club';
+  await pinLogin(otherBrowser, pin, deviceCookie.replace('suncok19', otherClub), 401);
+  env.CLUB_SCOPE = 'suncok19';
+  const expiry = Number(deviceCookie.split('=')[1].split('.')[0]);
+  t.mock.timers.enable({apis:['Date'], now: expiry * 1000});
+  await pinLogin(otherBrowser, pin, deviceCookie, 401);
+});
+
+test('six-digit birthday enrollments preserve full entry and block duplicates of legacy birthdays', async t => {
+  const { DB, client, env } = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const name = '가상 새 생년월일';
+  const legacyName = '가상 기존 생년월일';
+  const legacyId = crypto.randomUUID();
+  const salt = 'fictional-existing-birthday-salt';
+  const hash = await credentialHash(env, '19880131', salt);
+  await DB.prepare(`
+    INSERT INTO members (id, name, code_hash, credential_salt, credential_hash, credential_version)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(legacyId, legacyName, 'existing-fixture-code', salt, hash, 'existing-fixture-version').run();
+  await admin.request('/api/admin/members', {
+    method:'POST', body:{ name:legacyName, birthday:'880131' }, expect:409
+  });
+  assert.equal((await client().login(legacyName, '19880131')).user.id, legacyId);
+  assert.equal((await DB.prepare('SELECT credential_hash FROM members WHERE id=?').bind(legacyId).first()).credential_hash, hash);
+  await admin.request('/api/admin/members', {method:'POST', body:{name, birthday:'990231'}, expect:400});
+  const {member} = await admin.request('/api/admin/members', {
+    method:'POST', body:{name, birthday:'881031'}, expect:201
+  });
+  assert.equal((await client().login(name, '881031')).user.id, member.id);
+  const fullEntry = client();
+  assert.equal((await fullEntry.login(name, '19881031')).user.id, member.id);
+  await fullEntry.request('/api/pin', {
+    method:'POST', body:{currentPin:'19881031', newPin:'580916'}
+  });
+  await client().login(name, '19580916', 401);
+  await client().login(name, '19881031', 401);
+  assert.equal((await client().login(name, '580916')).user.id, member.id);
 });
 
 test('attendance, guests and shuttle balances drive only finalized half-year recognition', async t => {
