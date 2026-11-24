@@ -3,6 +3,7 @@
   const {today, dateLabel, counts, attendanceCounts, stats, addDays, deadlinePassed, settlement, qualification} = model;
   const app = document.querySelector('#app');
   const modal = document.querySelector('#dialog');
+  const mobileNav = document.querySelector('#mobile-navigation');
   const toast = document.querySelector('#toast');
   const state = model.load();
   const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}};
@@ -55,7 +56,8 @@
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
-  let menuOpen = false;
+  let navScroll = null;
+  let navTrigger;
   let returnFromPublic = null;
 
   function routeFromHash() {
@@ -67,13 +69,10 @@
     const before = currentRoute;
     const fromDialog = modal.open;
     if (target.startsWith('public-') && !before.page.startsWith('public-')) returnFromPublic = location.hash.slice(1) || 'home';
-    if (location.hash === '#' + target) {
+    const sameRoute = location.hash === '#' + target;
+    if (mobileNav.open) closeMobileMenu(sameRoute);
+    if (sameRoute) {
       if (fromDialog) modal.close();
-      if (menuOpen) {
-        menuOpen = false;
-        renderShell();
-        renderPage({focus:true});
-      }
       return;
     }
     location.hash = target;
@@ -98,23 +97,64 @@
     const label = dateLabel(date);
     return label.replace(/ \(([일월화수목금토])\)$/, ' $1요일');
   }
+  const platformHome = document.querySelector('meta[name=platform-home]')?.content;
+
   function brand() {
     return `<a class="brand" href="#home" data-route="home"><span class="brand-mark">${icon('shuttle',26)}</span><span><strong>썬콕19</strong><small>일요 배드민턴 모임</small></span></a>`;
   }
   function navLink([key, label, glyph], active) {
     return `<a class="nav-link${active === key ? ' active' : ''}" href="#${key}" data-route="${key}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,19)}<span>${label}</span>${active === key ? '<i aria-hidden="true"></i>' : ''}</a>`;
   }
+  function menuLinks(active) {
+    return `<nav class="navigation" aria-label="모임 관리">
+      <div class="nav-heading">모임 운영</div>
+      ${pages.slice(0, 5).map(item => navLink(item, active)).join('')}
+      <div class="nav-heading nav-heading-settings">설정</div>
+      ${navLink(pages[5], active)}
+    </nav>`;
+  }
+  function menuPage() {
+    return currentRoute.page === 'event' ? 'events' : currentRoute.page;
+  }
+  function openMobileMenu(trigger) {
+    if (mobileNav.open) return;
+    mobileNav.innerHTML = `<header class="mobile-nav-header">
+      ${brand()}
+      <button class="icon-button" type="button" data-action="close-menu" aria-label="메뉴 닫기" autofocus>${icon('x',24)}</button>
+    </header><div class="mobile-nav-links">
+      ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
+      ${menuLinks(menuPage())}
+    </div>`;
+
+    navScroll = Math.max(window.scrollY, 0);
+    navTrigger = trigger;
+    document.body.style.setProperty('--menu-scroll-top', `-${navScroll}px`);
+    document.documentElement.classList.add('menu-locked');
+    mobileNav.showModal();
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+  function unlockMobileMenu(restoreFocus) {
+    if (navScroll === null) return;
+    const scroll = navScroll;
+    navScroll = null;
+    document.documentElement.classList.remove('menu-locked');
+    document.body.style.removeProperty('--menu-scroll-top');
+    window.scrollTo(0, scroll);
+    if (navTrigger?.isConnected) {
+      navTrigger.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) navTrigger.focus({preventScroll:true});
+    }
+  }
+  function closeMobileMenu(restoreFocus = true) {
+    if (mobileNav.open) mobileNav.close();
+    unlockMobileMenu(restoreFocus);
+  }
   function renderShell() {
-    const active = currentRoute.page === 'event' ? 'events' : currentRoute.page;
     app.innerHTML = `
-      <aside class="sidebar${menuOpen ? ' sidebar-open' : ''}" id="main-navigation">
+      <aside class="sidebar">
         ${brand()}
-        <nav class="navigation" aria-label="모임 관리">
-          <div class="nav-heading">모임 운영</div>
-          ${pages.slice(0, 5).map(item => navLink(item, active)).join('')}
-          <div class="nav-heading nav-heading-settings">설정</div>
-          ${navLink(pages[5], active)}
-        </nav>
+        ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
+        ${menuLinks(menuPage())}
         <div class="sidebar-footer">
           <span class="operator-mark">${icon('user',18)}</span>
           <span><strong>모임 운영진</strong><small>관리자 화면</small></span>
@@ -123,7 +163,7 @@
       <div class="main-shell">
         <header class="topbar">
           <div class="breadcrumb">
-            <button type="button" class="icon-button mobile-menu" data-action="toggle-menu" aria-label="메뉴 ${menuOpen ? '닫기' : '열기'}" aria-controls="main-navigation" aria-expanded="${menuOpen}">${icon(menuOpen ? 'x' : 'menu',22)}</button>
+            <button type="button" class="icon-button mobile-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${icon('menu',22)}</button>
             <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
           <span class="demo-label"><i></i> 가상 데이터 체험</span>
@@ -134,9 +174,9 @@
   function renderPage({focus = false} = {}) {
     const publicView = currentRoute.page.startsWith('public-');
     const section = publicView ? (currentRoute.page === 'public-vote' ? '참석 투표' : '공지') : currentLabel(currentRoute);
-    document.title = `${section} · 썬콕19`;
+    document.title = `${section} · 썬콕19 · 콕콕콕!`;
     if (publicView) {
-      app.innerHTML = `<main id="main-content" class="public-shell" tabindex="-1">${window.clubShare.renderPublic(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts, returnFromPublic})}</main>`;
+      app.innerHTML = `<main id="main-content" class="public-shell" tabindex="-1">${window.clubShare.renderPublic(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts, returnFromPublic, platformHome})}</main>`;
     } else {
       if (!app.querySelector('.main-shell') || app.dataset.section !== section) renderShell();
       const content = app.querySelector('#main-content');
@@ -302,6 +342,17 @@
   }
   app.addEventListener('click', handleClick);
   modal.addEventListener('click', handleClick);
+  mobileNav.addEventListener('click', handleClick);
+  mobileNav.addEventListener('cancel', event => {
+    event.preventDefault();
+    closeMobileMenu();
+  });
+  mobileNav.addEventListener('close', () => {
+    if (!mobileNav.open) unlockMobileMenu(true);
+  });
+  window.matchMedia('(max-width: 700px)').addEventListener('change', event => {
+    if (!event.matches) closeMobileMenu(false);
+  });
   function handleClick(ev) {
     const control = ev.target.closest('[data-route], [data-action]');
     if (!control) return;
@@ -320,12 +371,8 @@
       return;
     }
     if (action === 'close-dialog') modal.close();
-    if (action === 'toggle-menu') {
-      menuOpen = !menuOpen;
-      renderShell();
-      renderPage();
-      app.querySelector('.mobile-menu')?.focus();
-    }
+    if (action === 'open-menu') openMobileMenu(control);
+    if (action === 'close-menu') closeMobileMenu();
     if (action === 'generate-next') generateNext(control);
     if (action === 'copy-share') {
       const href = modal.querySelector('#share-link').value;
@@ -530,10 +577,7 @@
     if (location.hash === '#main-content') return;
     if (modal.open) modal.close();
     currentRoute = routeFromHash();
-    if (menuOpen) {
-      menuOpen = false;
-      if (!currentRoute.page.startsWith('public-')) renderShell();
-    }
+    if (mobileNav.open) closeMobileMenu(false);
     renderPage({focus:true});
     window.scrollTo(0,0);
   });

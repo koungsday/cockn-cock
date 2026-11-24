@@ -154,7 +154,7 @@
     const masthead = `
       <div class="public-masthead">
         <span class="public-brand">${mark(helpers)} <strong>썬콕19</strong></span>
-        <span class="public-example">멤버 화면 예시</span>
+        <span class="public-example">${helpers.platformHome ? `<a href="${escape(helpers.platformHome)}">콕콕콕! 모임 목록</a>` : '멤버 화면 예시'}</span>
       </div>
       ${helpers.returnFromPublic ? `<button class="public-return" type="button" data-route="${escape(helpers.returnFromPublic)}">운영 화면으로</button>` : ''}`;
 

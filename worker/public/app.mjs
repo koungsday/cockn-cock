@@ -1,5 +1,5 @@
 import {
-  adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  adminLoginScreen, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
   guestForm, homeScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
@@ -9,15 +9,30 @@ const account = document.querySelector('#account');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
 
-const path = location.pathname.match(/^\/(vote|notice)\/([^/]+)\/?$/);
-const route = path ? { kind: path[1], id: path[2] } : { kind: 'home' };
+const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.trim() ?? '';
+const clubBase = meta('club-base');
+const club = {
+  home: `${clubBase}/`,
+  admin: `${clubBase}/admin/`,
+  name: meta('club-name'),
+  subtitle: meta('club-subtitle'),
+  defaultPlace: meta('club-default-place'),
+};
+const scopedPath = /^\/clubs\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clubBase)
+  && location.pathname.startsWith(club.home)
+  ? location.pathname.slice(clubBase.length)
+  : '';
+const path = scopedPath.match(/^\/(vote|notice)\/([^/]+)\/?$/);
+const route = path ? { kind: path[1], id: path[2] }
+  : scopedPath === '/' ? { kind: 'home' }
+  : scopedPath === '/admin/' || scopedPath === '/admin' ? { kind: 'admin' } : null;
 const date = today();
 const state = {
   user: null,
   section: 'event',
-  adminLogin: true,
   selectedEvent: null,
   admin: null,
+  listing: { events: [], notices: [] },
   detail: null,
   event: null,
   notice: null,
@@ -40,7 +55,7 @@ class RequestError extends Error {
 async function request(url, method = 'GET', body = undefined) {
   let response;
   try {
-    response = await fetch(url, {
+    response = await fetch(`${clubBase}${url}`, {
       method,
       credentials: 'same-origin',
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
@@ -69,12 +84,12 @@ function showMessage(text, error = false) {
 }
 
 function renderAccount() {
-  if (!state.user) {
+  if (!state.user || (route.kind === 'admin' && state.user.role !== 'admin')) {
     account.innerHTML = '';
     return;
   }
   const user = state.user;
-  account.innerHTML = `<span class="account-name">${esc(user.name)}</span>
+  account.innerHTML = `<span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
     ${user.role === 'member' && !user.mustChange ? button('PIN 변경', 'pin', { css: 'quiet compact' }) : ''}
     ${button('로그아웃', 'logout', { css: 'quiet compact' })}`;
 }
@@ -84,7 +99,7 @@ function failedPage(error) {
   main.classList.add('narrow');
   main.innerHTML = `<div class="panel"><h1>${error.status === 404 ? '페이지를 찾을 수 없어요' : '모임을 불러오지 못했어요'}</h1>
     <p>${error.status === 404 ? '공지나 투표 링크를 운영진에게 확인해 주세요.' : esc(error.message)}</p>
-    <div class="actions">${button('다시 불러오기', 'reload', { css: 'secondary' })}<a class="button secondary" href="/">처음으로</a></div></div>`;
+    <div class="actions">${button('다시 불러오기', 'reload', { css: 'secondary' })}<a class="button secondary" href="${esc(club.home)}">모임 홈으로</a></div></div>`;
 }
 
 async function loadEvent() {
@@ -112,6 +127,8 @@ async function load() {
     }
   } else if (route.kind === 'notice') {
     ({ notice: state.notice } = await request(`/api/public/notice/${id(route.id)}`));
+  } else if (route.kind === 'home') {
+    state.listing = await request('/api/public');
   } else if (state.user?.role === 'admin') {
     state.admin = await request('/api/admin');
     const events = state.admin.events.sort((a, b) => b.date.localeCompare(a.date));
@@ -127,18 +144,20 @@ async function load() {
 function render() {
   const search = main.querySelector('input[data-filter]');
   renderAccount();
-  const isAdmin = route.kind === 'home' && state.user?.role === 'admin';
+  const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
   if (route.kind === 'vote') {
-    main.innerHTML = memberVoteScreen(state.event, state.user, state.vote, state.eligible);
+    main.innerHTML = memberVoteScreen(state.event, state.user, state.vote, state.eligible, club);
   } else if (route.kind === 'notice') {
-    main.innerHTML = noticeScreen(state.notice);
+    main.innerHTML = noticeScreen(state.notice, club);
+  } else if (route.kind === 'home') {
+    main.innerHTML = homeScreen(state.user, state.listing, club);
   } else if (isAdmin) {
     let body;
     if (state.section === 'members') body = membersScreen(state.admin.members);
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
-    else body = eventScreen(state.admin.events, state.detail);
+    else body = eventScreen(state.admin.events, state.detail, club);
     main.innerHTML = adminShell(state.section, body);
     const newSearch = main.querySelector('input[data-filter]');
     if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
@@ -146,7 +165,7 @@ function render() {
       applyFilter(newSearch);
     }
   } else {
-    main.innerHTML = homeScreen(state.user, state.adminLogin);
+    main.innerHTML = adminLoginScreen(club);
   }
 }
 
@@ -168,9 +187,10 @@ function openDialog(title, body) {
 }
 
 function credentialDialog(name, memberCode, temporaryPin) {
-  const text = temporaryPin
-    ? `썬콕19 회원 코드 ${memberCode}\n한 번 사용할 임시 번호 ${temporaryPin}\n로그인 후 새 PIN을 설정해 주세요.`
-    : `썬콕19 회원 코드 ${memberCode}\n처음에는 생년월일 8자리로 로그인하고 새 PIN을 설정해 주세요.`;
+  const guide = temporaryPin
+    ? `${club.name} 회원 코드 ${memberCode}\n한 번 사용할 임시 번호 ${temporaryPin}\n로그인 후 새 PIN을 설정해 주세요.`
+    : `${club.name} 회원 코드 ${memberCode}\n처음에는 생년월일 8자리로 로그인하고 새 PIN을 설정해 주세요.`;
+  const text = `${guide}\n${new URL(club.home, location.origin).href}`;
   openDialog('회원에게 보낼 접속 안내', `<p>${esc(name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요.</p>
     <textarea class="copy-text" readonly rows="4" aria-label="회원 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
@@ -217,18 +237,13 @@ function findRoster(personId) {
 }
 
 function shareLink(kind, itemId) {
-  return new URL(`/${kind}/${id(itemId)}`, location.origin).href;
+  return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
 }
 
 async function doAction(action, itemId) {
   switch (action) {
     case 'reload':
       await initialize();
-      break;
-    case 'login-mode':
-      state.adminLogin = !state.adminLogin;
-      render();
-      main.querySelector('input:not([type="hidden"])')?.focus();
       break;
     case 'close':
       dialog.close();
@@ -258,7 +273,7 @@ async function doAction(action, itemId) {
       showMessage('응답과 출석을 다시 불러왔어요.');
       break;
     case 'new-event':
-      openDialog('새 회차', eventForm(eventDefaults()));
+      openDialog('새 회차', eventForm(eventDefaults(null, club.defaultPlace)));
       break;
     case 'clone-event':
       openDialog('다음 주 회차', eventForm(eventDefaults(state.detail.event)));
@@ -308,7 +323,7 @@ async function doAction(action, itemId) {
       openDialog('게스트 수정', guestForm(state.detail.guests.find(guest => guest.id === itemId)));
       break;
     case 'copy-report':
-      await copy(reportText(state.detail));
+      await copy(reportText(state.detail, club.name));
       break;
     case 'new-member':
       openDialog('회원 등록', memberForm());
@@ -356,12 +371,18 @@ function buildEvent(data) {
 
 async function doSubmit(kind, itemId, data) {
   switch (kind) {
-    case 'login':
-      ({ user: state.user } = await request('/api/login', 'POST', { memberCode: read(data, 'memberCode'), credential: read(data, 'credential') }));
+    case 'login': {
+      const memberCode = route.kind === 'admin' ? 'admin' : read(data, 'memberCode').toLowerCase();
+      if (route.kind !== 'admin' && !/^[0-9a-f]{16}$/.test(memberCode)) {
+        throw new Error('모임에서 받은 회원 코드 16자리를 확인해 주세요.');
+      }
+      ({ user: state.user } = await request('/api/login', 'POST', { memberCode, credential: read(data, 'credential') }));
       await load();
       render();
-      main.focus();
+      if (route.kind === 'admin') window.scrollTo(0, 0);
+      main.focus({ preventScroll: route.kind === 'admin' });
       break;
+    }
     case 'pin': {
       const newPin = read(data, 'newPin');
       if (newPin !== read(data, 'confirmPin')) throw new Error('새 PIN이 서로 달라요. 다시 확인해 주세요.');
@@ -547,5 +568,16 @@ dialog.addEventListener('close', () => {
   if (!dialog.open) dialog.replaceChildren();
 });
 
-await initialize();
-setInterval(refreshVoteCounts, 15_000);
+if (route && club.name) {
+  document.title = `${club.name}${route.kind === 'admin' ? ' 운영진' : ''} · 콕콕콕!`;
+  const clubLink = document.querySelector('#club-home');
+  clubLink.href = club.home;
+  document.querySelector('#club-name').textContent = club.name;
+  document.querySelector('#club-subtitle').textContent = club.subtitle;
+  clubLink.hidden = false;
+  await initialize();
+  setInterval(refreshVoteCounts, 15_000);
+} else {
+  main.classList.add('narrow');
+  main.innerHTML = '<section class="panel"><h1>모임을 찾을 수 없어요</h1><p><a href="/">콕콕콕! 모임 목록으로</a></p></section>';
+}

@@ -1,4 +1,4 @@
-# 썬콕19 운영 환경
+# 콕콕콕! 운영 환경
 
 ## 월 구독료 없이 구성하는 방법
 
@@ -9,6 +9,31 @@ Workers Free는 동적 요청 하루 10만 건과 요청당 CPU 10ms가 포함�
 Vercel Hobby와 Supabase Free도 후보입니다. 다만 기존 Vercel Pro 팀을 배제하려면 별도 Hobby 팀이 필요하고, Supabase Free는 최근 7일간 활동이 적으면 일시 중지될 수 있습니다. GitHub Pages만으로는 브라우저 간에 응답을 공유할 수 없습니다.
 
 [Workers 요금표](https://developers.cloudflare.com/workers/platform/pricing/) · [D1 요금표](https://developers.cloudflare.com/d1/platform/pricing/) · [Supabase Free 일시 중지 안내](https://supabase.com/docs/guides/platform/free-project-pausing) · [GitHub Pages 안내](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)
+
+## 모임과 접근 권한
+
+[모임 등록 목록](platform/clubs.mjs)은 배포 설정에서 관리합니다. 첫 등록 모임은 썬콕19입니다. 회원 화면은 `/clubs/suncok19/`이며 운영진은 `/clubs/suncok19/admin/`에서 로그인합니다. 공유 링크와 서버 요청도 같은 모임 경로 아래에 있습니다.
+
+| 접근 주체 | 범위 |
+| --- | --- |
+| 배포 관리자 | 모임을 등록하고 각각의 D1과 운영진 비밀번호·인증 비밀을 연결합니다. |
+| 모임 운영진 | 로그인한 모임의 회원·공지·투표·출석·게스트·정산을 관리합니다. |
+| 회원 | 로그인한 모임에서 본인의 응답을 조회하고 마감 전에 변경합니다. |
+| 방문자 | 모임 목록과 공개된 공지·투표 안내를 열 수 있습니다. |
+
+새 모임을 추가할 때는 고유한 주소, 별도의 D1 데이터베이스, 별도의 운영진 비밀번호와 인증 비밀을 사용합니다. 두 모임 이상을 등록하면 빌드에서 각 D1의 명시적인 ID가 서로 다른지 확인합니다. 서버는 URL에서 등록된 모임을 찾고, 그 모임에 연결된 DB와 로그인 세션으로 요청을 처리합니다. 모임 운영진 화면에서 모임 등록이나 다른 모임의 권한을 바꿀 수 있는 경로는 없습니다.
+
+## 캐시 규칙
+
+| 화면 또는 데이터 | 실사용 Worker 응답 규칙 |
+| --- | --- |
+| 모임 목록 | 공개로 60초 저장할 수 있습니다. |
+| 회원·운영진 화면, 투표·공지 공유 HTML | `no-store`로 매번 새 응답을 받습니다. |
+| 로그인·세션·회원 응답·운영진 API | `private, no-store`로 브라우저와 CDN에 저장하지 않습니다. 공개 목록도 서버의 최신 게시 상태를 읽습니다. |
+| 공용 이미지 | 1시간 다시 사용할 수 있습니다. |
+| 스크립트·스타일시트 | 정적 파일의 ETag를 검증한 뒤 다시 사용합니다. |
+
+관리자 페이지의 초기 HTML은 화면 틀만 제공하며, 로그인한 모임의 인증된 운영진에게 별도 API로 운영 데이터를 보냅니다. GitHub Pages에는 가상 데이터로 만든 회원 체험과 운영 화면 체험을 배포합니다.
 
 ## 회원이 하는 일
 
@@ -50,6 +75,6 @@ npx wrangler secret put CLUB_ADMIN_PASSWORD --config worker/wrangler.jsonc
 npx wrangler secret put CLUB_AUTH_PEPPER --config worker/wrangler.jsonc
 ```
 
-최초 공개 URL에서는 쿠키 없는 요청으로 OG 태그와 미리보기 이미지를 확인하고, 별도 브라우저에서 회원 투표를 저장해 운영진 화면에 보이는지 확인합니다. 카카오톡 단체방에 실제 회원을 초대하기 전에 회원·운영진 권한, 마감 처리, PIN 변경과 재설정을 각자 점검합니다.
+최초 공개 URL에서는 쿠키 없는 요청으로 OG 태그와 미리보기 이미지를 확인하고, 별도 브라우저에서 회원 투표를 저장해 같은 모임의 운영진 화면에 보이는지 확인합니다. 등록하지 않은 모임 주소와 다른 모임의 운영진·회원 세션도 검증합니다. 카카오톡 단체방에 실제 회원을 초대하기 전에 회원·운영진 권한, 마감 처리, PIN 변경과 재설정을 각자 점검합니다.
 
 [Wrangler 로그인](https://developers.cloudflare.com/workers/wrangler/commands/general/) · [D1 마이그레이션](https://developers.cloudflare.com/d1/reference/migrations/) · [Workers Secret 관리](https://developers.cloudflare.com/workers/configuration/secrets/)

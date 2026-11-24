@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { PLATFORM_NAME, CLUBS } from '../platform/clubs.mjs';
 
 const dist = fileURLToPath(new URL('../dist', import.meta.url));
 const remote = process.argv[2] ? new URL(process.argv[2]) : null;
@@ -17,17 +18,42 @@ async function read(path = '') {
   return Buffer.from(await response.arrayBuffer());
 }
 
-const home = (await read()).toString();
-assert.match(home, /<title>썬콕19/);
+const club = CLUBS.find(item => item.slug === 'suncok19');
+const clubPath = `clubs/${club.slug}/`;
+const catalog = (await read()).toString();
+const memberHome = (await read(clubPath)).toString();
+const adminPath = clubPath + 'admin/';
+const home = (await read(adminPath)).toString();
+assert(catalog.includes(PLATFORM_NAME));
+assert(catalog.includes(club.name));
+assert(catalog.includes(`href="${remote?.pathname ?? ''}${clubPath}"`) ||
+  (!remote && catalog.includes(`${clubPath}"`)), 'the directory links to the club page');
+assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
+assert(memberHome.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
+assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
+assert(memberHome.includes('/' + adminPath + '"'));
+assert(memberHome.includes('/' + clubPath + 'share/vote/e-nov28/"'));
+assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_PASSWORD/);
+const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1];
+assert(basePath, 'the club demo links back to the directory');
+assert((await read('platform.css')).length > 0);
+const legacy = (await read('legacy-links.js')).toString();
+let redirect;
+const oldHash = '#public-vote/e-nov28';
+runInNewContext(legacy, { location: { hash: oldHash, search: '', replace: target => { redirect = target; } } });
+assert.equal(redirect, basePath + adminPath + oldHash);
+redirect = undefined;
+runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
+assert.equal(redirect, undefined);
 const required = ['styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
-  assert(home.includes(`="${file}"`), `${file} is referenced by the demo`);
+  assert(home.includes(`="${basePath}${file}"`), `${file} is referenced by the demo`);
   const content = await read(file);
   assert(content.length > 0, `${file} is available`);
   if (file.endsWith('.js')) runtime.set(file, content.toString());
 }
-assert(home.indexOf('src="published-shares.js"') < home.indexOf('src="app.js"'));
+assert(home.indexOf(`src="${basePath}published-shares.js"`) < home.indexOf(`src="${basePath}app.js"`));
 assert((await read('assets/court.webp')).length > 0);
 
 const window = { localStorage: { getItem: () => null } };
@@ -41,8 +67,10 @@ for (const [kind, id, title] of [
   ['vote', 'e-nov28', '일요 정기 운동'],
   ['notice', 'n-schedule', '일요모임 이용 안내'],
 ]) {
-  const path = `share/${kind}/${id}/`;
+  const oldPath = `share/${kind}/${id}/`;
+  const path = clubPath + oldPath;
   const html = (await read(path)).toString();
+  assert.equal((await read(oldPath)).toString(), html, 'legacy address returns the same preview');
   const head = /<head>([\s\S]+?)<\/head>/.exec(html)?.[1];
   assert(head, `${path} has a head element`);
   const og = Object.fromEntries(
@@ -52,7 +80,9 @@ for (const [kind, id, title] of [
   assert(og.description.length > 0, `${path} OG description`);
   const canonical = new URL(og.url);
   assert(canonical.pathname.endsWith('/' + path));
-  const base = new URL('../../../', canonical);
+  assert.equal(og.site_name, PLATFORM_NAME);
+  const clubBase = new URL('../../../', canonical);
+  const base = new URL('../../', clubBase);
   if (remote) assert.equal(base.href, remote.href);
   assert(head.includes(`<link rel="canonical" href="${og.url}">`));
   assert(head.includes(`href="${base.pathname}styles.css"`));
@@ -67,13 +97,14 @@ for (const [kind, id, title] of [
   assert.equal(og['image:width'], '1200');
   assert.equal(og['image:height'], '630');
   const demoHash = `#public-${kind}/${id}`;
-  assert(html.includes(`href="${base.pathname}${demoHash}"`));
+  assert(html.includes(`href="${clubBase.pathname}admin/${demoHash}"`));
   assert.doesNotMatch(html, /<script\b|<form\b|김서윤|localStorage/);
 
   const records = kind === 'vote' ? seed.events : seed.notices;
   const item = records.find(record => record.id === id);
-  window.location = new URL('#home', base);
-  const localHref = new URL(demoHash, base).href;
+  const adminBase = new URL('admin/', clubBase);
+  window.location = new URL('#home', adminBase);
+  const localHref = new URL(demoHash, adminBase).href;
   delete window.clubPublishedShares;
   assert.equal(linkFor(kind, item).href, localHref);
   assert.equal(linkFor(kind, item).published, false);

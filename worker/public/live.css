@@ -8,6 +8,9 @@
   --leaf: #dfeec1;
   --line: #d6ded0;
   --hint: #eef1e7;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --page-gutter: max(1rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --alert: #8a3426;
   --alert-bg: #f8e8df;
   --serif: Georgia, serif;
@@ -18,7 +21,8 @@
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; }
+html:has(dialog[open]) { overflow: hidden; overscroll-behavior: none; }
 a { color: var(--action); text-underline-offset: 3px; }
 :focus-visible { outline: 3px solid #447553; outline-offset: 3px; }
 h1, h2, h3, p { margin: 0; }
@@ -42,9 +46,9 @@ input[type=radio] { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .61; }
 .skip-link { position: absolute; top: -100px; left: 1rem; z-index: 5; background: white; padding: .75rem; }
 .skip-link:focus { top: .5rem; }
-.site-header { background: var(--surface); border-bottom: 1px solid var(--line); }
+.site-header { padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--line); }
 .header-inner {
-  width: min(1120px, 100% - 2rem);
+  width: min(1120px, calc(100% - var(--page-gutter) - var(--page-gutter)));
   min-height: 72px;
   margin: auto;
   display: flex;
@@ -53,22 +57,26 @@ button:disabled { cursor: not-allowed; opacity: .61; }
   gap: 1rem;
 }
 .brand { display: inline-flex; align-items: center; gap: .65rem; text-decoration: none; color: var(--ink); line-height: 1.13; }
+.club-navigation { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; }
 .brand-mark {
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
+  flex: 0 0 42px;
   border-radius: 60% 60% 44% 44%;
   background: var(--leaf);
   color: var(--court);
   font-weight: 850;
 }
-.brand strong, .brand small { display: block; }
-.brand strong { font-size: 1.15rem; letter-spacing: -.035em; }
-.brand small { margin-top: .23rem; color: var(--muted); font-size: .75rem; }
+.brand strong { font-size: 1.15rem; letter-spacing: -.035em; white-space: nowrap; }
+.current-club { min-width: 0; padding-left: 1rem; border-left: 1px solid var(--line); text-decoration: none; color: var(--ink); line-height: 1.25; overflow-wrap: anywhere; }
+.current-club strong, .current-club small { display: block; }
+.current-club small { color: var(--muted); font-size: .75rem; }
+.current-club small:empty { display: none; }
 #account { display: flex; gap: .35rem .55rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .account-name { color: var(--muted); font-size: .9rem; }
-.main { width: min(1120px, 100% - 2rem); margin: 0 auto; padding: clamp(1.35rem, 4.5vw, 3.2rem) 0 4rem; }
+.main { width: min(1120px, calc(100% - var(--page-gutter) - var(--page-gutter))); margin: 0 auto; padding: clamp(1.35rem, 4.5vw, 3.2rem) 0 calc(4rem + var(--safe-bottom)); }
 .main.narrow { max-width: 650px; }
 .noscript { padding: 1rem; }
 .hero {
@@ -166,6 +174,11 @@ button.compact { padding-inline: .65rem; font-size: .875rem; }
 .row .sub { font-size: .86rem; color: var(--muted); }
 .row .person { font-size: .99rem; }
 .row .person b { overflow-wrap: anywhere; }
+.public-record div { min-width: 0; overflow-wrap: anywhere; }
+.public-record .button { padding-inline: .68rem; }
+.public-record time { white-space: nowrap; }
+.member-access summary { min-height: 34px; }
+.club-admin-link { justify-content: flex-end; padding: .2rem .25rem; font-size: .9rem; }
 .row[hidden], .row [hidden] { display: none; }
 .row details { grid-column: 1 / -1; }
 .badge { display: inline-block; padding: .14rem .47rem; color: #30523b; background: var(--hint); border-radius: 999px; font-size: .81rem; }
@@ -185,10 +198,10 @@ hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: .15rem 0
 .message {
   position: fixed;
   z-index: 20;
-  bottom: 1rem;
+  bottom: calc(1rem + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
-  max-width: min(520px, 100% - 2rem);
+  max-width: min(520px, calc(100% - var(--page-gutter) - var(--page-gutter)));
   width: max-content;
   padding: .72rem .95rem;
   border-radius: 8px;
@@ -198,10 +211,14 @@ hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: .15rem 0
 }
 .message.error { background: var(--alert); }
 dialog {
-  max-height: 90dvh;
-  width: min(520px, 100% - 1.7rem);
+  max-height: calc(100vh - 2rem - var(--safe-top) - var(--safe-bottom));
+  max-height: calc(100dvh - 2rem - var(--safe-top) - var(--safe-bottom));
+  width: min(520px, calc(100% - var(--page-gutter) - var(--page-gutter)));
+  inset: calc(1rem + var(--safe-top)) 0 calc(1rem + var(--safe-bottom));
   margin: auto;
   padding: 1.2rem;
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--line);
   border-radius: 12px;
   color: var(--ink);
@@ -213,6 +230,12 @@ dialog .inline-error { color: var(--alert); }
 details summary { min-height: 44px; align-content: center; cursor: pointer; font-weight: 690; color: var(--action); }
 details[open] summary { margin-bottom: .55rem; }
 @media (max-width: 430px) {
+  .header-inner { gap: .45rem; padding-block: .55rem; }
+  .club-navigation { gap: .28rem .5rem; }
+  .brand { gap: .35rem; }
+  .brand-mark { width: 32px; height: 32px; flex-basis: 32px; }
+  .current-club { padding-left: .5rem; }
+  .current-club small { display: none; }
   #account { gap: .1rem .36rem; }
   .account-name { display: none; }
   .tabbar button { padding-inline: .55rem; font-size: .9rem; }

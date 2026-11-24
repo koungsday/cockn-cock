@@ -2,6 +2,9 @@ import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
+import { renderCatalog } from '../platform/catalog.mjs';
+import { renderDemoClub } from '../platform/demo-club.mjs';
+import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dist = join(root, 'dist');
@@ -16,6 +19,12 @@ if ((site.protocol !== 'https:' && !isLoopback) || site.username || site.passwor
   throw new Error('SITE_URL must be an HTTPS URL or a local HTTP URL.');
 }
 if (!site.pathname.endsWith('/')) site.pathname += '/';
+const demoClub = CLUBS.find(club => club.slug === 'suncok19');
+if (!demoClub) throw new Error('The demo club is missing from the catalog.');
+const clubPath = `clubs/${demoClub.slug}/`;
+const clubUrl = new URL(clubPath, site);
+const adminPath = clubPath + 'admin/';
+const adminUrl = new URL(adminPath, site);
 
 const window = { localStorage: { getItem: () => null } };
 runInNewContext(await readFile(join(root, 'state.js'), 'utf8'), { window }, { filename: 'state.js' });
@@ -49,15 +58,15 @@ const escapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 const escape = value => String(value).replace(/[&<>"']/g, char => escapes[char]);
 
 function shareUrl(kind, id) {
-  return new URL(`share/${kind}/${id}/`, site);
+  return new URL(`share/${kind}/${id}/`, clubUrl);
 }
 
 function shareHtml(entry) {
   const { kind, item, category, description, body, cta } = entry;
-  const title = `${category} · ${item.title} | 썬콕19`;
+  const title = `${category} · ${item.title} | ${demoClub.name} · ${PLATFORM_NAME}`;
   const canonical = shareUrl(kind, item.id);
   const image = new URL(`assets/kakao-${kind}.png`, site);
-  const demoRoute = `${site.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
+  const demoRoute = `${adminUrl.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -68,7 +77,7 @@ function shareHtml(entry) {
   <link rel="canonical" href="${escape(canonical.href)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
-  <meta property="og:site_name" content="썬콕19">
+  <meta property="og:site_name" content="${escape(PLATFORM_NAME)}">
   <meta property="og:title" content="${escape(title)}">
   <meta property="og:description" content="${escape(description)}">
   <meta property="og:url" content="${escape(canonical.href)}">
@@ -83,7 +92,7 @@ function shareHtml(entry) {
 <body>
   <main class="public-share-page">
     <div class="public-masthead">
-      <a class="public-brand" href="${escape(site.pathname)}"><strong>썬콕19</strong></a>
+      <a class="public-brand" href="${escape(clubUrl.pathname)}"><strong>${escape(demoClub.name)}</strong></a>
       <span class="public-example">가상 데이터 예시</span>
     </div>
     <article class="public-share-card">
@@ -114,14 +123,25 @@ for (const source of staticFiles) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(join(root, source), destination);
 }
+await copyFile(join(root, 'platform/platform.css'), join(dist, 'platform.css'));
+await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo' }));
+await writeFile(join(dist, 'legacy-links.js'), `
+if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
+  location.replace(${JSON.stringify(adminUrl.pathname)} + location.search + location.hash);
+}
+`);
+
 const appScript = '<script defer src="app.js"></script>';
 const index = await readFile(join(root, 'index.html'), 'utf8');
 if (!index.includes(appScript)) throw new Error('The demo entry script is missing.');
-await writeFile(
-  join(dist, 'index.html'),
-  index.replace(appScript, `<script defer src="published-shares.js"></script>
-  ${appScript}`),
-);
+const clubIndex = index
+  .replace(appScript, `<script defer src="published-shares.js"></script>
+  ${appScript}`)
+  .replace(/(href|src)="([a-z.-]+\.(?:js|css))"/g, (_, attribute, file) => `${attribute}="${escape(site.pathname)}${file}"`)
+  .replace('</head>', `  <meta name="platform-home" content="${escape(site.pathname)}">\n</head>`);
+await mkdir(join(dist, adminPath), { recursive: true });
+await writeFile(join(dist, clubPath, 'index.html'), renderDemoClub({ club: demoClub, basePath: site.pathname, vote: event, notice }));
+await writeFile(join(dist, adminPath, 'index.html'), clubIndex);
 const publishedShares = Object.fromEntries(entries.map(({ kind, item, publicFields }) => [
   kind,
   {
@@ -133,8 +153,13 @@ await writeFile(join(dist, 'published-shares.js'), `window.clubPublishedShares =
 `);
 
 for (const entry of entries) {
-  const destination = join(dist, 'share', entry.kind, entry.item.id, 'index.html');
-  await mkdir(dirname(destination), { recursive: true });
-  await writeFile(destination, shareHtml(entry));
+  const relativePath = join('share', entry.kind, entry.item.id, 'index.html');
+  const html = shareHtml(entry);
+  // Existing Kakao links retain their HTML preview and lead to the club route.
+  for (const prefix of ['', clubPath]) {
+    const destination = join(dist, prefix, relativePath);
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, html);
+  }
 }
-console.log(`Built ${staticFiles.length + 2} runtime files and ${entries.length} share pages in dist/.`);
+console.log(`Built the club directory, ${demoClub.name} demo, and ${entries.length} share pages with legacy URLs.`);

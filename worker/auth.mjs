@@ -1,8 +1,6 @@
 const encoder = new TextEncoder();
 const sessionAge = 14 * 24 * 60 * 60;
 const attemptWindow = 15 * 60;
-const productionCookie = '__Host-suncok19';
-const localCookie = 'suncok19_dev';
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -74,19 +72,20 @@ function adminPassword(env) {
   return password;
 }
 
-function cookieName(request) {
-  return new URL(request.url).protocol === 'https:' ? productionCookie : localCookie;
+function cookieName(request, env) {
+  const scope = env.CLUB_SCOPE ?? 'suncok19';
+  return new URL(request.url).protocol === 'https:' ? '__Host-' + scope : scope + '_dev';
 }
 
-export function sessionCookie(request, token = '') {
-  const name = cookieName(request);
-  const secure = name === productionCookie ? '; Secure' : '';
+export function sessionCookie(request, env, token = '') {
+  const name = cookieName(request, env);
+  const secure = name.startsWith('__Host-') ? '; Secure' : '';
   const maxAge = token ? sessionAge : 0;
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 
-function cookieToken(request) {
-  const name = cookieName(request) + '=';
+function cookieToken(request, env) {
+  const name = cookieName(request, env) + '=';
   for (const cookie of (request.headers.get('cookie') || '').split(';')) {
     const value = cookie.trim();
     if (value.startsWith(name) && /^[0-9a-f]{64}$/.test(value.slice(name.length))) {
@@ -107,7 +106,7 @@ export function clientUser(user) {
 }
 
 export async function readSession(request, env) {
-  const token = cookieToken(request);
+  const token = cookieToken(request, env);
   if (!token) return null;
   const tokenHash = await sessionHash(env, token);
   const found = await sql(env.DB, `
@@ -227,19 +226,19 @@ export async function login(request, env, body) {
   }
 
   const { token, statement } = await sessionInsert(env, user);
-  const previous = cookieToken(request);
+  const previous = cookieToken(request, env);
   const statements = [statement, ...cleanExpired(env), ...releaseAttempt(env, source.key, source.expiresAt)];
   if (limitKey) statements.push(...releaseAttempt(env, limitKey, expiresAt));
   if (previous) statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ?', await sessionHash(env, previous)));
   const results = await env.DB.batch(statements);
   if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
-  return { user: clientUser(user), cookie: sessionCookie(request, token) };
+  return { user: clientUser(user), cookie: sessionCookie(request, env, token) };
 }
 
 export async function logout(request, env) {
-  const token = cookieToken(request);
+  const token = cookieToken(request, env);
   if (token) await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ?', await sessionHash(env, token)).run();
-  return sessionCookie(request);
+  return sessionCookie(request, env);
 }
 
 function weakPin(pin) {
@@ -283,7 +282,7 @@ export async function changePin(request, env, user, body) {
   if (!results[0].meta.changes || !results[2].meta.changes) {
     throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
   }
-  return { user: clientUser(updated), cookie: sessionCookie(request, token) };
+  return { user: clientUser(updated), cookie: sessionCookie(request, env, token) };
 }
 
 export async function makeMemberCredential(env, activationSecret) {

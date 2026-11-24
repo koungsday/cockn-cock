@@ -100,8 +100,12 @@ function number(value, label, max = 10000000) {
   return value;
 }
 
+function kstNow() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+}
+
 function kstToday() {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return kstNow().slice(0, 10);
 }
 
 function validDate(value) {
@@ -217,6 +221,33 @@ async function fetchPublic(db, kind, id) {
   const row = await sql(db, `SELECT ${noticeFields} FROM notices WHERE id = ? AND published = 1`, id).first();
   if (!row) missing();
   return { notice: serializeNotice(row) };
+}
+
+async function listPublic(db) {
+  const now = kstNow();
+  const date = now.slice(0, 10);
+  const time = now.slice(11, 16);
+  const [events, notices] = await db.batch([
+    sql(db, `
+      SELECT id, title, date, time, end_time, place, deadline, deadline_at, open
+      FROM events
+      WHERE date >= ? AND published = 1 AND (date > ? OR end_time > ?)
+      ORDER BY date, time, id LIMIT 12
+    `, date, date, time),
+    sql(db, `
+      SELECT id, title, date FROM notices
+      WHERE date <= ? AND published = 1
+      ORDER BY date DESC, rowid DESC LIMIT 8
+    `, date)
+  ]);
+  const seconds = currentSeconds();
+  return {
+    events: events.results.map(row => ({
+      id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
+      place: row.place, deadline: row.deadline, canVote: Boolean(row.open) && row.deadline_at > seconds
+    })),
+    notices: notices.results
+  };
 }
 
 async function memberVote(db, method, id, user, body = {}) {
@@ -578,9 +609,10 @@ async function route(request, env) {
   const method = request.method;
   if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH'].includes(method)) methodNotAllowed();
   const exposed = publicPath.exec(path);
-  if (exposed) {
+  if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
-    const response = json(await fetchPublic(env.DB, exposed[1], exposed[2]));
+    const publicData = exposed ? await fetchPublic(env.DB, exposed[1], exposed[2]) : await listPublic(env.DB);
+    const response = json(publicData);
     return method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
   }
 

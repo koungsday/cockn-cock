@@ -24,7 +24,7 @@ function addDays(date, daysToAdd) {
   return value.toISOString().slice(0, 10);
 }
 
-export function eventDefaults(previous = null) {
+export function eventDefaults(previous = null, defaultPlace = '') {
   if (previous) {
     return {
       ...previous,
@@ -38,8 +38,8 @@ export function eventDefaults(previous = null) {
   const weekday = new Date(`${base}T00:00:00Z`).getUTCDay();
   const date = addDays(base, (7 - weekday) % 7);
   return {
-    title: '일요 운동', date, time: '10:00', endTime: '13:00',
-    earlyTime: '09:30', lateTime: '09:50', place: '당고개 배드민턴체육관',
+    title: '정기 운동', date, time: '10:00', endTime: '13:00',
+    earlyTime: '09:30', lateTime: '09:50', place: defaultPlace,
     deadline: `${addDays(date, -1)}T15:30`, notes: '', open: false, published: false,
   };
 }
@@ -97,8 +97,8 @@ function voteLabel(slot, event) {
 }
 
 export function loginForm(admin = false) {
-  const member = admin ? '<input type="hidden" name="memberCode" value="admin">' : field('회원 코드', 'memberCode', '', {
-    attrs: 'autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="128" required',
+  const member = admin ? '' : field('회원 코드', 'memberCode', '', {
+    attrs: 'autocomplete="username" autocapitalize="off" spellcheck="false" pattern="[0-9a-fA-F]{16}" minlength="16" maxlength="16" required',
     help: '운영진이 개인에게 보내준 코드를 입력해 주세요.',
   });
   const password = field(admin ? '운영진 비밀번호' : '생년월일 또는 PIN', 'credential', '', {
@@ -121,12 +121,12 @@ export function pinForm(mustChange) {
   }), mustChange ? 'PIN 정하고 계속하기' : 'PIN 변경');
 }
 
-export function memberVoteScreen(event, user, vote, eligible) {
-  const head = hero(event.title, '일요 운동 참석 투표', [dateLine(event), event.place]);
+export function memberVoteScreen(event, user, vote, eligible, club) {
+  const head = hero(event.title, `${club.name} 참석 투표`, [dateLine(event), event.place]);
   const hint = `<div class="help-box">응답 마감 ${esc(deadlineLabel(event.deadline))}${event.notes ? `<p class="preserve">${esc(event.notes)}</p>` : ''}</div>`;
   let panel = '<p>투표가 마감됐습니다.</p>';
   if (user?.role === 'admin') {
-    panel = '<p>운영진 화면에서 응답을 확인하거나 수정할 수 있어요.</p><a class="button secondary" href="/">운영진 화면 열기</a>';
+    panel = `<p>운영진 화면에서 응답을 확인하거나 수정할 수 있어요.</p><a class="button secondary" href="${esc(club.admin)}">운영진 화면 열기</a>`;
   } else if (user?.mustChange) {
     panel = '<h2>사용할 PIN을 정해 주세요</h2><p>다음부터는 생년월일 대신 새 PIN으로 로그인합니다.</p>' + pinForm(true);
   } else if (event.canVote && !user) {
@@ -140,8 +140,8 @@ export function memberVoteScreen(event, user, vote, eligible) {
   return `<div class="stack">${head}${hint}<section class="panel">${current}${panel}</section></div>`;
 }
 
-export function noticeScreen(notice) {
-  return `<div class="stack">${hero(notice.title, '모임 공지', [dateLabel(notice.date)])}<article class="panel preserve">${esc(notice.body)}</article></div>`;
+export function noticeScreen(notice, club) {
+  return `<div class="stack">${hero(notice.title, `${club.name} 공지`, [dateLabel(notice.date)])}<article class="panel preserve">${esc(notice.body)}</article></div>`;
 }
 
 function voteFields(event, vote) {
@@ -154,15 +154,28 @@ export function adminShell(section, contents) {
   return `<div class="stack stack-wide"><nav class="tabbar" aria-label="운영 메뉴">${tabs.map(([name, title]) => `<button type="button" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${title}</button>`).join('')}</nav>${contents}</div>`;
 }
 
-export function homeScreen(user, adminLogin) {
-  if (user?.mustChange) {
-    return `<div class="stack">${hero('사용할 PIN을 정해 주세요', '회원 인증')}<section class="panel">${pinForm(true)}</section></div>`;
-  }
-  if (user) {
-    return `<div class="stack">${hero('일요 운동 참석 투표', '썬콕19')}<section class="panel"><p>카카오톡 단체방에서 받은 투표 링크를 열어 주세요. 응답과 변경 사항은 운영진 화면에 바로 반영됩니다.</p></section></div>`;
-  }
-  const label = adminLogin ? '회원 로그인' : '운영진 로그인';
-  return `<div class="stack">${hero('일요 모임 운영', '썬콕19')}<section class="panel"><h2>${adminLogin ? '운영진 로그인' : '회원 로그인'}</h2>${loginForm(adminLogin)}${button(label, 'login-mode', { css: 'quiet' })}</section></div>`;
+export function homeScreen(user, { events, notices }, club) {
+  const eventRows = events.map(event => {
+    const action = event.canVote ? '투표하기' : '일정 확인';
+    return `<li class="row public-record"><div><b>${esc(event.title)}</b>
+      <p class="sub">${esc(dateLine(event))} · ${esc(event.place)}</p></div>
+      <a class="button secondary" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" aria-label="${esc(event.title)} ${action}">${action}</a></li>`;
+  });
+  const noticeRows = notices.map(notice => `<li class="row public-record"><div><a href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">${esc(notice.title)}</a></div>
+    <time class="sub" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></li>`);
+  const adminLink = user?.role === 'admin' ? '운영진 화면' : '운영진 로그인';
+  return `<div class="stack">${hero(club.name, '모임 홈', club.subtitle ? [club.subtitle] : [])}
+    ${user?.mustChange ? `<section class="panel"><h2>사용할 PIN을 정해 주세요</h2>${pinForm(true)}</section>` : ''}
+    <section class="panel"><h2>운동 일정</h2>${list(eventRows, '공개된 운동 일정이 없습니다.')}</section>
+    <section class="panel"><h2>공지</h2>${list(noticeRows, '공개된 공지가 없습니다.')}</section>
+    ${!user ? `<details class="panel member-access"><summary>회원 로그인</summary>${loginForm()}</details>` : ''}
+    <div class="actions club-admin-link"><a href="${esc(club.admin)}">${adminLink}</a></div></div>`;
+}
+
+export function adminLoginScreen(club) {
+  return `<div class="stack">${hero('운영진 로그인', club.name)}
+    <section class="panel"><p>이 모임의 운영진 비밀번호로 로그인해 주세요.</p>${loginForm(true)}</section>
+    <div class="actions"><a href="${esc(club.home)}">모임 홈으로</a></div></div>`;
 }
 
 export function eventForm(event, id = '') {
@@ -205,7 +218,7 @@ export function voteMetrics(counts) {
   return `<dl class="metrics">${items.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`;
 }
 
-export function eventScreen(events, detail) {
+export function eventScreen(events, detail, club) {
   const event = detail?.event;
   const top = `<div class="page-head"><div class="heading-line"><h1>운동 운영</h1><div class="actions">${button('새 회차', 'new-event')}${event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : ''}</div></div>
     ${events.length ? select('확인할 회차', 'event-id', events.map(item => [item.id, `${dateLabel(item.date)} ${item.title}`]), event?.id).replace('<select ', '<select data-action="switch-event" ') : ''}</div>`;
@@ -221,7 +234,7 @@ export function eventScreen(events, detail) {
       ${button('카톡 링크 복사', 'copy-vote', { disabled: !event.published })}
     </div></div>
     <div id="vote-counts">${voteMetrics(counts)}</div>
-    ${event.published ? `<a href="/vote/${esc(event.id)}" target="_blank" rel="noopener">공유 화면 보기</a>` : ''}
+    ${event.published ? `<a href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">공유 화면 보기</a>` : ''}
     ${event.open && !event.canVote ? '<p class="help">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}
     </section>`,
     attendancePanel(event, roster, counts, settlement?.confirmed),
@@ -297,11 +310,11 @@ export function settlementPanel(value, counts) {
   </section>`;
 }
 
-export function reportText(detail) {
+export function reportText(detail, clubName) {
   const { event, roster, guests, settlement: s } = detail;
   const c = countEvent(roster, guests);
   return [
-    `썬콕19 ${event.title} 마무리`,
+    `${clubName} ${event.title} 마무리`,
     `${dateLine(event)} / ${event.place}`,
     `실제 참석 ${c.members + c.guests}명 (회원 ${c.members}명, 게스트 ${c.guests}명)`,
     `콕 이월 ${s.priorSingles + s.remainingSingles}개 + ${s.priorTubes}타 (이전 ${s.priorSingles}개 + ${s.priorTubes}타, 당일 잔여 ${s.remainingSingles}개)`,

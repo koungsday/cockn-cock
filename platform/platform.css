@@ -1,0 +1,432 @@
+:root {
+  color-scheme: light;
+  --paper: #f3f5ed;
+  --surface: #fffefa;
+  --ink: #1d382a;
+  --muted: #516455;
+  --court: #173e2f;
+  --line: #d9e1d3;
+  --leaf: #dcf5a0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  font-synthesis: none;
+  line-height: 1.6;
+}
+
+* { box-sizing: border-box; }
+body, h1, h2, h3, p { margin: 0; }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 3px solid #3e714e;
+  outline-offset: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  top: -5rem;
+  left: 1rem;
+  z-index: 1;
+  padding: .6rem .9rem;
+  background: var(--surface);
+}
+
+.skip-link:focus { top: .5rem; }
+
+.page-width {
+  width: min(68rem, calc(100% - clamp(2rem, 8vw, 5rem)));
+  margin-inline: auto;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.header-inner {
+  min-height: 4.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: 1.23rem;
+  font-weight: 850;
+  letter-spacing: -.065em;
+}
+
+.brand-mark {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: end;
+  gap: 3px;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: .57rem .46rem;
+  background: var(--leaf);
+  border-radius: .6rem;
+}
+
+.brand-mark i {
+  height: 55%;
+  border-radius: 3px;
+  background: var(--court);
+}
+
+.brand-mark i:nth-child(2) { height: 75%; }
+.brand-mark i:nth-child(3) { height: 100%; }
+
+.demo-label, .header-link {
+  color: #3d5b47;
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+.demo-label {
+  padding: .28rem .63rem;
+  border: 1px solid #dce8d4;
+  border-radius: .4rem;
+  background: #edf3e6;
+}
+
+.header-link:hover { text-decoration: underline; }
+
+main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
+
+.hero {
+  display: flex;
+  align-items: center;
+  min-height: clamp(19rem, 41vw, 25rem);
+  padding: clamp(1.4rem, 6vw, 4.4rem);
+  border-radius: clamp(1rem, 3vw, 1.6rem);
+  background-color: var(--court);
+  background-image: linear-gradient(90deg, #14372a 2%, #14372afa 25%, #14372ac2 51%, #14372a18 81%), url("assets/court.webp");
+  background-position: center, right 53%;
+  background-size: cover;
+  color: #f7fae9;
+}
+
+.hero-copy { max-width: 29rem; }
+.hero-label { font-size: .94rem; font-weight: 750; color: var(--leaf); }
+
+.hero h1 {
+  margin-block: .08em .2em;
+  font-size: clamp(3rem, 8.8vw, 6.6rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -.095em;
+}
+
+.hero-copy p:last-child {
+  max-width: 23rem;
+  color: #edf3e5;
+  font-size: clamp(.95rem, 2vw, 1.15rem);
+  word-break: keep-all;
+}
+
+.directory { padding-top: clamp(1.55rem, 4.1vw, 2.8rem); }
+
+.directory h2 {
+  margin-bottom: .85rem;
+  font-size: clamp(1.44rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -.045em;
+}
+
+.club-list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
+
+.club-entry {
+  min-height: 6.1rem;
+  display: grid;
+  grid-template-columns: 3.3rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: clamp(.72rem, 2.7vw, 1.5rem);
+  padding: .94rem clamp(.85rem, 2.5vw, 1.4rem);
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  background: var(--surface);
+}
+
+.club-entry:hover {
+  border-color: #638769;
+  background: #fafcf4;
+}
+
+.club-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.3rem;
+  height: 3.3rem;
+  border: 1px solid #d4e5c7;
+  border-radius: .7rem;
+  background: #e8f1dc;
+  color: #466b4d;
+}
+
+.club-mark::before {
+  content: "";
+  width: 1.65rem;
+  height: 1.06rem;
+  border: 1.5px solid currentColor;
+  border-radius: .1rem;
+  background: linear-gradient(90deg, transparent calc(50% - .75px), currentColor calc(50% - .75px) calc(50% + .75px), transparent calc(50% + .75px));
+}
+
+.club-info { min-width: 0; }
+
+.club-info h3 {
+  font-size: clamp(1.23rem, 3vw, 1.52rem);
+  font-weight: 820;
+  letter-spacing: -.05em;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.club-info p, .club-schedule, .directory-note, .empty { color: var(--muted); }
+.club-info p { margin-top: .16rem; font-size: .91rem; }
+.club-schedule { font-size: .86rem; }
+
+.club-action {
+  display: inline-flex;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  min-width: 7.8rem;
+  padding: .5rem .8rem;
+  border-radius: .5rem;
+  background: #235940;
+  color: #fff;
+  font-size: .9rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.club-action::after {
+  content: "";
+  width: .5rem;
+  height: .5rem;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.club-entry:hover .club-action { background: #173e2f; }
+
+.directory-note { margin-top: .8rem; font-size: .89rem; }
+
+.site-footer {
+  display: grid;
+  place-items: center;
+  margin-top: auto;
+  padding-block: .6rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.shuttlecock {
+  position: relative;
+  display: block;
+  color: var(--court);
+  cursor: pointer;
+}
+
+.shuttlecock-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  clip-path: inset(50%);
+}
+
+.shuttlecock-scene {
+  position: relative;
+  display: block;
+  width: 7.5rem;
+  height: 7rem;
+  border-radius: .7rem;
+  perspective: 280px;
+}
+
+.shuttlecock-toggle:focus-visible + .shuttlecock-scene {
+  outline: 3px solid #3e714e;
+  outline-offset: 4px;
+}
+
+@property --shuttlecock-pitch {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: -12deg;
+}
+
+@property --shuttlecock-yaw {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+/* The eight cork planes reuse the first eight angles of the feather ring. */
+.shuttlecock-scene > :nth-child(16n + 2) { --angle: 22.5deg; }
+.shuttlecock-scene > :nth-child(16n + 3) { --angle: 45deg; }
+.shuttlecock-scene > :nth-child(16n + 4) { --angle: 67.5deg; }
+.shuttlecock-scene > :nth-child(16n + 5) { --angle: 90deg; }
+.shuttlecock-scene > :nth-child(16n + 6) { --angle: 112.5deg; }
+.shuttlecock-scene > :nth-child(16n + 7) { --angle: 135deg; }
+.shuttlecock-scene > :nth-child(16n + 8) { --angle: 157.5deg; }
+.shuttlecock-feather:nth-child(9) { --angle: 180deg; }
+.shuttlecock-feather:nth-child(10) { --angle: 202.5deg; }
+.shuttlecock-feather:nth-child(11) { --angle: 225deg; }
+.shuttlecock-feather:nth-child(12) { --angle: 247.5deg; }
+.shuttlecock-feather:nth-child(13) { --angle: 270deg; }
+.shuttlecock-feather:nth-child(14) { --angle: 292.5deg; }
+.shuttlecock-feather:nth-child(15) { --angle: 315deg; }
+.shuttlecock-feather:nth-child(16) { --angle: 337.5deg; }
+
+.shuttlecock-feather, .shuttlecock-cork {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: currentColor;
+  transform-origin: 0 0;
+  /* Applying the full rotation to each plane keeps the silhouette from flattening in WebKit. */
+  transform: rotateX(var(--shuttlecock-pitch, -12deg)) rotateY(var(--shuttlecock-yaw, 0deg)) rotateZ(-24deg) var(--plane);
+}
+
+/* Each feather flares outward from the top of the rounded cork. */
+.shuttlecock-feather {
+  width: 15px;
+  height: 54px;
+  clip-path: polygon(20% 0, 80% 0, 100% 13%, 90% 32%, 58% 54%, 57% 100%, 43% 100%, 42% 54%, 10% 32%, 0 13%);
+  --plane: rotateY(var(--angle, 0deg)) translate3d(-7.5px, 14px, 10px) rotateX(-25deg) translateY(-100%);
+}
+
+.shuttlecock-cork {
+  width: 24px;
+  height: 20px;
+  border-radius: 2px 2px 50% 50% / 2px 2px 62% 62%;
+  --plane: rotateY(var(--angle, 0deg)) translate(-12px, 12px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shuttlecock-scene {
+    transition: --shuttlecock-pitch .8s cubic-bezier(.16, 1, .3, 1);
+    animation: shuttlecock-spin 3s linear infinite paused;
+  }
+
+  .shuttlecock-toggle:checked + .shuttlecock-scene {
+    --shuttlecock-pitch: -34deg;
+    animation-play-state: running;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .shuttlecock:hover .shuttlecock-scene {
+    --shuttlecock-pitch: -34deg;
+    animation-play-state: running;
+  }
+}
+
+@keyframes shuttlecock-spin { to { --shuttlecock-yaw: 1turn; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .shuttlecock { pointer-events: none; }
+  .shuttlecock-toggle { display: none; }
+}
+
+@media (max-width: 44rem) {
+  .hero {
+    background-image: linear-gradient(90deg, #14372af5 0%, #14372ad4 45%, #14372a80 100%), url("assets/court.webp");
+    background-position: center, 68% center;
+  }
+
+  .club-entry { grid-template-columns: 3.3rem minmax(0, 1fr) auto; }
+  .club-schedule { display: none; }
+}
+
+@media (max-width: 24rem) {
+  .club-entry { grid-template-columns: 2.65rem minmax(0, 1fr); }
+  .club-mark { width: 2.65rem; height: 2.65rem; }
+  .club-action { grid-column: 2; justify-self: start; }
+}
+
+.member-hero {
+  min-height: clamp(12rem, 32vw, 17rem);
+}
+
+.member-hero h1 { font-size: clamp(2.7rem, 7vw, 4.7rem); }
+
+.member-demo-label {
+  display: inline-flex;
+  margin-top: .25rem;
+  color: #e6f4db;
+  background: #244f3b;
+  border-color: #50745f;
+}
+
+.member-admin-link {
+  border: 1px solid #d4dfce;
+  border-radius: .5rem;
+  padding: .47rem .65rem;
+}
+
+.member-admin-link:hover { background: #edf3e6; }
+
+.member-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.13fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: clamp(1.15rem, 4vw, 1.7rem);
+}
+
+.member-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .4rem;
+  padding: clamp(1rem, 3.2vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.member-panel-vote { border-color: #bdceb7; }
+.member-panel-label { color: #3b6248; font-size: .85rem; font-weight: 750; }
+
+.member-panel h2 {
+  font-size: clamp(1.22rem, 3.4vw, 1.62rem);
+  line-height: 1.25;
+  letter-spacing: -.055em;
+}
+
+.member-vote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  gap: .2rem .65rem;
+  font-size: .92rem;
+  font-weight: 720;
+}
+
+.member-panel-detail { margin-bottom: .42rem; color: var(--muted); font-size: .91rem; }
+.member-panel .club-action { margin-top: auto; }
+
+.member-action-secondary {
+  border: 1px solid #d4dfce;
+  color: #294c36;
+  background: #eef4e9;
+}
+
+.member-action-secondary:hover { background: #e4eddb; }
+
+@media (max-width: 42rem) {
+  .member-panel-grid { grid-template-columns: minmax(0, 1fr); gap: .7rem; }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "cockn-cock",
+  "name": "cockcockcock",
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -7,7 +7,7 @@
     "live:build": "node worker/prepare.mjs",
     "live:dev": "npm run live:build && wrangler dev --config worker/wrangler.jsonc --ip 127.0.0.1 --port 8787",
     "live:db": "wrangler d1 migrations apply DB --config worker/wrangler.jsonc --local",
-    "live:test": "node --test worker/api.test.mjs"
+    "live:test": "node --test worker/*.test.mjs"
   },
   "devDependencies": {
     "wrangler": "4.168.0"
