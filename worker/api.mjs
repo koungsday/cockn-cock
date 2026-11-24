@@ -1,5 +1,5 @@
 import {
-  ApiError, changePin, clientUser, currentSeconds, login, loginAdmin, logout, makeMemberCredential,
+  ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
   matchingCredentials, membersNamed, randomHex, readSession, sql, temporaryPin
 } from './auth.mjs';
 
@@ -89,8 +89,10 @@ function text(value, label, max, optional = false) {
   return trimmed;
 }
 
-function memberName(value) {
-  return text(typeof value === 'string' ? value.normalize('NFC') : value, '회원 이름', 60);
+function memberName(env, value) {
+  const name = text(typeof value === 'string' ? value.normalize('NFC') : value, '회원 이름', 60);
+  if (name === env.CLUB_ADMIN_ID) bad('이미 로그인에 사용하는 이름이에요. 다른 이름을 입력해 주세요.');
+  return name;
 }
 
 function boolean(value, label) {
@@ -304,7 +306,7 @@ function rosterOpenEvents(db, id) {
 
 async function addMember(env, body) {
   const db = env.DB;
-  const name = memberName(body.name);
+  const name = memberName(env, body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
   if ((await matchingCredentials(env, candidates, birthday)).length) {
@@ -330,8 +332,9 @@ async function addMember(env, body) {
   return { member: { id, name, active: true } };
 }
 
-async function updateMember(db, id, body) {
-  const name = body.name === undefined ? null : memberName(body.name);
+async function updateMember(env, id, body) {
+  const db = env.DB;
+  const name = body.name === undefined ? null : memberName(env, body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
   const statements = [sql(db, 'UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ?', name, active, id)];
   if (active === 0) statements.push(sql(db, 'DELETE FROM sessions WHERE member_id = ?', id));
@@ -599,7 +602,7 @@ async function routeAdmin(db, env, url, method, body) {
   }
   const member = memberPath.exec(path);
   if (member) {
-    if (method === 'PATCH' && !member[2]) return json(await updateMember(db, member[1], body));
+    if (method === 'PATCH' && !member[2]) return json(await updateMember(env, member[1], body));
     if (method === 'POST' && member[2]) return json(await resetMember(env, member[1]));
     methodNotAllowed();
   }
@@ -635,9 +638,10 @@ async function route(request, env) {
 
   const body = method !== 'GET' && method !== 'HEAD' ? await readBody(request, url) : null;
   const authPath = adminRoute ? '/api/admin' : '/api';
-  if (path === authPath + '/login') {
+  if (path === '/api/admin/login') missing();
+  if (path === '/api/login') {
     if (method !== 'POST') methodNotAllowed();
-    const session = adminRoute ? await loginAdmin(request, env, body) : await login(request, env, body);
+    const session = await login(request, env, body);
     return json({ user: session.user }, 200, session.cookie);
   }
   if (path === authPath + '/logout') {

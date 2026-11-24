@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "cockcockcock",
+  "pages_build_output_dir": "./site",
+  "compatibility_date": "2026-11-24",
+  "env": {
+    "production": {
+      "services": [
+        {
+          "binding": "CLUB_WORKER",
+          "service": "cockcockcock"
+        }
+      ]
+    }
+  }
+}

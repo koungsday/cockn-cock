@@ -1,6 +1,7 @@
 const encoder = new TextEncoder();
-const browserSessionAge = 12 * 60 * 60;
-const rememberedAdminAge = 30 * 24 * 60 * 60;
+const memberSessionAge = 12 * 60 * 60;
+const adminSessionAge = 30 * 24 * 60 * 60;
+const invalidLogin = '입력한 로그인 정보를 확인해 주세요.';
 const attemptWindow = 15 * 60;
 
 export class ApiError extends Error {
@@ -81,11 +82,11 @@ function cookieName(request, env, role) {
   return new URL(request.url).protocol === 'https:' ? '__Host-' + scope : scope + '-dev';
 }
 
-function sessionCookie(request, env, role, token = '', remember = false) {
+function sessionCookie(request, env, role, token = '') {
   const name = cookieName(request, env, role);
   const secure = name.startsWith('__Host-') ? '; Secure' : '';
   const maxAge = !token ? '; Max-Age=0'
-    : role === 'admin' && remember ? '; Max-Age=' + rememberedAdminAge : '';
+    : role === 'admin' ? '; Max-Age=' + adminSessionAge : '';
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 
@@ -135,10 +136,10 @@ export async function readSession(request, env, role) {
   };
 }
 
-async function sessionInsert(env, user, remember = false) {
+async function sessionInsert(env, user) {
   const token = randomHex(32);
   const hash = await sessionHash(env, user.role, token);
-  const age = user.role === 'admin' && remember ? rememberedAdminAge : browserSessionAge;
+  const age = user.role === 'admin' ? adminSessionAge : memberSessionAge;
   const expiresAt = currentSeconds() + age;
   const statement = user.role === 'admin'
     ? sql(env.DB, `
@@ -198,8 +199,8 @@ function cleanExpired(env) {
   ];
 }
 
-async function startSession(request, env, user, limits, remember = false) {
-  const { token, statement } = await sessionInsert(env, user, remember);
+async function startSession(request, env, user, limits) {
+  const { token, statement } = await sessionInsert(env, user);
   const previous = cookieToken(request, env, user.role);
   const statements = [statement, ...cleanExpired(env)];
   for (const { key, expiresAt } of limits) statements.push(...releaseAttempt(env, key, expiresAt));
@@ -209,7 +210,7 @@ async function startSession(request, env, user, limits, remember = false) {
   }
   const results = await env.DB.batch(statements);
   if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
-  return { user: clientUser(user), cookie: sessionCookie(request, env, user.role, token, remember) };
+  return { user: clientUser(user), cookie: sessionCookie(request, env, user.role, token) };
 }
 
 export async function membersNamed(env, name, input = name) {
@@ -233,40 +234,34 @@ export async function login(request, env, body) {
   const input = typeof body.name === 'string' ? body.name.trim() : '';
   const name = input.normalize('NFC');
   const { credential } = body;
-  if (!name || name.length > 60 || name.includes('\0')
+  if (!name || name.length > 64 || name.includes('\0')
     || typeof credential !== 'string' || !credential || credential.length > 128) {
-    throw new ApiError(400, '이름과 비밀번호를 확인해 주세요.');
+    throw new ApiError(400, invalidLogin);
   }
-  const source = await ipLimit(env, request, 'member-login');
-  const namedSource = await ipLimit(env, request, 'member-login', name);
+  const source = await ipLimit(env, request, 'login');
+  const namedSource = await ipLimit(env, request, 'login', name);
+  const limits = [source, namedSource];
+  const { id, password } = adminSettings(env);
+  const [version, submitted] = await Promise.all([
+    adminVersion(env, id, password),
+    adminVersion(env, input, credential)
+  ]);
+  if (equalDigest(version, submitted)) {
+    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
+    return startSession(request, env, user, limits);
+  }
+
+  // Failed attempts follow the same path and message regardless of the account type.
   const candidates = (await membersNamed(env, name, input)).filter(row => row.active);
   if (!candidates.length) await credentialHash(env, credential, '00000000000000000000000000000000');
   const matching = await matchingCredentials(env, candidates, credential);
-  if (matching.length !== 1) {
+  if (matching.length !== 1 || input === id) {
     await env.DB.batch(cleanExpired(env));
-    throw new ApiError(401, '이름 또는 비밀번호가 맞지 않아요.');
+    throw new ApiError(401, invalidLogin);
   }
   const row = matching[0];
   const user = { id: row.id, name: row.name, role: 'member', mustChange: Boolean(row.must_change), version: row.credential_version };
-  return startSession(request, env, user, [source, namedSource]);
-}
-
-export async function loginAdmin(request, env, body) {
-  const { adminId, credential, remember = false } = body;
-  if (!isAdminId(adminId) || typeof credential !== 'string' || !credential || credential.length > 128
-    || typeof remember !== 'boolean') {
-    throw new ApiError(400, '아이디와 비밀번호를 확인해 주세요.');
-  }
-  const source = await ipLimit(env, request, 'admin-login');
-  const { id, password } = adminSettings(env);
-  const version = await adminVersion(env, id, password);
-  const actual = await adminVersion(env, adminId, credential);
-  if (!equalDigest(version, actual)) {
-    await env.DB.batch(cleanExpired(env));
-    throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요.');
-  }
-  const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
-  return startSession(request, env, user, [source], remember);
+  return startSession(request, env, user, limits);
 }
 
 export async function logout(request, env, role) {

@@ -96,16 +96,6 @@ function voteLabel(slot, event) {
   return '미응답';
 }
 
-function memberLoginForm(savedName) {
-  return form('login', field('이름', 'name', savedName, {
-    attrs: 'autocomplete="off" maxlength="60" required',
-    help: '모임에 등록된 이름을 입력해 주세요.',
-  }) + field('생년월일 또는 PIN', 'credential', '', {
-    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
-    help: '처음에는 생년월일 8자리, PIN을 설정한 뒤에는 PIN을 입력합니다. 재설정했다면 운영진이 준 임시 번호를 입력해 주세요.',
-  }) + check('이 기기에서 30일 동안 이름 기억', 'rememberName', Boolean(savedName)), '회원 로그인');
-}
-
 export function pinForm() {
   return form('pin', field('현재 로그인 번호', 'currentPin', '', {
     type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
@@ -156,27 +146,18 @@ export function homeScreen({ events, notices }, club) {
     <time class="sub" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></li>`);
   return `<div class="stack">${hero(club.name, '모임 홈', club.subtitle ? [club.subtitle] : [])}
     <section class="panel"><h2>운동 일정</h2>${list(eventRows, '게시된 운동 일정이 없습니다.')}</section>
-    <section class="panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section>
-    <div class="actions club-admin-link"><a href="${esc(club.admin)}">운영진 화면</a></div></div>`;
+    <section class="panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section></div>`;
 }
 
-export function memberLoginScreen(club, savedName, kind) {
-  const prompt = kind === 'vote' ? '로그인하면 투표 화면이 열려요.'
-    : kind === 'notice' ? '로그인하면 공지를 볼 수 있어요.' : '로그인하면 이 모임의 일정과 공지를 볼 수 있어요.';
-  return `<div class="stack">${hero(club.name, '회원 로그인', club.subtitle ? [club.subtitle] : [])}
-    <section class="panel"><p>${prompt}</p>${memberLoginForm(savedName)}</section>
-    <div class="actions club-admin-link"><a href="${esc(club.admin)}">운영진 로그인</a></div></div>`;
-}
-
-export function adminLoginScreen(club) {
-  const login = form('login', field('운영진 ID', 'adminId', '', {
-    attrs: 'autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="64" required',
-  }) + field('운영진 비밀번호', 'credential', '', {
-    type: 'password', attrs: 'autocomplete="current-password" maxlength="128" required',
-  }) + check('이 기기에서 30일 동안 로그인 유지', 'remember'), '운영진 로그인');
-  return `<div class="stack">${hero('운영진 로그인', club.name)}
-    <section class="panel"><p>이 모임의 운영진 계정으로 로그인해 주세요.</p>${login}</section>
-    <div class="actions"><a href="${esc(club.home)}">회원 화면으로</a></div></div>`;
+export function loginScreen(club, savedName) {
+  const login = form('login', field('이름 또는 아이디', 'name', savedName, {
+    attrs: 'autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" required',
+  }) + field('생년월일 또는 비밀번호', 'credential', '', {
+    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
+    help: '회원은 처음에 생년월일 8자리를 입력해 주세요. PIN을 설정했거나 임시 번호를 받았다면 그 번호를 입력해 주세요.',
+  }), '로그인');
+  return `<div class="stack">${hero(club.name, '로그인', club.subtitle ? [club.subtitle] : [])}
+    <section class="panel">${login}</section></div>`;
 }
 
 export function eventForm(event, id = '') {

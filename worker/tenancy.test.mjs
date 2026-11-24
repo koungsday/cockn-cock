@@ -90,7 +90,7 @@ function setup(t) {
   }
   const login = (club, name, credential, status) => signIn(club, '/login', { name, credential }, status);
   const adminLogin = (club, credential = env[club.adminPasswordBinding], status) =>
-    signIn(club, '/admin/login', { adminId: env[club.adminIdBinding], credential }, status);
+    login(club, env[club.adminIdBinding], credential, status);
   return { env, receive, request, login, adminLogin };
 }
 
@@ -179,9 +179,9 @@ test('a club administrator and a member cannot use their roles or credentials in
   assert.equal((await request(second, '/admin', { cookie: secondCookie })).status, 200);
 
   const localOrigin = 'http://127.0.0.1:8787';
-  const localLogin = await request(second, '/admin/login', {
+  const localLogin = await request(second, '/login', {
     method: 'POST', protocol: localOrigin, requestOrigin: localOrigin,
-    body: { adminId: env.SECOND_ID, credential: env.SECOND_ADMIN }
+    body: { name: env.SECOND_ID, credential: env.SECOND_ADMIN }
   });
   assert.equal(localLogin.status, 200);
   assert.match(localLogin.headers.get('Set-Cookie'), /^second-club-admin-dev=/);
@@ -314,4 +314,26 @@ test('a single registered club is the domain login entry point', async t => {
   assert.equal(response.status, 302);
   assert.equal(response.headers.get('Location'), '/clubs/first-club/');
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
+});
+
+test('a configured address move preserves paths without redirecting credential requests', async t => {
+  const {env} = setup(t);
+  const worker = createWorker([first]);
+  env.CLUB_LEGACY_ORIGIN = origin;
+  env.CLUB_PUBLIC_ORIGIN = 'https://club-example.pages.dev';
+  const path = '/clubs/first-club/admin/?from=homescreen';
+  const oldPage = await worker.fetch(new Request(origin + path), env);
+  assert.equal(oldPage.status, 308);
+  assert.equal(oldPage.headers.get('Location'), env.CLUB_PUBLIC_ORIGIN + path);
+  assert.equal(oldPage.headers.get('Cache-Control'), 'no-store');
+  const page = await worker.fetch(new Request(env.CLUB_PUBLIC_ORIGIN + path), env);
+  assert.equal(page.status, 200);
+  const sameOriginApi = await worker.fetch(new Request(origin + '/clubs/first-club/api/session'), env);
+  assert.equal(sameOriginApi.status, 200);
+  const login = await worker.fetch(new Request(origin + '/clubs/first-club/api/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ name: env.FIRST_ID, credential: env.FIRST_ADMIN })
+  }), env);
+  assert.equal(login.status, 200);
+  assert.equal(login.headers.has('Location'), false);
 });

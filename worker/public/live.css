@@ -177,7 +177,6 @@ button.compact { padding-inline: .65rem; font-size: .875rem; }
 .public-record div { min-width: 0; overflow-wrap: anywhere; }
 .public-record .button { padding-inline: .68rem; }
 .public-record time { white-space: nowrap; }
-.club-admin-link { justify-content: flex-end; padding: .2rem .25rem; font-size: .9rem; }
 .row[hidden], .row [hidden] { display: none; }
 .row details { grid-column: 1 / -1; }
 .badge { display: inline-block; padding: .14rem .47rem; color: #30523b; background: var(--hint); border-radius: 999px; font-size: .81rem; }

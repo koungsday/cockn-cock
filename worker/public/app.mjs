@@ -1,6 +1,6 @@
 import {
-  adminLoginScreen, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
-  guestForm, homeScreen, memberForm, memberLoginScreen, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
+  adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  guestForm, homeScreen, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
 
@@ -49,6 +49,7 @@ let navigationVersion = 0;
 
 const authRole = route?.kind === 'admin' ? 'admin' : 'member';
 const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
+const clubTitle = `${club.name} · 콕콕콕!`;
 const savedNameKey = `cockcockcock:member-name:${clubBase}`;
 const savedNameLifetime = 30 * 24 * 60 * 60 * 1000;
 
@@ -63,10 +64,9 @@ function rememberedName() {
   return '';
 }
 
-function rememberName(name, optedIn) {
+function rememberName(name) {
   try {
-    if (optedIn) localStorage.setItem(savedNameKey, JSON.stringify({ name, expiresAt: Date.now() + savedNameLifetime }));
-    else localStorage.removeItem(savedNameKey);
+    localStorage.setItem(savedNameKey, JSON.stringify({ name, expiresAt: Date.now() + savedNameLifetime }));
   } catch {
     // Signing in still works if browser storage is unavailable.
   }
@@ -114,6 +114,7 @@ function showMessage(text, error = false) {
 }
 
 function renderAccount() {
+  document.title = state.user?.role === 'admin' ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
   if (!state.user || (route.kind === 'admin' && state.user.role !== 'admin')) {
     account.innerHTML = '';
     return;
@@ -176,7 +177,7 @@ function render() {
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
   if (!state.user) {
-    main.innerHTML = authRole === 'admin' ? adminLoginScreen(club) : memberLoginScreen(club, rememberedName(), route.kind);
+    main.innerHTML = loginScreen(club, rememberedName());
   } else if (route.kind === 'vote') {
     main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club);
   } else if (route.kind === 'notice') {
@@ -209,6 +210,7 @@ function clearProtectedView() {
   if (dialog.open) dialog.close();
   dialog.replaceChildren();
   account.replaceChildren();
+  document.title = clubTitle;
   clearTimeout(messageTimer);
   message.textContent = '';
   message.hidden = true;
@@ -226,6 +228,16 @@ async function initialize() {
   try {
     const { user } = await request(authPath('session'));
     state.user = user?.role === authRole ? user : null;
+    if (!state.user && route.kind === 'home') {
+      const adminSession = await request('/api/admin/session').catch(error => {
+        if (error.name === 'AbortError') throw error;
+        return null;
+      });
+      if (adminSession?.user?.role === 'admin') {
+        location.replace(club.admin);
+        return;
+      }
+    }
     await load();
     render();
   } catch (error) {
@@ -447,14 +459,17 @@ function buildEvent(data) {
 async function doSubmit(kind, itemId, data) {
   switch (kind) {
     case 'login': {
-      const credential = raw(data, 'credential');
-      const input = authRole === 'admin'
-        ? { adminId: read(data, 'adminId'), credential, remember: data.has('remember') }
-        : { name: read(data, 'name'), credential };
-      const { user } = await request(authPath('login'), 'POST', input);
-      if (user?.role !== authRole) throw new Error('로그인 권한을 확인하지 못했어요.');
+      const { user } = await request('/api/login', 'POST', {
+        name: read(data, 'name'), credential: raw(data, 'credential'),
+      });
+      if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
+      if (user.role === 'member') rememberName(user.name);
+      if (user.role !== authRole) {
+        main.innerHTML = loadingMarkup;
+        location.replace(user.role === 'admin' ? club.admin : club.home);
+        break;
+      }
       state.user = user;
-      if (authRole === 'member') rememberName(user.name, data.has('rememberName'));
       await openSignedInPage();
       break;
     }
@@ -603,7 +618,6 @@ document.addEventListener('submit', event => {
 
 main.addEventListener('change', event => {
   const control = event.target;
-  if (control.matches('[name="rememberName"]') && !control.checked) rememberName('', false);
   if (!control.matches('[data-action=switch-event]')) return;
   void run(async () => {
     state.selectedEvent = control.value;
@@ -628,7 +642,7 @@ dialog.addEventListener('close', () => {
 });
 
 if (route && club.name) {
-  document.title = `${club.name}${route.kind === 'admin' ? ' 운영진' : ''} · 콕콕콕!`;
+  document.title = clubTitle;
   const clubLink = document.querySelector('#club-home');
   clubLink.href = club.home;
   document.querySelector('#club-name').textContent = club.name;

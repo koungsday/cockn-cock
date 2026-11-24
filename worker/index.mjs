@@ -7,6 +7,8 @@ const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const bindingPattern = /^[A-Z][A-Z0-9_]*$/;
 const clubPath = /^\/clubs\/([a-z0-9][a-z0-9-]{0,63})(\/.*)?$/;
 const sharePath = /^\/(vote|notice)\/([a-zA-Z0-9_-]{1,100})\/?$/;
+const apiPath = /^\/(?:clubs\/[^/]+\/)?api(?:\/|$)/;
+const pagesOrigin = /^https:\/\/[a-z0-9-]+\.pages\.dev$/;
 
 const escape = (value) => String(value).replace(/[&<>"']/g, (char) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -174,6 +176,13 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
     async fetch(request, env) {
       const url = new URL(request.url);
       const { pathname: path } = url;
+      if (canView(request) && url.origin === env.CLUB_LEGACY_ORIGIN
+        && pagesOrigin.test(env.CLUB_PUBLIC_ORIGIN) && !apiPath.test(path)) {
+        const target = new URL(env.CLUB_PUBLIC_ORIGIN);
+        target.pathname = path;
+        target.search = url.search;
+        return new Response(null, { status: 308, headers: { Location: target.href, 'Cache-Control': 'no-store' } });
+      }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();
         if (clubs.length === 1) {

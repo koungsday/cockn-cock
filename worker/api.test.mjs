@@ -91,8 +91,8 @@ function setup(t) {
       login(name, credential, expect = 200) {
         return this.request('/api/login', {method:'POST', body:{name, credential}, expect});
       },
-      adminLogin({ id = adminId, password = adminPassword, remember = false, expect = 200 } = {}) {
-        return this.request('/api/admin/login', {method:'POST', body:{adminId:id, credential:password, remember}, expect});
+      adminLogin({ id = adminId, password = adminPassword, expect = 200 } = {}) {
+        return this.login(id, password, expect);
       }
     };
   }
@@ -188,7 +188,7 @@ test('credential limits are tracked before verification for name and source addr
   for (let i = 0; i < 30; i++) await repeated.login('등록하지 않은 예시 ' + i, '000001', 401);
   await repeated.login(member.name, '000001', 429);
   const failedAdmin = client('203.0.113.32');
-  for (let i = 0; i < 30; i++) await failedAdmin.adminLogin({ password:'wrong-local-password', expect:401 });
+  for (let i = 0; i < 5; i++) await failedAdmin.adminLogin({ password:'wrong-local-password', expect:401 });
   await failedAdmin.adminLogin({ expect:429 });
   assert.equal((await client('203.0.113.33').adminLogin()).user.role, 'admin');
 });
@@ -227,33 +227,41 @@ test('same-name records use their own credentials and identical matches are deni
   assert.equal((await client().login(name, temporaryPin)).user.id, duplicate.id);
 });
 
-test('admin ID, cookie length, role separation and secret rotation are enforced', async t => {
+test('shared login assigns role and cookie lifetime on the server', async t => {
   const {DB, client, env} = setup(t);
   const admin = client();
   await admin.request('/api/login', {method:'POST', body:{memberCode:'admin', credential:adminPassword}, expect:400});
-  await admin.adminLogin({ id:'wrong-operator', expect:401 });
-  await admin.adminLogin({ password:adminPassword.trim(), expect:401 });
-  await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPassword}, requestOrigin:'https://unrelated.test', expect:403});
+  const wrongId = await admin.adminLogin({ id:'wrong-operator', expect:401 });
+  const wrongPassword = await admin.adminLogin({ password:adminPassword.trim(), expect:401 });
+  assert.deepEqual(wrongId, wrongPassword);
+  await admin.request('/api/login', {method:'POST', body:{name:adminId, credential:adminPassword}, requestOrigin:'https://unrelated.test', expect:403});
   await admin.adminLogin();
   assert.match(admin.setCookie, /^__Host-suncok19-admin=/);
-  assert.doesNotMatch(admin.setCookie, /Max-Age/);
-  let lifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='admin'").first()).seconds;
-  assert.ok(lifetime <= 43200 && lifetime >= 43199);
-  await admin.adminLogin({ remember:true });
   assert.match(admin.setCookie, /Max-Age=2592000/);
-  lifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='admin'").first()).seconds;
+  const lifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='admin'").first()).seconds;
   assert.ok(lifetime <= 2592000 && lifetime >= 2591999);
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
   assert.equal((await admin.request('/api/session')).user, null);
   await admin.request('/api/public', {expect:401});
+  await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPassword}, expect:404});
+  await admin.request('/api/admin/members', {
+    method:'POST', expect:400, body:{name:adminId, birthday:'19890810'}
+  });
 
   const {member} = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:'가상 별도 로그인 회원', birthday:'19890810'}
   });
   const memberClient = client();
-  await memberClient.login(member.name, '19890810');
+  await memberClient.request('/api/login', {
+    method:'POST', body:{name:member.name, credential:'19890810', role:'admin', remember:true}
+  });
   assert.match(memberClient.setCookie, /^__Host-suncok19-member=/);
   assert.doesNotMatch(memberClient.setCookie, /Max-Age/);
+  const memberLifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='member'").first()).seconds;
+  assert.ok(memberLifetime <= 43200 && memberLifetime >= 43199);
+  await admin.request('/api/admin/members/' + member.id, {
+    method:'PATCH', expect:400, body:{name:adminId}
+  });
   const both = admin.cookie + '; ' + memberClient.cookie;
   assert.equal((await admin.request('/api/admin/session', {headerCookie:both})).user.role, 'admin');
   assert.equal((await admin.request('/api/session', {headerCookie:both})).user.id, member.id);
@@ -263,10 +271,10 @@ test('admin ID, cookie length, role separation and secret rotation are enforced'
 
   env.CLUB_ADMIN_ID = 'rotated-fixture-operator';
   assert.equal((await admin.request('/api/admin/session')).user, null);
-  await admin.adminLogin({id:env.CLUB_ADMIN_ID, remember:true});
+  await admin.adminLogin({id:env.CLUB_ADMIN_ID});
   env.CLUB_ADMIN_PASSWORD = 'rotated-fixture-operator-secret';
   assert.equal((await admin.request('/api/admin/session')).user, null);
-  await admin.adminLogin({id:env.CLUB_ADMIN_ID, password:env.CLUB_ADMIN_PASSWORD, remember:true});
+  await admin.adminLogin({id:env.CLUB_ADMIN_ID, password:env.CLUB_ADMIN_PASSWORD});
   const expiredCookie = admin.cookie;
   await DB.prepare("UPDATE sessions SET expires_at = unixepoch() WHERE role='admin'").run();
   await admin.request('/api/admin', {headerCookie:expiredCookie, expect:401});
