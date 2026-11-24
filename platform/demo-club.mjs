@@ -25,8 +25,8 @@ export function renderDemoClub({ club, basePath, vote, notice }) {
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f5ed">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f5ec">
   <meta name="description" content="${name} 회원 화면에서 일정, 투표, 공지를 체험하세요.">
   <title>${name} · ${brand}</title>
   <link rel="stylesheet" href="${root}platform.css">
@@ -36,7 +36,7 @@ export function renderDemoClub({ club, basePath, vote, notice }) {
   <a class="skip-link" href="#content">본문 바로가기</a>
   <header class="site-header">
     <div class="page-width header-inner">
-      <a class="site-brand" href="${root}" aria-label="${brand} 등록 모임"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>${brand}</a>
+      <a class="site-brand" href="${root}" aria-label="${brand} 등록 모임"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
       <a class="header-link member-admin-link" href="${escape(clubPath + 'admin/')}">운영 화면 체험</a>
     </div>
   </header>

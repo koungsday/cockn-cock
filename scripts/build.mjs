@@ -115,15 +115,19 @@ function shareHtml(entry) {
 
 await rm(dist, { recursive: true, force: true });
 const staticFiles = [
-  'styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'app.js',
-  'assets/court.webp', 'assets/kakao-notice.png', 'assets/kakao-vote.png',
+  'share.css', 'state.js', 'screens.js', 'share.js', 'app.js',
+  'assets/court.webp', 'assets/kakao-notice.png', 'assets/kakao-vote.png', 'assets/shuttlecock-icon-96.png',
 ];
 for (const source of staticFiles) {
   const destination = join(dist, source);
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(join(root, source), destination);
 }
-await copyFile(join(root, 'platform/platform.css'), join(dist, 'platform.css'));
+const theme = await readFile(join(root, 'platform/theme.css'), 'utf8');
+for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platform.css', 'platform.css']]) {
+  const css = await readFile(join(root, source), 'utf8');
+  await writeFile(join(dist, output), theme + '\n' + css);
+}
 await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo' }));
 await writeFile(join(dist, 'legacy-links.js'), `
 if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
@@ -135,6 +139,7 @@ const appScript = '<script defer src="app.js"></script>';
 const index = await readFile(join(root, 'index.html'), 'utf8');
 if (!index.includes(appScript)) throw new Error('The demo entry script is missing.');
 const clubIndex = index
+  .replace('  <link rel="stylesheet" href="platform/theme.css">\n', '')
   .replace(appScript, `<script defer src="published-shares.js"></script>
   ${appScript}`)
   .replace(/(href|src)="([a-z.-]+\.(?:js|css))"/g, (_, attribute, file) => `${attribute}="${escape(site.pathname)}${file}"`)

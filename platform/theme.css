@@ -1,0 +1,19 @@
+:root {
+  color-scheme: light;
+  --paper: #f3f5ec;
+  --surface: #fffefa;
+  --ink: #1f332a;
+  --muted: #526559;
+  --court: #19443a;
+  --action: #22553f;
+  --leaf: #dfeec1;
+  --line: #d6ded0;
+  --hint: #eef1e7;
+  --focus: #447553;
+  --font-text: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --page-gutter: max(1rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  --mark-radius: 9px;
+  --touch-target: 44px;
+}

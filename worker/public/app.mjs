@@ -1,5 +1,5 @@
 import {
-  adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  adminMenu, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
@@ -8,6 +8,7 @@ const main = document.querySelector('#main');
 const account = document.querySelector('#account');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
+const desktopNavigation = window.matchMedia('(min-width: 900px)');
 const loadingMarkup = '<p role="status">모임을 불러오는 중이에요.</p>';
 
 const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.trim() ?? '';
@@ -46,6 +47,10 @@ let busy = false;
 let messageTimer;
 let eventSnapshot = null;
 let navigationVersion = 0;
+let renderedAccountUser;
+let dialogOpener = null;
+let startedOnBackdrop = false;
+let dialogScrollTop = null;
 const signIn = { name: null, numberStep: false, otherCredential: false };
 
 const authRole = route?.kind === 'admin' ? 'admin' : 'member';
@@ -122,13 +127,16 @@ function showMessage(text, error = false) {
 
 function renderAccount() {
   document.title = state.user?.role === 'admin' ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
+  if (renderedAccountUser === state.user) return;
+  renderedAccountUser = state.user;
   if (!state.user || (route.kind === 'admin' && state.user.role !== 'admin')) {
     account.innerHTML = '';
     return;
   }
   const user = state.user;
-  account.innerHTML = `<span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
-    ${user.role === 'member' ? button('PIN 설정·변경', 'pin', { css: 'quiet compact' }) : ''}
+  account.innerHTML = `${user.role === 'admin' ? `<button class="quiet admin-menu-toggle" type="button" data-action="admin-menu" aria-label="운영 메뉴 열기" aria-haspopup="dialog" aria-controls="dialog"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>` : ''}
+    <span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
+    ${user.role === 'member' ? button('PIN 관리', 'pin', { css: 'quiet compact' }) : ''}
     ${button('로그아웃', 'logout', { css: 'quiet compact' })}`;
 }
 
@@ -144,9 +152,10 @@ async function loadEvent() {
   state.detail = state.selectedEvent ? await request(adminEventPath()) : null;
 }
 
-async function loadProgress() {
-  const { year, half } = state.period;
+async function loadProgress(period = state.period) {
+  const { year, half } = period;
   const response = await request(`/api/admin/progress?year=${year}&half=${half}`);
+  state.period = period;
   state.progress = response.members;
 }
 
@@ -184,7 +193,7 @@ function render() {
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
   if (!state.user) {
-    main.innerHTML = loginScreen(signIn.name ?? rememberedName(), signIn.numberStep, signIn.otherCredential);
+    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, signIn.otherCredential);
   } else if (route.kind === 'vote') {
     main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club);
   } else if (route.kind === 'notice') {
@@ -215,9 +224,11 @@ function clearProtectedView() {
   });
   eventSnapshot = null;
   Object.assign(signIn, { name: null, numberStep: false, otherCredential: false });
-  if (dialog.open) dialog.close();
+  dialogOpener = null;
+  closeDialog();
   dialog.replaceChildren();
   account.replaceChildren();
+  renderedAccountUser = undefined;
   document.title = clubTitle;
   hideMessage();
   main.classList.add('narrow');
@@ -277,11 +288,40 @@ async function checkAdminSession() {
   }
 }
 
-function openDialog(title, body) {
-  if (dialog.open) dialog.close();
-  dialog.innerHTML = `<div class="stack"><div class="heading-line"><h2 id="dialog-title">${title}</h2>${button('닫기', 'close', { css: 'quiet compact' })}</div>
-    <p class="inline-error" role="alert" hidden></p>${body}</div>`;
-  dialog.showModal();
+function openDialog(title, body, className = '') {
+  startedOnBackdrop = false;
+  dialog.className = className;
+  dialog.innerHTML = `<div class="dialog-heading"><h2 id="dialog-title" tabindex="-1">${title}</h2>
+    <button type="button" class="dialog-close" data-action="close" aria-label="닫기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="dialog-body stack"><p class="inline-error" role="alert" hidden></p>${body}</div>`;
+  if (!dialog.open) {
+    dialogScrollTop = window.scrollY;
+    document.body.style.top = `-${dialogScrollTop}px`;
+    document.body.classList.add('dialog-scroll-lock');
+    dialog.showModal();
+  }
+  dialog.querySelector('#dialog-title').focus({ preventScroll: true });
+}
+
+function unlockDialogScroll() {
+  if (dialogScrollTop === null) return;
+  document.body.classList.remove('dialog-scroll-lock');
+  document.body.style.removeProperty('top');
+  window.scrollTo({ top: dialogScrollTop, behavior: 'instant' });
+  dialogScrollTop = null;
+}
+
+function closeDialog() {
+  if (!dialog.open) return;
+  dialog.close();
+  unlockDialogScroll();
+}
+
+function matchingControl(control) {
+  if (control?.isConnected) return control;
+  if (!control?.dataset.action) return null;
+  return [...document.querySelectorAll('button[data-action]')].find(candidate =>
+    candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id && !candidate.disabled);
 }
 
 function credentialDialog(name, temporaryPin) {
@@ -306,13 +346,20 @@ async function copy(text) {
 
 async function update(url, method, data, notice) {
   await request(url, method, data);
+  await showSaved(notice);
+}
+
+async function showSaved(notice) {
   try {
     await load();
     render();
+    showMessage(notice);
+  } catch (error) {
+    if (error.status === 401 || error.name === 'AbortError') throw error;
+    failedPage(new RequestError(`${notice} 화면을 다시 불러와 확인해 주세요.`, error.status === 404 ? 0 : error.status));
   } finally {
-    dialog.close();
+    closeDialog();
   }
-  showMessage(notice);
 }
 
 async function refreshVoteCounts() {
@@ -346,6 +393,7 @@ function updateLoginCode(input) {
   const cells = input.nextElementSibling.children;
   for (let index = 0; index < cells.length; index++) {
     cells[index].toggleAttribute('data-filled', index < input.value.length);
+    cells[index].toggleAttribute('data-position', index === Math.min(input.selectionStart, cells.length - 1));
   }
 }
 
@@ -355,7 +403,7 @@ async function doAction(action, itemId) {
       await initialize();
       break;
     case 'close':
-      dialog.close();
+      closeDialog();
       break;
     case 'login-help':
       hideMessage();
@@ -368,7 +416,8 @@ async function doAction(action, itemId) {
       break;
     case 'login-credential-mode':
       signIn.otherCredential = !signIn.otherCredential;
-      dialog.close();
+      dialogOpener = null;
+      closeDialog();
       showLoginStep();
       break;
     case 'logout':
@@ -380,12 +429,27 @@ async function doAction(action, itemId) {
     case 'pin':
       openDialog('PIN 설정·변경', pinForm());
       break;
-    case 'tab':
-      state.section = itemId;
-      await load();
-      render();
-      main.querySelector('.tabbar [aria-current="page"]')?.focus();
+    case 'admin-menu':
+      openDialog('운영 메뉴', adminMenu(state.section), 'admin-menu-dialog');
       break;
+    case 'tab': {
+      if (state.section !== itemId) dialogOpener = null;
+      closeDialog();
+      if (state.section === itemId) break;
+      const previous = state.section;
+      state.section = itemId;
+      try {
+        await load();
+      } catch (error) {
+        if (state.section === itemId) state.section = previous;
+        throw error;
+      }
+      render();
+      window.scrollTo(0, 0);
+      const target = desktopNavigation.matches ? main.querySelector('.admin-sidebar [aria-current="page"]') : main.querySelector('.admin-section-head h1');
+      (target ?? main).focus({ preventScroll: true });
+      break;
+    }
     case 'refresh':
       await load();
       render();
@@ -493,7 +557,7 @@ async function doSubmit(kind, itemId, data) {
   switch (kind) {
     case 'login-name': {
       const name = read(data, 'name');
-      if (!name) throw new Error('성함을 입력해 주세요.');
+      if (!name) throw new RequestError('성함을 입력해 주세요.', 400);
       signIn.name = name;
       signIn.numberStep = true;
       showLoginStep();
@@ -518,17 +582,13 @@ async function doSubmit(kind, itemId, data) {
       const newPin = read(data, 'newPin');
       if (newPin !== read(data, 'confirmPin')) throw new Error('새 PIN이 서로 달라요. 다시 확인해 주세요.');
       ({ user: state.user } = await request('/api/pin', 'POST', { currentPin: raw(data, 'currentPin'), newPin }));
-      dialog.close();
-      await load();
-      render();
-      if (!state.user) showMessage('PIN을 저장했어요. 새 PIN으로 다시 로그인해 주세요.');
-      else showMessage('PIN을 저장했어요.');
+      await showSaved(state.user ? 'PIN을 저장했어요.' : 'PIN을 저장했어요. 새 PIN으로 다시 로그인해 주세요.');
       break;
     }
     case 'vote':
-      await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') });
-      await load();
+      ({ vote: state.vote } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') }));
       render();
+      main.querySelector('[data-form="vote"] button[type="submit"]')?.focus({ preventScroll: true });
       showMessage('응답을 저장했어요.');
       break;
     case 'event': {
@@ -537,20 +597,14 @@ async function doSubmit(kind, itemId, data) {
         ? Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== eventSnapshot[key]))
         : values;
       if (!Object.keys(changed).length) {
-        dialog.close();
+        closeDialog();
         showMessage('변경된 내용이 없어요.');
         break;
       }
       const result = await request(itemId ? `/api/admin/events/${id(itemId)}` : '/api/admin/events',
         itemId ? 'PATCH' : 'POST', changed);
       state.selectedEvent = result.event.id;
-      try {
-        await load();
-        render();
-      } finally {
-        dialog.close();
-      }
-      showMessage('회차를 저장했어요.');
+      await showSaved('회차를 저장했어요.');
       break;
     }
     case 'attendance': {
@@ -588,15 +642,7 @@ async function doSubmit(kind, itemId, data) {
         await update(`/api/admin/members/${id(itemId)}`, 'PATCH', { name, active: data.has('active') }, '회원 정보를 저장했어요.');
       } else {
         await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
-        dialog.close();
-        try {
-          await load();
-          render();
-          showMessage('회원을 등록했어요.');
-        } catch (error) {
-          if (error.status === 401 || error.name === 'AbortError') throw error;
-          showMessage('회원을 등록했어요. 회원 목록은 다시 열어 주세요.', true);
-        }
+        await showSaved('회원을 등록했어요.');
       }
       break;
     }
@@ -607,8 +653,7 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'progress':
-      state.period = { year: Number(read(data, 'year')), half: Number(read(data, 'half')) };
-      await loadProgress();
+      await loadProgress({ year: Number(read(data, 'year')), half: Number(read(data, 'half')) });
       render();
       break;
   }
@@ -618,23 +663,47 @@ async function run(work, control) {
   if (busy) return;
   busy = true;
   const version = navigationVersion;
+  const initialFocus = document.activeElement;
   const saved = control.disabled;
   control.disabled = true;
-  const inline = dialog.open ? dialog.querySelector('.inline-error') : null;
+  const form = control.matches('button[type="submit"]') ? control.form : null;
+  const inline = form?.querySelector('.inline-error') ?? (dialog.open ? dialog.querySelector('.inline-error') : null);
+  const field = form?.querySelector('#login-value');
+  const label = control.textContent;
+  const pending = form ? setTimeout(() => {
+    form.setAttribute('aria-busy', 'true');
+    control.textContent = form.dataset.form === 'login' ? '로그인 중…' : '처리 중…';
+  }, 180) : null;
   if (inline) inline.hidden = true;
+  field?.removeAttribute('aria-invalid');
+  field?.removeAttribute('aria-describedby');
   try {
     await work();
   } catch (error) {
     if (error.name === 'AbortError') return;
     if (error.status === 401 && state.user) return loginExpired();
-    if (inline?.isConnected && dialog.open) {
+    if (inline?.isConnected && (form?.contains(inline) || dialog.open)) {
       inline.textContent = error.message;
       inline.hidden = false;
+      if (field && (error.status === 400 || error.status === 401 || error.status === 403)) {
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', inline.id);
+        field.focus({ preventScroll: true });
+      }
     } else {
       showMessage(error.message, true);
     }
   } finally {
+    clearTimeout(pending);
+    if (form?.hasAttribute('aria-busy')) {
+      form.removeAttribute('aria-busy');
+      control.textContent = label;
+    }
     if (control.isConnected) control.disabled = saved;
+    else if (!dialog.open && version === navigationVersion &&
+      (document.activeElement === document.body || document.activeElement === initialFocus)) {
+      matchingControl(control)?.focus({ preventScroll: true });
+    }
     if (version === navigationVersion) busy = false;
   }
 }
@@ -643,7 +712,10 @@ document.addEventListener('click', event => {
   const control = event.target.closest('button[data-action]');
   if (!control) return;
   const { action, id: itemId } = control.dataset;
-  void run(() => doAction(action, itemId), control);
+  void run(() => {
+    if (!dialog.open) dialogOpener = control;
+    return doAction(action, itemId);
+  }, control);
 });
 
 document.addEventListener('submit', event => {
@@ -661,9 +733,17 @@ main.addEventListener('change', event => {
   const control = event.target;
   if (!control.matches('[data-action=switch-event]')) return;
   void run(async () => {
-    state.selectedEvent = control.value;
-    await loadEvent();
+    const selected = control.value;
+    const previous = state.selectedEvent;
+    try {
+      state.detail = await request(`/api/admin/events/${id(selected)}`);
+    } catch (error) {
+      control.value = previous;
+      throw error;
+    }
+    state.selectedEvent = selected;
     render();
+    main.querySelector('[data-action=switch-event]')?.focus({ preventScroll: true });
   }, control);
 });
 
@@ -683,6 +763,12 @@ main.addEventListener('input', event => {
   } else if (input.dataset.filter) applyFilter(input);
 });
 
+for (const type of ['focusin', 'click', 'keyup', 'select']) {
+  main.addEventListener(type, event => {
+    if (event.target.hasAttribute('data-login-code')) updateLoginCode(event.target);
+  });
+}
+
 main.addEventListener('paste', event => {
   const input = event.target;
   if (!input.hasAttribute('data-login-code') || !event.clipboardData) return;
@@ -698,8 +784,39 @@ main.addEventListener('paste', event => {
   updateLoginCode(input);
 });
 
+function onDialogBackdrop(event) {
+  if (event.target !== dialog) return false;
+  const { top, right, bottom, left } = dialog.getBoundingClientRect();
+  return event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom;
+}
+
+dialog.addEventListener('pointerdown', event => {
+  startedOnBackdrop = event.button === 0 && onDialogBackdrop(event);
+});
+dialog.addEventListener('pointercancel', () => { startedOnBackdrop = false; });
+dialog.addEventListener('click', event => {
+  if (!busy && startedOnBackdrop && onDialogBackdrop(event)) closeDialog();
+  startedOnBackdrop = false;
+});
+dialog.addEventListener('cancel', event => {
+  event.preventDefault();
+  if (!busy) closeDialog();
+});
 dialog.addEventListener('close', () => {
-  if (!dialog.open) dialog.replaceChildren();
+  if (dialog.open) return;
+  unlockDialogScroll();
+  dialog.className = '';
+  dialog.replaceChildren();
+  const opener = dialogOpener;
+  dialogOpener = null;
+  const target = matchingControl(opener);
+  if (target) target.focus({ preventScroll: true });
+  else if (opener && document.activeElement === document.body) main.focus({ preventScroll: true });
+});
+desktopNavigation.addEventListener('change', event => {
+  if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
+  dialogOpener = main.querySelector('.admin-sidebar [aria-current="page"]');
+  closeDialog();
 });
 
 if (route && club.name) {

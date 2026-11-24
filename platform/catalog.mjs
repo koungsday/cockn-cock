@@ -34,8 +34,8 @@ export function renderCatalog({ clubs, basePath, mode }) {
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f5ed">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f5ec">
   <meta name="description" content="등록된 배드민턴 모임의 일정과 공지, 참석 투표를 확인하세요.">
   <title>${brand} · 배드민턴 모임 관리</title>
   <link rel="stylesheet" href="${root}platform.css">
@@ -45,7 +45,7 @@ export function renderCatalog({ clubs, basePath, mode }) {
   <a class="skip-link" href="#content">본문 바로가기</a>
   <header class="site-header">
     <div class="page-width header-inner">
-      <a class="site-brand" href="${root}"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>${brand}</a>
+      <a class="site-brand" href="${root}"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
       ${demo ? '<span class="demo-label">가상 데이터 체험</span>' : '<a class="header-link" href="#clubs">등록 모임</a>'}
     </div>
   </header>

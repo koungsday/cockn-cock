@@ -98,31 +98,47 @@ function voteLabel(slot, event) {
 
 export function pinForm() {
   return form('pin', field('현재 로그인 번호', 'currentPin', '', {
-    type: 'password', attrs: 'autocomplete="off" maxlength="128" required',
+    type: 'password', attrs: 'autocomplete="off" maxlength="128" enterkeyhint="next" required',
     help: '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
   }) + field('새 PIN', 'newPin', '', {
-    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required',
+    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" enterkeyhint="next" required',
     help: '6~10자리 숫자를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
   }) + field('새 PIN 확인', 'confirmPin', '', {
-    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" required',
+    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" enterkeyhint="done" required',
   }), '새 PIN 저장');
 }
 
+function memberDetailHeader(title, type, club, meta = '') {
+  return `<header class="member-detail-head">
+    <div class="member-context"><a class="member-back" href="${esc(club.home)}"><span aria-hidden="true">←</span> 모임 홈</a>
+      <p class="member-type">${esc(type)}</p></div>
+    <h1>${esc(title)}</h1>
+    ${meta}
+  </header>`;
+}
+
 export function memberVoteScreen(event, vote, eligible, club) {
-  const head = hero(event.title, `${club.name} 참석 투표`, [dateLine(event), event.place]);
-  const hint = `<div class="help-box">응답 마감 ${esc(deadlineLabel(event.deadline))}${event.notes ? `<p class="preserve">${esc(event.notes)}</p>` : ''}</div>`;
+  const notes = event.notes ? `<div class="member-guidance"><h2>운동 안내</h2><p class="preserve member-copy">${esc(event.notes)}</p></div>` : '';
+  const brief = `<div class="member-brief"><dl class="member-facts">
+    <div><dt>일시</dt><dd>${esc(dateLine(event))}</dd></div>
+    <div><dt>장소</dt><dd>${esc(event.place)}</dd></div>
+    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>
+  </dl>${notes}</div>`;
+  const head = memberDetailHeader(event.title, '참석 투표', club, brief);
   let panel = '<p>투표가 마감됐습니다.</p>';
   if (event.canVote && eligible) {
-    panel = '<h2>운동 참석을 알려 주세요</h2>' + form('vote', voteFields(event, vote), vote ? '응답 변경' : '응답 저장', event.id);
+    panel = form('vote', voteFields(event, vote) + '<p class="inline-error" role="alert" hidden></p>', vote ? '응답 변경' : '응답 저장', event.id);
   } else if (event.canVote) {
     panel = '<h2>이 회차에 응답할 수 없어요</h2><p>운영진에게 참석 명단을 확인해 주세요.</p>';
   }
-  const current = vote ? `<p role="status" class="badge">내 응답 ${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' / 점심 참여' : ''}</p>` : '';
-  return `<div class="stack">${head}${hint}<section class="panel">${current}${panel}</section></div>`;
+  const current = vote ? `<p role="status" class="member-answer"><span>내 응답</span><strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' / 점심 참여' : ''}</strong></p>` : '';
+  return `<div class="member-content">${head}<section class="panel member-panel member-vote" aria-label="투표 응답">${current}${panel}</section></div>`;
 }
 
 export function noticeScreen(notice, club) {
-  return `<div class="stack">${hero(notice.title, `${club.name} 공지`, [dateLabel(notice.date)])}<article class="panel preserve">${esc(notice.body)}</article></div>`;
+  const date = `<time class="member-date" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>`;
+  return `<article class="member-content">${memberDetailHeader(notice.title, '공지', club, date)}
+    <div class="panel member-panel preserve member-copy">${esc(notice.body)}</div></article>`;
 }
 
 function voteFields(event, vote) {
@@ -130,48 +146,66 @@ function voteFields(event, vote) {
   return `<fieldset class="choice-group"><legend>운동 선택</legend>${choices.map(([slot, label]) => `<label class="choice"><input type="radio" name="slot" value="${slot}"${vote?.slot === slot ? ' checked' : ''} required><strong>${esc(label)}</strong></label>`).join('')}</fieldset>` + check('점심 식사에도 참여해요', 'lunch', vote?.lunch);
 }
 
+const adminSections = [['event', '운동 운영'], ['members', '회원 관리'], ['progress', '반기 집계'], ['notices', '공지']];
+
+export function adminMenu(section) {
+  return `<nav class="admin-menu" aria-label="운영 메뉴"><ul>
+    ${adminSections.map(([name, title]) => `<li><button type="button" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${title}</button></li>`).join('')}
+  </ul></nav>`;
+}
+
 export function adminShell(section, contents) {
-  const tabs = [['event', '운동 운영'], ['members', '회원 관리'], ['progress', '반기 집계'], ['notices', '공지']];
-  return `<div class="stack stack-wide"><nav class="tabbar" aria-label="운영 메뉴">${tabs.map(([name, title]) => `<button type="button" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${title}</button>`).join('')}</nav>${contents}</div>`;
+  return `<div class="admin-shell"><aside class="admin-sidebar">${adminMenu(section)}</aside>
+    <div class="admin-content stack">${contents}</div></div>`;
+}
+
+function adminSectionHead(title, actions = '', extra = '') {
+  return `<header class="admin-section-head"><div class="heading-line"><h1 tabindex="-1">${title}</h1>
+    ${actions ? `<div class="actions">${actions}</div>` : ''}</div>${extra}</header>`;
 }
 
 export function homeScreen({ events, notices }, club) {
   const eventRows = events.map(event => {
     const action = event.canVote ? '투표하기' : '일정 확인';
-    return `<li class="row public-record"><div><b>${esc(event.title)}</b>
-      <p class="sub">${esc(dateLine(event))} · ${esc(event.place)}</p></div>
-      <a class="button secondary" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" aria-label="${esc(event.title)} ${action}">${action}</a></li>`;
+    return `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
+      <span><strong>${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time><span>${esc(event.place)}</span></span></span>
+      <span class="member-record-action${event.canVote ? ' member-record-open' : ''}">${action}</span></a></li>`;
   });
-  const noticeRows = notices.map(notice => `<li class="row public-record"><div><a href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">${esc(notice.title)}</a></div>
-    <time class="sub" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></li>`);
-  return `<div class="stack">${hero(club.name, '모임 홈', club.subtitle ? [club.subtitle] : [])}
-    <section class="panel"><h2>운동 일정</h2>${list(eventRows, '게시된 운동 일정이 없습니다.')}</section>
-    <section class="panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section></div>`;
+  const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">
+    <span><strong>${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
+    <span class="member-record-arrow" aria-hidden="true">›</span></a></li>`);
+  return `<div class="member-content">${hero(club.name, '모임 홈', club.subtitle ? [club.subtitle] : [])}
+    <section class="panel member-panel"><h2>운동 일정</h2>${list(eventRows, '게시된 운동 일정이 없습니다.')}</section>
+    <section class="panel member-panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section></div>`;
 }
 
-export function loginScreen(name, numberStep, otherCredential) {
+export function loginScreen(club, name, numberStep, otherCredential) {
+  const label = !numberStep ? '성함' : otherCredential ? '생년월일 또는 비밀번호' : '생년월일';
   const input = !numberStep
-    ? field('성함', 'name', name, {
-      attrs: 'autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64" enterkeyhint="next" required',
-    }) : otherCredential
-    ? field('생년월일 또는 비밀번호', 'credential', '', {
-      type: 'password', attrs: 'autocomplete="off" maxlength="128" enterkeyhint="go" required',
-    }) : `<label class="field"><span>생년월일</span><span class="login-code">
-      <input name="credential" type="password" inputmode="numeric" autocomplete="off" enterkeyhint="go"
+    ? `<input id="login-value" name="name" type="text" value="${esc(name)}" autocomplete="off" autocapitalize="off"
+      spellcheck="false" maxlength="64" enterkeyhint="next" required>`
+    : otherCredential
+    ? `<input id="login-value" name="credential" type="password" autocomplete="off" maxlength="128" enterkeyhint="go" required>`
+    : `<span class="login-code">
+      <input id="login-value" name="credential" type="password" inputmode="numeric" autocomplete="off" enterkeyhint="go"
         maxlength="6" pattern="[0-9]{6}" aria-label="생년월일 또는 6자리 번호" data-login-code required>
       <span class="login-code-cells" aria-hidden="true">${'<span></span>'.repeat(6)}</span>
-    </span></label>`;
-  return `<section class="login-card" aria-labelledby="login-heading">
-    <div class="login-heading"><h1 id="login-heading">로그인</h1>
-      <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog"><span aria-hidden="true">ⓘ</span></button>
-    </div>
-    <form class="form login-form" data-form="${numberStep ? 'login' : 'login-name'}">
-      ${input}
+    </span>`;
+  return `<div class="login-stack">
+    ${hero(club.name, '로그인', club.subtitle ? [club.subtitle] : [])}
+    <form class="form login-form login-card" aria-label="로그인" data-form="${numberStep ? 'login' : 'login-name'}">
+      <div class="login-field">
+        <div class="login-label-row"><label for="login-value">${label}</label>
+          <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog"><span aria-hidden="true">ⓘ</span></button>
+        </div>
+        ${input}
+        <p id="login-error" class="inline-error" role="alert" hidden></p>
+      </div>
       <div class="login-actions">${numberStep ? button('이전', 'login-back', { css: 'secondary' }) : ''}
         <button type="submit">${numberStep ? '로그인' : '다음'}</button>
       </div>
     </form>
-  </section>`;
+  </div>`;
 }
 
 export function loginHelp(numberStep, otherCredential) {
@@ -186,7 +220,7 @@ export function loginHelp(numberStep, otherCredential) {
 export function eventForm(event, id = '') {
   const head = !id ? '<p class="help">일시, 장소와 마감 시각을 확인해 주세요. 새 회차는 준비 상태로 저장할 수 있어요.</p>' : '';
   return form('event',
-    head + `<div class="fields">
+    head + `<div class="fields event-fields">
       ${field('모임 이름', 'title', event.title, { wide: true, attrs: 'required maxlength="120"' })}
       ${field('날짜', 'date', event.date, { type: 'date', attrs: 'required' })}
       ${field('장소', 'place', event.place, { attrs: 'required maxlength="120"' })}
@@ -225,18 +259,29 @@ export function voteMetrics(counts) {
 
 export function eventScreen(events, detail, club) {
   const event = detail?.event;
-  const top = `<div class="page-head"><div class="heading-line"><h1>운동 운영</h1><div class="actions">${button('새 회차', 'new-event')}${event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : ''}</div></div>
-    ${events.length ? select('확인할 회차', 'event-id', events.map(item => [item.id, `${dateLabel(item.date)} ${item.title}`]), event?.id).replace('<select ', '<select data-action="switch-event" ') : ''}</div>`;
+  const actions = button('새 회차', 'new-event') + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
+  const eventSelect = events.length
+    ? select('확인할 회차', 'event-id', events.map(item => [item.id, `${dateLabel(item.date)} ${item.title}`]), event?.id)
+      .replace('<select ', '<select data-action="switch-event" ')
+    : '';
+  const top = adminSectionHead('운동 운영', actions, eventSelect);
   if (!event) return top + '<section class="panel"><p>회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p></section>';
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
+  const summary = `<section class="admin-event-summary" aria-labelledby="admin-event-title">
+    <div class="heading-line"><h2 id="admin-event-title">${esc(event.title)}</h2><span class="badge">${event.published ? '공개 중' : '비공개 준비'}</span></div>
+    <dl>
+      <div><dt>일시</dt><dd>${esc(dateLine(event))}</dd></div>
+      <div><dt>장소</dt><dd>${esc(event.place)}</dd></div>
+      <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>
+    </dl>
+  </section>`;
   const parts = [
-    hero(event.title, event.published ? '공개 중' : '비공개 준비', [dateLine(event), event.place, `마감 ${deadlineLabel(event.deadline)}`]),
     `<section class="panel full"><div class="heading-line"><h2>웹 참석 투표</h2><div class="actions">
       ${button('회차 수정', 'edit-event', { css: 'secondary' })}
       ${button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary' })}
       ${button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary', disabled: !event.published })}
-      ${button('카톡 링크 복사', 'copy-vote', { disabled: !event.published })}
+      ${button('카톡 링크 복사', 'copy-vote', { css: 'secondary', disabled: !event.published })}
     </div></div>
     <div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">공유 화면 보기</a>` : ''}
@@ -245,7 +290,7 @@ export function eventScreen(events, detail, club) {
     attendancePanel(event, roster, counts, settlement?.confirmed),
     `<div class="stack">${guestsPanel(guests, settlement?.confirmed)}${settlementPanel(settlement, counts)}</div>`,
   ];
-  return top + `<div class="stack">${parts[0]}<div class="layout">${parts.slice(1).join('')}</div></div>`;
+  return top + summary + `<div class="layout">${parts.join('')}</div>`;
 }
 
 const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정', approved: '별도 승인' };
@@ -330,9 +375,9 @@ export function reportText(detail, clubName) {
 export function membersScreen(members) {
   const rows = members.map(member => `<li class="row" data-search="${esc(member.name)}"><div><b>${esc(member.name)}</b> <span class="badge">${member.active ? '활동 중' : '비활성'}</span></div><div class="actions">
     ${button('회원 수정', 'edit-member', { id: member.id, css: 'secondary compact' })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'quiet compact', disabled: !member.active })}</div></li>`);
-  return `<div class="stack"><div class="heading-line"><h1>회원 관리</h1>${button('회원 추가', 'new-member')}</div>
+  return `${adminSectionHead('회원 관리', button('회원 추가', 'new-member'))}
     <section class="panel"><p class="help">회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.</p>
-    ${search('회원 이름 검색', 'members')}${list(rows, '등록된 회원이 없습니다.')}</section></div>`;
+    ${search('회원 이름 검색', 'members')}${list(rows, '등록된 회원이 없습니다.')}</section>`;
 }
 
 export function memberForm(member = null) {
@@ -356,14 +401,14 @@ export function noticesScreen(notices) {
   const rows = notices.map(notice => `<li class="row"><div><b>${esc(notice.title)}</b> <span class="badge">${notice.published ? '공개' : '비공개'}</span>
     <p class="sub">${esc(dateLabel(notice.date))}</p></div><div class="actions">
     ${button('공지 수정', 'edit-notice', { id: notice.id, css: 'secondary compact' })}
-    ${button('카톡 링크 복사', 'copy-notice', { id: notice.id, css: 'compact', disabled: !notice.published })}</div></li>`);
-  return `<div class="stack"><div class="heading-line"><h1>공지</h1>${button('새 공지', 'new-notice')}</div><section class="panel">${list(rows, '등록된 공지가 없습니다.')}</section></div>`;
+    ${button('카톡 링크 복사', 'copy-notice', { id: notice.id, css: 'quiet compact', disabled: !notice.published })}</div></li>`);
+  return `${adminSectionHead('공지', button('새 공지', 'new-notice'))}<section class="panel">${list(rows, '등록된 공지가 없습니다.')}</section>`;
 }
 
 export function progressScreen(year, half, members) {
   const rows = members.map(row => `<li class="row" data-search="${esc(row.name)}"><div><b>${esc(row.name)}</b><p class="sub">1차 ${row.first}/3 · 2차 ${row.second}/3</p></div>${button(row.rewarded ? '수령 취소' : '수령 기록', 'reward', { id: row.id, css: 'secondary compact' })}</li>`);
-  return `<div class="stack"><h1>반기 집계</h1><section class="panel">${form('progress',
+  return `${adminSectionHead('반기 집계')}<section class="panel">${form('progress',
     `<div class="fields">${field('연도', 'year', year, { type: 'number', attrs: 'min="2000" max="2100" step="1" required' })}${select('기간', 'half', [[1, '상반기'], [2, '하반기']], half)}</div>`,
     '집계 조회')}${search('회원 이름 검색', 'progress')}${list(rows, '해당 기간에 확인할 회원이 없습니다.')}
-    <p class="help">각 구간에서 줄서기 인정을 받은 횟수입니다. 지급은 운영진이 확인한 뒤 기록해 주세요.</p></section></div>`;
+    <p class="help">각 구간에서 줄서기 인정을 받은 횟수입니다. 지급은 운영진이 확인한 뒤 기록해 주세요.</p></section>`;
 }

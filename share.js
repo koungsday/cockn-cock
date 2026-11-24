@@ -11,7 +11,7 @@
   }
 
   function mark(helpers) {
-    return `<span class="share-brand-mark" aria-hidden="true">${helpers.icon('shuttle', 24)}</span>`;
+    return `<img class="share-brand-mark" width="34" height="34" src="${helpers.escape(helpers.brandAsset ?? 'assets/shuttlecock-icon-96.png')}" alt="">`;
   }
 
   function decoration() {

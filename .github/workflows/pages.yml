@@ -32,6 +32,7 @@ jobs:
           npm run build
           npm run verify
           npm run live:test
+          npm run live:build
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist

@@ -36,8 +36,7 @@
     mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
     'check-circle':'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
     plus:'<path d="M12 5v14M5 12h14"/>',
-    menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
-    shuttle:'<path fill="currentColor" stroke="none" d="M4.2 3.3a1 1 0 0 1 1.4 0l5.8 5.1L8.2 11 3.4 5a1.2 1.2 0 0 1 .8-1.7Zm5.3-1.5a1 1 0 0 1 1.3.6l2.9 7.2-2.2 1.8L9 3.1a1 1 0 0 1 .5-1.3Zm-8 7.2a1 1 0 0 1 1.4-.3l7 3-1.7 2.6-6.5-3.9a1 1 0 0 1-.2-1.4Zm8.5 6.5 5.3-5.1 3.1 3.2a3.7 3.7 0 0 1-5.2 5.2L10 15.5Z" transform="translate(1 1)"/>'
+    menu:'<path d="M4 6h16M4 12h16M4 18h16"/>'
   };
 
   function icon(name, size=20) {
@@ -52,7 +51,9 @@
   }
 
   const weeks = ['일','월','화','수','목','금','토'];
-  const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification};
+  const platformHome = document.querySelector('meta[name=platform-home]')?.content;
+  const brandAsset = `${platformHome ?? ''}assets/shuttlecock-icon-96.png`;
+  const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -97,10 +98,8 @@
     const label = dateLabel(date);
     return label.replace(/ \(([일월화수목금토])\)$/, ' $1요일');
   }
-  const platformHome = document.querySelector('meta[name=platform-home]')?.content;
-
   function brand() {
-    return `<a class="brand" href="#home" data-route="home"><span class="brand-mark">${icon('shuttle',26)}</span><span><strong>썬콕19</strong><small>일요 배드민턴 모임</small></span></a>`;
+    return `<a class="brand" href="#home" data-route="home"><img class="brand-mark" width="43" height="43" src="${escape(brandAsset)}" alt=""><span><strong>썬콕19</strong><small>일요 배드민턴 모임</small></span></a>`;
   }
   function navLink([key, label, glyph], active) {
     return `<a class="nav-link${active === key ? ' active' : ''}" href="#${key}" data-route="${key}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,19)}<span>${label}</span>${active === key ? '<i aria-hidden="true"></i>' : ''}</a>`;
