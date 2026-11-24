@@ -324,10 +324,10 @@
     }
     if (action === 'generate-next') generateNext(control);
     if (action === 'copy-share') {
-      const item = kind === 'vote' ? event : state.notices.find(notice => notice.id === id);
-      if (!item) return;
-      const { href, published } = window.clubShare.linkFor(kind, item);
-      const message = published ? '공개 예시 링크를 복사했어요.' : '이 브라우저 미리보기 링크를 복사했어요.';
+      const href = modal.querySelector('#share-link').value;
+      const message = control.hasAttribute('data-published-link')
+        ? '공개 예시 링크를 복사했어요.'
+        : '이 브라우저 미리보기 링크를 복사했어요.';
       copy(href).then(result => notifyCopy(result, message));
       return;
     }

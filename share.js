@@ -89,11 +89,11 @@
         </div>
         <label class="share-link-field">
           <span>${linkLabel}</span>
-          <input type="text" value="${helpers.escape(link.href)}" readonly>
+          <input id="share-link" type="text" value="${helpers.escape(link.href)}" readonly>
         </label>
         <div class="share-dialog-actions">
           <button type="button" class="share-button share-button--secondary" data-route="${helpers.escape(publicRoute)}">받는 화면 보기</button>
-          <button type="button" class="share-button share-button--primary" data-action="copy-share" data-kind="${kind}" data-id="${helpers.escape(id)}">링크 복사</button>
+          <button type="button" class="share-button share-button--primary" data-action="copy-share"${link.published ? ' data-published-link' : ''}>링크 복사</button>
         </div>
         <p class="share-feedback" role="status"></p>
         <p class="share-preview-note">${linkNote}</p>
