@@ -31,6 +31,7 @@ jobs:
           test -n "$SITE_URL"
           npm run build
           npm run verify
+          npm run live:test
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
