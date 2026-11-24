@@ -30,7 +30,7 @@ const entries = [
     kind: 'vote',
     item: event,
     category: '참석 투표',
-    publicFields: ['id', 'title', 'date', 'time', 'endTime', 'place', 'deadline', 'notes', 'pollOpen', 'finalized'],
+    publicFields: ['id', 'title', 'date', 'time', 'endTime', 'place', 'deadline', 'deadlineTime', 'earlyTime', 'lateTime', 'notes', 'pollOpen', 'finalized'],
     description: `${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`,
     body: event.notes,
     cta: '투표 화면 체험하기',
@@ -54,7 +54,7 @@ function shareUrl(kind, id) {
 
 function shareHtml(entry) {
   const { kind, item, category, description, body, cta } = entry;
-  const title = `${category} · ${item.title} | 콕앤콕`;
+  const title = `${category} · ${item.title} | 썬콕19`;
   const canonical = shareUrl(kind, item.id);
   const image = new URL(`assets/kakao-${kind}.png`, site);
   const demoRoute = `${site.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
@@ -68,7 +68,7 @@ function shareHtml(entry) {
   <link rel="canonical" href="${escape(canonical.href)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">
-  <meta property="og:site_name" content="콕앤콕">
+  <meta property="og:site_name" content="썬콕19">
   <meta property="og:title" content="${escape(title)}">
   <meta property="og:description" content="${escape(description)}">
   <meta property="og:url" content="${escape(canonical.href)}">
@@ -83,7 +83,7 @@ function shareHtml(entry) {
 <body>
   <main class="public-share-page">
     <div class="public-masthead">
-      <a class="public-brand" href="${escape(site.pathname)}"><strong>콕앤콕</strong></a>
+      <a class="public-brand" href="${escape(site.pathname)}"><strong>썬콕19</strong></a>
       <span class="public-example">가상 데이터 예시</span>
     </div>
     <article class="public-share-card">

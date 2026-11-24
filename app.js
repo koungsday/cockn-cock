@@ -1,6 +1,6 @@
 (() => {
   const model = window.clubModel;
-  const {today, dateLabel, counts, attendanceCounts, stats, addDays} = model;
+  const {today, dateLabel, counts, attendanceCounts, stats, addDays, deadlinePassed, settlement, qualification} = model;
   const app = document.querySelector('#app');
   const modal = document.querySelector('#dialog');
   const toast = document.querySelector('#toast');
@@ -51,7 +51,7 @@
   }
 
   const weeks = ['일','월','화','수','목','금','토'];
-  const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar};
+  const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -60,7 +60,7 @@
 
   function routeFromHash() {
     const [page, id, tab] = location.hash.slice(1).split('/');
-    if (page === 'event' || page === 'public-notice' || page === 'public-vote') return {page, id, tab:tab === 'attendance' ? tab : 'poll'};
+    if (page === 'event' || page === 'public-notice' || page === 'public-vote') return {page, id, tab:['attendance','settlement'].includes(tab) ? tab : 'poll'};
     return {page:pages.some(([key]) => key === page) ? page : 'home'};
   }
   function routeTo(target) {
@@ -99,7 +99,7 @@
     return label.replace(/ \(([일월화수목금토])\)$/, ' $1요일');
   }
   function brand() {
-    return `<a class="brand" href="#home" data-route="home"><span class="brand-mark">${icon('shuttle',26)}</span><span><strong>콕앤콕</strong><small>배드민턴 모임</small></span></a>`;
+    return `<a class="brand" href="#home" data-route="home"><span class="brand-mark">${icon('shuttle',26)}</span><span><strong>썬콕19</strong><small>일요 배드민턴 모임</small></span></a>`;
   }
   function navLink([key, label, glyph], active) {
     return `<a class="nav-link${active === key ? ' active' : ''}" href="#${key}" data-route="${key}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,19)}<span>${label}</span>${active === key ? '<i aria-hidden="true"></i>' : ''}</a>`;
@@ -126,7 +126,7 @@
             <button type="button" class="icon-button mobile-menu" data-action="toggle-menu" aria-label="메뉴 ${menuOpen ? '닫기' : '열기'}" aria-controls="main-navigation" aria-expanded="${menuOpen}">${icon(menuOpen ? 'x' : 'menu',22)}</button>
             <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
-          <span class="demo-label"><i></i> 디자인 초안</span>
+          <span class="demo-label"><i></i> 가상 데이터 체험</span>
         </header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
       </div>`;
@@ -134,7 +134,7 @@
   function renderPage({focus = false} = {}) {
     const publicView = currentRoute.page.startsWith('public-');
     const section = publicView ? (currentRoute.page === 'public-vote' ? '참석 투표' : '공지') : currentLabel(currentRoute);
-    document.title = `${section} · 콕앤콕`;
+    document.title = `${section} · 썬콕19`;
     if (publicView) {
       app.innerHTML = `<main id="main-content" class="public-shell" tabindex="-1">${window.clubShare.renderPublic(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts, returnFromPublic})}</main>`;
     } else {
@@ -153,7 +153,7 @@
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
   }
   function pollIsOpen(event) {
-    return event.pollOpen && !event.finalized && (!event.deadline || event.deadline >= today);
+    return event.pollOpen && !event.finalized && !deadlinePassed(event);
   }
   function renderHome() {
     const upcoming = nextEvent();
@@ -163,7 +163,7 @@
     const monthly = stats(state, today.slice(0,7));
     return `<div class="dashboard">
       <header class="dashboard-heading">
-        <div><h1>운영 홈</h1><p>다음 운동 준비와 모임 소식을 한눈에 확인하세요.</p></div>
+        <div><h1>운영 홈</h1><p>웹 투표부터 당일 체크와 마무리 공지까지 가상 데이터로 체험하세요.</p></div>
         <div class="heading-actions"><span class="today-label">${icon('calendar',17)}${fullDate(today)}</span>
           <button class="btn btn-primary" type="button" data-action="open-event">${icon('plus',18)} 모임 만들기</button>
         </div>
@@ -179,7 +179,7 @@
       </div>
       ${unfinished ? `<section class="attendance-reminder panel">
         <span class="metric-icon mint">${icon('clipboard',19)}</span><div><strong>${escape(unfinished.title)}</strong><p>${readPeriod(unfinished.date)} · 출석 확정 전</p></div>
-        <a class="btn btn-secondary btn-small" href="#event/${escape(unfinished.id)}/attendance" data-route="event/${escape(unfinished.id)}/attendance">출석 체크</a>
+        <a class="btn btn-secondary btn-small" href="#event/${escape(unfinished.id)}/attendance" data-route="event/${escape(unfinished.id)}/attendance">당일 체크</a>
       </section>` : ''}
       <div class="dashboard-grid dashboard-bottom">
         <section class="panel dashboard-notices">
@@ -207,12 +207,12 @@
         <h2>${escape(event.title)}</h2>
         <div class="featured-meta"><span>${icon('calendar',18)} ${fullDate(event.date)} · ${escape(event.time)}${event.endTime ? '–'+escape(event.endTime) : ''}</span><span>${icon('pin',18)} ${escape(event.place)}</span></div>
         <div class="featured-actions"><a class="btn btn-lime" href="#event/${id}/poll" data-route="event/${id}/poll">모임 상세 ${icon('chevron-right',17)}</a>
-          <a class="btn btn-glass" href="#event/${id}/attendance" data-route="event/${id}/attendance">${icon('clipboard',17)} 출석 명단</a></div>
+          <a class="btn btn-glass" href="#public-vote/${id}" data-route="public-vote/${id}">${icon('clipboard',17)} 회원 화면 체험</a></div>
       </div>
     </section>`;
   }
   function renderPoll(event) {
-    const {yes,no,pending,total} = counts(event);
+    const {yes,no,pending,total,early,late,lunch} = counts(event);
     const opened = pollIsOpen(event);
     const percent = total ? Math.round((yes+no) / total * 100) : 0;
     const branch = (part) => total ? (part / total * 100) + '%' : '0%';
@@ -220,8 +220,9 @@
       <header class="dashboard-panel-head"><h2>참석 투표</h2><span class="poll-status${opened ? '' : ' closed'}"><i></i>${opened ? '투표 진행 중' : '투표 마감'}</span></header>
       <div class="progress-meta"><span>응답률</span><strong>${percent}<small>%</small></strong></div>
       <div class="poll-track" role="img" aria-label="응답률 ${percent}%"><span class="vote-yes" style="width:${branch(yes)}"></span><span class="vote-no" style="width:${branch(no)}"></span></div>
-      <div class="poll-grid">${[['참석',yes,'yes'],['불참',no,'no'],['미응답',pending,'pending']].map(([name,n,status])=>`<div><span><i class="vote-${status}"></i>${name}</span><strong>${n}<small>명</small></strong></div>`).join('')}</div>
-      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? readPeriod(event.deadline)+' 마감' : '마감일 미설정'}</span><button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}">${icon('link',16)} 카톡 공유</button></div>
+      <div class="poll-grid">${[['선발',early,'yes'],['후발',late,'yes'],['점심',lunch,'no']].map(([name,n,status])=>`<div><span><i class="vote-${status}"></i>${name}</span><strong>${n}<small>명</small></strong></div>`).join('')}</div>
+      <p class="poll-subline">참석 예정 ${yes}명 · 불참 ${no}명 · 미응답 ${pending}명</p>
+      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? `${readPeriod(event.deadline)} ${escape(event.deadlineTime)} 마감` : '마감일 미설정'}</span><button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}">${icon('link',16)} 카톡 공유</button></div>
     </section>`;
   }
   function metric(route, glyph, tone, label, value, unit) {
@@ -241,7 +242,8 @@
     const draft = {
       title:`${readPeriod(event.date)} ${event.title} 안내`,
       body:[`${fullDate(event.date)} ${event.time}–${event.endTime}`, event.place, event.notes,
-        event.deadline ? `${readPeriod(event.deadline)}까지 참석 여부를 알려 주세요.` : ''].filter(Boolean).join('\n')
+        `선발 ${event.earlyTime} · 후발 ${event.lateTime} · 점심 별도 선택`,
+        event.deadline ? `${readPeriod(event.deadline)} ${event.deadlineTime}까지 웹에서 응답해 주세요.` : ''].filter(Boolean).join('\n')
     };
     modal.innerHTML = window.clubScreens.renderDialog({type:'notice',draft}, state, helpers);
     dialogTrigger = trigger;
@@ -263,8 +265,10 @@
     const date = addDays(start,(repeat.weekday - weekdayOf(start) + 7) % 7);
     const event = {
       id:idFor('event'), title:repeat.title, date, time:repeat.time, endTime:repeat.endTime, place:repeat.place,
-      deadline:addDays(date,-repeat.deadlineDays), notes:'', pollOpen:true, finalized:false,
-      roster:state.members.filter(member => member.status === 'active').map(member => member.id), votes:{}, attendance:{}
+      earlyTime:repeat.earlyTime, lateTime:repeat.lateTime, deadline:addDays(date,-repeat.deadlineDays),
+      deadlineTime:repeat.deadlineTime, notes:'', pollOpen:true, finalized:false,
+      roster:state.members.filter(member => member.status === 'active').map(member => member.id),
+      votes:{}, lunch:{}, attendance:{}, recognized:{}, guests:[], settlement:{}
     };
     state.events.push(event);
     persist(dateLabel(date) + ' 모임을 만들었어요.');
@@ -337,12 +341,33 @@
     }
     if (!event) return;
     if (action === 'open-event-notice') return openEventNotice(event,control);
-    if (action === 'toggle-poll' && !event.finalized) {
+    if (action === 'copy-settlement' && event.finalized) {
+      const report = settlement(event);
+      if (!report.recorded) return showToast('콕과 찬조금 기록을 먼저 입력해 주세요.');
+      const lines = [`썬콕19 모임 마무리 · ${fullDate(event.date)}`, `운동 ${event.time}–${event.endTime} · ${event.place}`,
+        `총 ${report.total}명 (회원 ${report.members}명 · 게스트 ${report.arrivals}명)`,
+        `콕 이월 ${report.singles}개 + ${report.priorTubes}타 (당일 잔여 ${report.remainingSingles}개)`,
+        `코트 찬조금 ${report.courtDonation.toLocaleString('ko-KR')}원`];
+      copy(lines.join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
+      return;
+    }
+    if (action === 'toggle-poll' && !event.finalized && !deadlinePassed(event)) {
       event.pollOpen = !event.pollOpen;
       persist(pollIsOpen(event) ? '참석 투표를 열었어요.' : '참석 투표를 닫았어요.');
     } else if (action === 'mark-attendance' && event.date <= today && !event.finalized && event.roster.includes(member)) {
       if (value === 'present' || value === 'absent') event.attendance[member] = value;
       else delete event.attendance[member];
+      if (value !== 'present' && event.recognized[member] !== 'approved') delete event.recognized[member];
+      if (!model.save(state)) showToast('브라우저 저장 공간을 사용할 수 없어요.');
+    } else if (action === 'mark-pending-absent' && event.date <= today && !event.finalized) {
+      for (const id of event.roster) {
+        if (!event.attendance[id]) event.attendance[id] = 'absent';
+      }
+      persist('미확인 회원만 결석으로 기록했어요.');
+    } else if (action === 'mark-guest' && !event.finalized && (value === 'paid' || (value === 'arrived' && event.date <= today))) {
+      const guest = event.guests.find(item => item.id === member);
+      if (!guest) return;
+      guest[value] = !guest[value];
       if (!model.save(state)) showToast('브라우저 저장 공간을 사용할 수 없어요.');
     } else if (action === 'finalize' && event.date <= today && !event.finalized) {
       if (attendanceCounts(event).pending) return showToast('아직 출석을 기록하지 않은 회원이 있어요.');
@@ -380,8 +405,17 @@
   document.addEventListener('compositionend', ev => filterMembers(ev.target));
   document.addEventListener('change', ev => {
     const input = ev.target;
-    if (input.form?.dataset.form === 'event') {
-      for (const key of ['deadline','endTime','date']) input.form.elements.namedItem(key)?.setCustomValidity('');
+    if (input.matches('[data-recognition]')) {
+      const event = state.events.find(item => item.id === input.dataset.id);
+      const member = input.dataset.member;
+      if (!event || event.date > today || event.finalized || !event.roster.includes(member)) return;
+      if (input.value === 'approved' || (['direct','substitute'].includes(input.value) && event.attendance[member] === 'present')) event.recognized[member] = input.value;
+      else delete event.recognized[member];
+      persist('줄서기 인정 기록을 갱신했어요.');
+      return;
+    }
+    if (['event','repeat'].includes(input.form?.dataset.form)) {
+      for (const key of ['deadline','endTime','date','lateTime']) input.form.elements.namedItem(key)?.setCustomValidity('');
     }
     if (input.dataset.filter === 'member-status' || input.dataset.filter === 'stats-month') {
       ui[input.dataset.filter === 'member-status' ? 'memberStatus' : 'statsMonth'] = input.value;
@@ -399,13 +433,17 @@
     const formData = new FormData(form);
     const value = (key) => String(formData.get(key) ?? '').trim();
     const required = {
-      event:['title','date','time','place'], notice:['title','body'], member:['name','joined'], repeat:['title','time','place']
+      event:['title','date','time','place','earlyTime','lateTime','deadlineTime'], notice:['title','body'],
+      member:['name','joined'], repeat:['title','time','place','earlyTime','lateTime','deadlineTime'], guest:['guestName']
     };
     for (const key of required[type] || []) {
       if (!value(key)) return fieldError(form,key,'이 항목을 입력해 주세요.');
     }
     if ((type === 'event' || type === 'repeat') && value('endTime') && value('endTime') <= value('time')) {
       return fieldError(form,'endTime','종료 시간은 시작 시간보다 늦어야 해요.');
+    }
+    if ((type === 'event' || type === 'repeat') && value('lateTime') <= value('earlyTime')) {
+      return fieldError(form,'lateTime','후발 시간은 선발 시간보다 늦어야 해요.');
     }
     let message;
     let target;
@@ -414,10 +452,11 @@
       let event = state.events.find(item => item.id === id);
       if (event?.finalized && value('date') > today) return fieldError(form,'date','출석을 확정한 모임은 미래 날짜로 옮길 수 없어요.');
       if (!event) {
-        event = {id:idFor('event'),finalized:false,roster:state.members.filter(member => member.status === 'active').map(member => member.id),votes:{},attendance:{}};
+        event = {id:idFor('event'),finalized:false,roster:state.members.filter(member => member.status === 'active').map(member => member.id),
+          votes:{},lunch:{},attendance:{},recognized:{},guests:[],settlement:{}};
         state.events.push(event);
       }
-      Object.assign(event, Object.fromEntries(['title','date','time','endTime','place','deadline','notes'].map(key => [key,value(key)])));
+      Object.assign(event, Object.fromEntries(['title','date','time','endTime','earlyTime','lateTime','place','deadline','deadlineTime','notes'].map(key => [key,value(key)])));
       event.pollOpen = formData.has('pollOpen') && !event.finalized;
       target = 'event/'+event.id+'/poll';
       message = '모임 일정을 저장했어요.';
@@ -437,17 +476,41 @@
       target = 'members';
       message = '회원 정보를 저장했어요.';
     } else if (type === 'repeat') {
-      Object.assign(state.repeat,{enabled:formData.has('enabled'),weekday:Number(value('weekday')),title:value('title'),time:value('time'),endTime:value('endTime'),place:value('place'),deadlineDays:Number(value('deadlineDays'))});
+      Object.assign(state.repeat,{enabled:formData.has('enabled'),weekday:Number(value('weekday')),title:value('title'),time:value('time'),endTime:value('endTime'),
+        earlyTime:value('earlyTime'),lateTime:value('lateTime'),deadlineTime:value('deadlineTime'),place:value('place'),deadlineDays:Number(value('deadlineDays'))});
       message = '반복 일정 설정을 저장했어요.';
+    } else if (type === 'guest' || type === 'settlement') {
+      const event = state.events.find(item => item.id === id);
+      if (!event || event.finalized || (type === 'settlement' && event.date > today)) return showToast('현재는 이 기록을 수정할 수 없어요.');
+      if (type === 'guest') {
+        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false});
+        message = '게스트를 추가했어요.';
+      } else {
+        const fields = ['priorSingles','priorTubes','remainingSingles','courtDonation'];
+        for (const key of fields) {
+          const number = Number(value(key));
+          if (!Number.isSafeInteger(number) || number < 0 || number > 100000000) return fieldError(form,key,'0에서 1억 사이의 숫자를 입력해 주세요.');
+        }
+        event.settlement = Object.fromEntries(fields.map(key => [key,Number(value(key))]));
+        message = '마무리 기록을 저장했어요.';
+      }
     } else if (type === 'vote' || type === 'public-vote') {
       const event = state.events.find(item => item.id === id);
       const member = value('member');
       const vote = value('vote');
-      if (!event || !pollIsOpen(event)) return showToast('이 모임의 투표가 마감됐어요.');
-      if (!event.roster.includes(member) || !['yes','no'].includes(vote)) return showToast('회원과 참석 여부를 선택해 주세요.');
+      if (!event || event.finalized || (type === 'public-vote' && !pollIsOpen(event))) return showToast('이 모임의 투표가 마감됐어요.');
+      if (type === 'public-vote' && !ui.publicReceipts[id] && value('demoPin') !== '190019') {
+        return fieldError(form,'demoPin','화면에 보이는 체험 번호 190019를 입력해 주세요.');
+      }
+      if (!event.roster.includes(member) || !['early','late','no'].includes(vote)
+          || (type === 'public-vote' && ui.publicReceipts[id] && ui.publicReceipts[id].member !== member)) {
+        return showToast('예시 회원과 응답을 선택해 주세요.');
+      }
+      const lunch = formData.has('lunch');
       event.votes[member] = vote;
-      if (type === 'public-vote') ui.publicReceipts[id] = {member,vote};
-      message = vote === 'yes' ? '참석으로 응답했어요.' : '불참으로 응답했어요.';
+      event.lunch[member] = lunch;
+      if (type === 'public-vote') ui.publicReceipts[id] = {member,vote,lunch};
+      message = vote === 'early' ? '선발로 응답했어요.' : vote === 'late' ? '후발로 응답했어요.' : '불참을 기록했어요.';
     } else return;
     if (modal.open) modal.close();
     persist(message);

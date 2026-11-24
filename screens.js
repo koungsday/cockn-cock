@@ -1,10 +1,11 @@
 (() => {
   const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-  const voteLabels = { yes: '참석', no: '불참' };
+  const voteLabels = { early: '선발', late: '후발', yes: '참석 · 시간 미정', no: '불참' };
   const attendanceLabels = { present: '출석', absent: '결석' };
+  const recognitionLabels = {direct: '직접', substitute: '대타', approved: '별도 인정'};
 
   function makeView(helpers) {
-    const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats } = helpers;
+    const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats, deadlinePassed, settlement, qualification } = helpers;
 
     function action(text, name, id, options = {}) {
       const { tone = 'secondary', symbol, extra = '' } = options;
@@ -43,7 +44,7 @@
     function eventStatus(event) {
       if (event.finalized) return pill('출석 마감', 'neutral');
       if (!event.pollOpen) return pill('투표 닫힘', 'neutral');
-      if (event.deadline < today) return pill('투표 기한 종료', 'neutral');
+      if (deadlinePassed(event)) return pill('투표 기한 종료', 'neutral');
       return pill('투표 진행 중', 'green');
     }
 
@@ -84,37 +85,44 @@
     function eventDetail(route, state) {
       const event = state.events.find(item => item.id === route.id);
       if (!event) return heading('일정을 찾을 수 없어요', '', routeLink('일정 목록', 'events', 'secondary'));
-      const isAttendance = route.tab === 'attendance';
-      const pollAvailable = event.pollOpen && !event.finalized && event.deadline >= today;
+      const pollAvailable = event.pollOpen && !event.finalized && !deadlinePassed(event);
       const subheader = `<div class="event-facts"><span>${icon('calendar')}${e(dateLabel(event.date))}</span><span>${icon('clock')}${eventTime(event)}</span><span>${icon('pin')}${e(event.place)}</span></div>`;
-      const nav = `<nav class="tabs" aria-label="일정 상세 메뉴">${[['poll', '참석 투표'], ['attendance', '출석 체크']].map(([tab, label]) => {
+      const nav = `<nav class="tabs" aria-label="일정 상세 메뉴">${[['poll', '웹 투표'], ['attendance', '당일 체크'], ['settlement', '마무리']].map(([tab, label]) => {
         const path = eventPath(event, tab);
-        const active = (tab === 'attendance') === isAttendance;
+        const active = tab === route.tab;
         return `<a href="#${path}" data-route="${path}"${active ? ' aria-current="page"' : ''}>${label}</a>`;
       }).join('')}</nav>`;
       const members = event.roster.map(id => state.members.find(member => member.id === id)).filter(Boolean);
 
       function poll() {
         const report = counts(event);
-        const closeAction = !event.finalized && event.deadline >= today ? action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id) : '';
+        const closeAction = !event.finalized && !deadlinePassed(event) ? action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id) : '';
         const shareAction = action('카톡 공유', 'open-share', event.id, {tone: 'primary', symbol: 'link', extra: 'data-kind="vote"'});
-        const actions = closeAction + shareAction + (pollAvailable && members.length ? action('회원 투표 체험', 'open-vote', event.id, {tone: 'text'}) : '');
+        const voteLink = pollAvailable && members.length ? routeLink('회원 투표 체험', `public-vote/${encodeURIComponent(event.id)}`) : '';
+        const correction = !event.finalized && members.length ? action('응답 조정', 'open-vote', event.id, {tone: 'text'}) : '';
         const rows = members.map(member => {
           const vote = event.votes[member.id];
-          return `<tr><td><strong>${e(member.name)}</strong></td><td>${pill(voteLabels[vote] || '미응답', vote === 'yes' ? 'green' : 'neutral')}</td></tr>`;
+          return `<tr><td><strong>${e(member.name)}</strong></td><td>${pill(voteLabels[vote] || '미응답', vote && vote !== 'no' ? 'green' : 'neutral')}</td><td>${event.lunch[member.id] ? '함께해요' : '—'}</td></tr>`;
         });
-        return panel('참석 응답', summary([['참석', `${report.yes}명`, 'green'], ['불참', `${report.no}명`], ['미응답', `${report.pending}명`]])
-          + (rows.length ? table(['멤버', '응답'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
-          subtitle: `투표 마감일 ${e(dateLabel(event.deadline))}`, actions
+        return panel('참석 응답', summary([
+          [`${e(event.earlyTime)} 선발`, `${report.early}명`, 'green'], [`${e(event.lateTime)} 후발`, `${report.late}명`],
+          ['점심', `${report.lunch}명`], ['불참', `${report.no}명`], ['미응답', `${report.pending}명`]
+        ])
+          + (rows.length ? table(['멤버', '운동 응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
+          subtitle: `운동 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
+          actions: closeAction + shareAction + voteLink + correction
         });
       }
 
       function attendance() {
         const report = attendanceCounts(event);
         const actionAllowed = event.date <= today && !event.finalized;
-        const rows = members.map(member => {
+        const priority = {early: 0, late: 1, yes: 1, no: 3};
+        const sorted = [...members].sort((a, b) => (priority[event.votes[a.id]] ?? 2) - (priority[event.votes[b.id]] ?? 2));
+        const rows = sorted.map(member => {
           const vote = event.votes[member.id];
           const status = event.attendance[member.id];
+          const recognition = event.recognized[member.id];
           const buttons = ['present', 'absent'].map(value => {
             const active = status === value;
             return action(attendanceLabels[value], 'mark-attendance', event.id, {
@@ -122,22 +130,73 @@
               extra: `data-member="${e(member.id)}" data-value="${active ? '' : value}" aria-label="${e(member.name)} ${attendanceLabels[value]}" aria-pressed="${active}"`
             });
           }).join('');
+          const control = actionAllowed
+            ? `<select data-recognition data-id="${e(event.id)}" data-member="${e(member.id)}" aria-label="${e(member.name)} 줄서기 인정">
+                ${option('', '미인정', recognition ?? '')}
+                ${Object.entries(recognitionLabels).map(([value, label]) => `<option value="${value}"${value === recognition ? ' selected' : ''}${value !== 'approved' && status !== 'present' ? ' disabled' : ''}>${label}</option>`).join('')}
+              </select>`
+            : pill(recognitionLabels[recognition] || '미인정');
           return `<tr><td><strong>${e(member.name)}</strong></td><td>${voteLabels[vote] || '미응답'}</td><td>${actionAllowed
             ? `<div class="table-actions">${buttons}</div>`
-            : pill(attendanceLabels[status] || '미확인', status === 'present' ? 'green' : 'neutral')}</td></tr>`;
+            : pill(attendanceLabels[status] || '미확인', status === 'present' ? 'green' : 'neutral')}</td><td>${control}</td></tr>`;
         });
         const actions = event.finalized
           ? action('출석 다시 열기', 'reopen-attendance', event.id)
-          : actionAllowed && report.total
-            ? action('출석 확정', 'finalize', event.id, {tone: 'primary', extra: report.pending ? 'disabled' : ''})
+          : actionAllowed
+            ? (report.pending ? action('미확인 모두 결석', 'mark-pending-absent', event.id) : '') + action('출석·게스트 확정', 'finalize', event.id, {tone: 'primary', extra: report.pending ? 'disabled' : ''})
             : '';
         const subtitle = event.finalized
           ? '확정한 출석 기록이 통계에 반영됐어요.'
           : actionAllowed
-            ? '모든 멤버의 출석 또는 결석을 선택하면 출석을 확정할 수 있어요.'
+            ? '선발과 후발 응답을 위에 표시했어요. 실제 출석과 줄서기 인정은 각각 기록하세요.'
             : '운동 당일부터 출석을 기록할 수 있어요.';
-        return panel('실제 출석', summary([['출석', `${report.present}명`, 'green'], ['결석', `${report.absent}명`], ['미확인', `${report.pending}명`]])
-          + (rows.length ? table(['멤버', '투표 응답', '실제 출석'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), { subtitle, actions });
+        return panel('실제 출석', summary([['출석', `${report.present}명`, 'green'], ['결석', `${report.absent}명`], ['미확인', `${report.pending}명`], ['줄서기 인정', `${Object.keys(event.recognized).length}명`]])
+          + (rows.length ? table(['멤버', '투표 응답', '실제 출석', '줄서기 인정'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), { subtitle, actions }) + guests();
+      }
+
+      function guests() {
+        const guestRows = event.guests.map(guest => {
+          const toggle = (key, label, emptyLabel) => event.finalized || (key === 'arrived' && event.date > today)
+            ? pill(guest[key] ? label : emptyLabel, guest[key] ? 'green' : 'neutral')
+            : action(guest[key] ? label : emptyLabel, 'mark-guest', event.id, {
+              tone: guest[key] ? 'primary' : 'secondary',
+              extra: `data-value="${key}" data-member="${e(guest.id)}" aria-pressed="${Boolean(guest[key])}" aria-label="${e(guest.name)} ${label}"`
+            });
+          return `<tr><td><strong>${e(guest.name)}</strong></td><td>${toggle('arrived','도착 확인','미도착')}</td><td>${toggle('paid','입금 확인','미확인')}</td></tr>`;
+        });
+        const addGuest = event.finalized ? '' : `<form class="guest-form" data-form="guest" data-id="${e(event.id)}">
+          ${field('예시 게스트', input('guestName', '', 'required maxlength="40" placeholder="예시 게스트 03"'))}
+          <button class="btn btn-secondary" type="submit">게스트 추가</button>
+        </form>`;
+        return panel('게스트', (guestRows.length ? table(['게스트', '도착', '입금'], guestRows) : empty('등록된 게스트가 없어요.')) + addGuest, {
+          subtitle: '도착을 확인한 게스트만 실제 참여 인원에 포함됩니다.'
+        });
+      }
+
+      function finish() {
+        const report = settlement(event);
+        const fields = [
+          ['이전 모인 콕 (낱개)', 'priorSingles'], ['이전 모인 콕 (타)', 'priorTubes'],
+          ['당일 잔여 콕 (낱개)', 'remainingSingles'], ['코트 찬조금 (원)', 'courtDonation']
+        ];
+        const enabled = event.date <= today && !event.finalized;
+        const form = enabled
+          ? `<form class="settlement-form form-grid" data-form="settlement" data-id="${e(event.id)}">
+              ${fields.map(([label, key]) => field(label, input(key, report[key], 'type="number" min="0" max="100000000" required'))).join('')}
+              <div class="form-field-full"><button class="btn btn-primary" type="submit">마무리 기록 저장</button></div>
+            </form>`
+          : '';
+        const copy = event.finalized && report.recorded
+          ? action('카톡 마무리 복사', 'copy-settlement', event.id, {tone:'primary', symbol:'clipboard'}) : '';
+        return panel('모임 마무리', summary([
+          ['실제 참여', `${report.total}명`, 'green'], ['회원', `${report.members}명`], ['게스트 도착', `${report.arrivals}명`],
+          ['게스트 입금 확인', `${report.guestPaid}명`], ['콕 이월', report.recorded ? `${report.singles}개 + ${report.priorTubes}타` : '미기록'],
+          ['코트 찬조금', report.recorded ? `${report.courtDonation.toLocaleString('ko-KR')}원` : '미기록']
+        ]) + form, {
+          subtitle: event.finalized ? (report.recorded ? '확정한 인원과 마무리 기록을 한 번에 복사하세요.' : '출석을 다시 열어 콕과 찬조금 기록을 입력할 수 있어요.')
+            : enabled ? '콕 잔여와 찬조금을 저장하고 당일 체크에서 출석을 확정하세요.' : '당일 체크가 시작되면 마무리 기록을 입력할 수 있어요.',
+          actions: copy
+        });
       }
 
       return `<div class="back-link">${routeLink('일정 목록', 'events', 'text', 'arrow-left')}</div>`
@@ -146,7 +205,7 @@
           + action('일정 수정', 'open-event', event.id, {symbol: 'edit'}))
         + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
         + nav
-        + (isAttendance ? attendance() : poll());
+        + (route.tab === 'attendance' ? attendance() : route.tab === 'settlement' ? finish() : poll() + guests());
     }
 
     function notices(state) {
@@ -201,8 +260,14 @@
       const rows = report.byMember.map(({member, present, total, rate}) => `<tr>
         <td><strong>${e(member.name)}</strong></td><td>${present}회</td><td>${total}회</td><td>${rate}%</td>
       </tr>`);
-      return heading('출석 통계', '확정한 출석 기록을 일정별로 확인하세요.', selector)
+      const credits = qualification(state);
+      const creditRows = credits.byMember.map(({member, first, second, met}) => `<tr><td><strong>${e(member.name)}</strong></td>
+        <td>${first} / 3회</td><td>${second} / 3회</td><td>${pill(met ? '기준 충족' : '진행 중', met ? 'green' : 'neutral')}</td></tr>`);
+      return heading('출석 통계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
         + summary([['운동 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
+        + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
+          subtitle: '확정한 회차에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
+        })
         + panel('일정별 출석', bars.length ? `<div class="bar-chart">${bars.join('')}</div>` : empty('이 기간에 확정된 출석 기록이 없어요.'), {subtitle: '일정 참여 대상 중 실제 출석한 인원이에요.'})
         + panel('멤버별 출석', rows.length ? table(['멤버', '출석', '참여 대상 일정', '출석률'], rows) : empty('집계할 출석 기록이 없어요.'));
     }
@@ -212,7 +277,7 @@
       const steps = [
         ['다음 일정 만들기', '정해둔 요일, 시간, 장소를 새 일정에 불러와요.'],
         ['공지와 투표 공유', '일정에서 공지 초안을 만들고, 공지와 참석 투표 링크를 단체 채팅방에 올리세요.'],
-        ['당일 출석 기록', '운동 날 실제 출석을 확인한 뒤 기록을 확정해요.']
+        ['당일 체크와 마무리', '회원 실제 출석, 줄서기 인정, 게스트 도착을 확인하고 콕과 찬조금을 기록해요.']
       ];
       return heading('반복 일정', '정기 운동의 일정과 참석 투표를 한 번에 준비하세요.',
         action('반복 설정 수정', 'open-repeat', '', {symbol: 'settings'}))
@@ -220,7 +285,7 @@
           <div class="summary-item"><dt>일정 이름</dt><dd>${e(rule.title)}</dd></div>
           <div class="summary-item"><dt>운동 시간</dt><dd>매주 ${weekdays[rule.weekday]} ${eventTime(rule)}</dd></div>
           <div class="summary-item"><dt>장소</dt><dd>${e(rule.place)}</dd></div>
-          <div class="summary-item"><dt>투표 마감</dt><dd>${rule.deadlineDays ? `운동 ${e(rule.deadlineDays)}일 전` : '운동 당일'}</dd></div>
+          <div class="summary-item"><dt>투표 마감</dt><dd>${rule.deadlineDays ? `운동 ${e(rule.deadlineDays)}일 전` : '운동 당일'} ${e(rule.deadlineTime)}</dd></div>
         </dl><div class="form-actions">${action('다음 일정 만들기', 'generate-next', '', {tone: 'primary', symbol: 'plus', extra: rule.enabled ? '' : 'disabled'})}</div>`, {
           subtitle: '다음 일정 만들기를 누르면 이 설정으로 일정과 투표를 준비해요.',
           actions: rule.enabled ? pill('사용 중', 'green') : pill('사용 중지')
@@ -240,6 +305,12 @@
       return `<label class="form-check form-field-full"><input name="${name}" type="checkbox"${on ? ' checked' : ''}> <span>${label}</span></label>`;
     }
 
+    function slotFields(event) {
+      return field('선발 시간', input('earlyTime', event.earlyTime, 'type="time" required'))
+        + field('후발 시간', input('lateTime', event.lateTime, 'type="time" required'))
+        + field('투표 마감 시간', input('deadlineTime', event.deadlineTime, 'type="time" required'));
+    }
+
     function form(dialog, title, content, submit = '저장') {
       return `<header class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="icon-btn" type="button" data-action="close-dialog" aria-label="닫기">${icon('x')}</button></header>
         <form data-form="${dialog.type}"${dialog.id ? ` data-id="${e(dialog.id)}"` : ''}>
@@ -256,6 +327,7 @@
         + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
         + field('시작 시간', input('time', event.time, 'type="time" required'))
         + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
+        + slotFields(event)
         + field('장소', input('place', event.place, 'required maxlength="100"'), true)
         + field('안내 메모', `<textarea name="notes" rows="3" maxlength="500">${e(event.notes || '')}</textarea>`, true)
         + check('pollOpen', '참석 투표 열기', event.pollOpen ?? true));
@@ -289,6 +361,7 @@
         + field('투표 마감 (운동 며칠 전)', input('deadlineDays', rule.deadlineDays, 'type="number" min="0" max="6" required'))
         + field('시작 시간', input('time', rule.time, 'type="time" required'))
         + field('종료 시간', input('endTime', rule.endTime, 'type="time" required'))
+        + slotFields(rule)
         + field('장소', input('place', rule.place, 'required maxlength="100"'), true));
     }
 
@@ -296,10 +369,11 @@
       const event = state.events.find(event => event.id === dialog.id);
       if (!event) return '';
       const members = event.roster.map(id => state.members.find(member => member.id === id)).filter(Boolean);
-      return form(dialog, '회원 투표 체험',
-        `<p class="form-note form-field-full">${e(event.title)}에 참여할지 응답해 보세요. 저장하면 이 일정의 투표 결과에 반영돼요.</p>`
+      return form(dialog, '예시 응답 조정',
+        `<p class="form-note form-field-full">예시 회원의 응답을 정정합니다. 저장하면 기존 응답 한 건이 갱신됩니다.</p>`
         + field('멤버', `<select name="member" required><option value="">선택하세요</option>${members.map(member => option(member.id, member.name, '')).join('')}</select>`, true)
-        + field('참석 여부', `<select name="vote" required><option value="">선택하세요</option>${option('yes', '참석', '')}${option('no', '불참', '')}</select>`, true),
+        + field('운동 응답', `<select name="vote" required><option value="">선택하세요</option>${option('early', `${event.earlyTime} 선발`, '')}${option('late', `${event.lateTime} 후발`, '')}${option('no', '불참', '')}</select>`, true)
+        + check('lunch', '점심에 함께해요', false),
         '응답 저장');
     }
 

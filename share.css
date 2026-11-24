@@ -529,7 +529,8 @@
   font-weight: 750;
 }
 
-.public-field select {
+.public-field select,
+.public-field input {
   width: 100%;
   min-height: 46px;
   padding: 8px 12px;
@@ -584,6 +585,28 @@
   background: #e2efdc;
   color: #193b27;
   box-shadow: inset 0 0 0 1px #376044;
+}
+
+.public-choice-slots {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.public-lunch {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  font-weight: 750;
+}
+
+.public-lunch input {
+  width: 20px;
+  height: 20px;
+}
+
+.public-form-note {
+  color: #496354;
+  font-size: .9rem;
 }
 
 .share-button:focus-visible,

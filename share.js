@@ -26,7 +26,7 @@
     return `
       <div class="share-art share-art--${kind}" data-share-image="${kind}" aria-hidden="true">
         <div class="share-art-content">
-          <span class="share-art-brand">${mark(helpers)} 콕앤콕</span>
+          <span class="share-art-brand">${mark(helpers)} 썬콕19</span>
           <span class="share-art-label">${label}</span>
           <strong class="share-art-title">${helpers.escape(item.title)}</strong>
           <span class="share-art-detail">${helpers.escape(detail)}</span>
@@ -82,7 +82,7 @@
               <div class="share-chat-caption">
                 <strong>${helpers.escape(item.title)}</strong>
                 <span>${helpers.escape(description)}</span>
-                <small>콕앤콕 모임</small>
+                <small>썬콕19 일요모임</small>
               </div>
             </div>
           </div>
@@ -101,7 +101,7 @@
   }
 
   function voteForm(event, state, helpers) {
-    if (!event.pollOpen || event.finalized || event.deadline < helpers.today) {
+    if (!event.pollOpen || event.finalized || (helpers.deadlinePassed ? helpers.deadlinePassed(event) : event.deadline < helpers.today)) {
       return '<p class="public-status">현재는 참석 투표를 받고 있지 않아요.</p>';
     }
 
@@ -110,32 +110,40 @@
 
     const receipt = helpers.publicReceipts?.[event.id];
     const receiptMember = receipt && names.find(member => member.id === receipt.member);
-    const receiptVote = receipt?.vote === 'yes' ? '참석' : '불참';
+    const {escape} = helpers;
+    const slots = [['early', `${event.earlyTime} 선발`], ['late', `${event.lateTime} 후발`], ['no', '불참']];
+    const ownVote = receiptMember ? event.votes[receiptMember.id] : null;
+    const ownLunch = Boolean(receiptMember && event.lunch[receiptMember.id]);
+    const receiptVote = slots.find(([key]) => key === ownVote)?.[1] || '기존';
 
     return `
       <form class="public-form" data-form="public-vote" data-id="${helpers.escape(event.id)}">
-        ${receiptMember ? `<p class="public-receipt" role="status">${helpers.escape(receiptMember.name)}님의 ${receiptVote} 응답을 저장했어요. 마감 전까지 바꿀 수 있어요.</p>` : ''}
-        <label class="public-field">
-          <span>멤버 이름</span>
-          <select name="member" required>
-            <option value="" ${receiptMember ? '' : 'selected'} disabled>예시 멤버 선택</option>
-            ${names.map(member => `<option value="${helpers.escape(member.id)}"${member.id === receiptMember?.id ? ' selected' : ''}>${helpers.escape(member.name)}</option>`).join('')}
-          </select>
-        </label>
+        ${receiptMember ? `<p class="public-receipt" role="status">${escape(receiptMember.name)}님의 ${escape(receiptVote)} 응답입니다. 마감 전까지 바꿀 수 있어요.</p>
+          <input name="member" type="hidden" value="${escape(receiptMember.id)}">` : `
+          <p class="public-form-note">가상 화면입니다. 실제 생년월일이나 개인 PIN을 넣지 마세요.</p>
+          <label class="public-field">
+            <span>예시 회원</span>
+            <select name="member" required>
+              <option value="" selected disabled>예시 회원 선택</option>
+              ${names.map(member => `<option value="${escape(member.id)}">${escape(member.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="public-field">
+            <span>체험 번호</span>
+            <input name="demoPin" inputmode="numeric" autocomplete="off" pattern="[0-9]{6}" maxlength="6" aria-describedby="demo-pin-help" required>
+          </label>`}
+        ${receiptMember ? '' : '<p class="public-form-note" id="demo-pin-help">예시 공용 번호는 190019입니다.</p>'}
         <fieldset class="public-choices">
-          <legend>이번 운동에 참석하시나요?</legend>
-          <div class="public-choice-row">
-            <label class="public-choice">
-              <input type="radio" name="vote" value="yes" required${receiptMember && receipt.vote === 'yes' ? ' checked' : ''}>
-              <span>참석해요</span>
-            </label>
-            <label class="public-choice">
-              <input type="radio" name="vote" value="no" required${receiptMember && receipt.vote === 'no' ? ' checked' : ''}>
-              <span>참석이 어려워요</span>
-            </label>
+          <legend>운동 참석</legend>
+          <div class="public-choice-row public-choice-slots">
+            ${slots.map(([key, label]) => `<label class="public-choice">
+              <input type="radio" name="vote" value="${key}" required${ownVote === key ? ' checked' : ''}>
+              <span>${escape(label)}</span>
+            </label>`).join('')}
           </div>
         </fieldset>
-        <button class="share-button share-button--primary" type="submit">응답 보내기</button>
+        <label class="public-lunch"><input type="checkbox" name="lunch"${ownLunch ? ' checked' : ''}> 점심 함께해요</label>
+        <button class="share-button share-button--primary" type="submit">${receiptMember ? '내 응답 변경' : '응답 보내기'}</button>
       </form>`;
   }
 
@@ -145,7 +153,7 @@
     const escape = helpers.escape;
     const masthead = `
       <div class="public-masthead">
-        <span class="public-brand">${mark(helpers)} <strong>콕앤콕</strong></span>
+        <span class="public-brand">${mark(helpers)} <strong>썬콕19</strong></span>
         <span class="public-example">멤버 화면 예시</span>
       </div>
       ${helpers.returnFromPublic ? `<button class="public-return" type="button" data-route="${escape(helpers.returnFromPublic)}">운영 화면으로</button>` : ''}`;
@@ -165,7 +173,7 @@
       ? `<dl class="public-event-facts">
           <div><dt>일시</dt><dd>${escape(summary(kind, item, helpers))}–${escape(item.endTime)}</dd></div>
           <div><dt>장소</dt><dd>${escape(item.place)}</dd></div>
-          <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))}</dd></div>
+          <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))} ${escape(item.deadlineTime)}</dd></div>
         </dl>
         ${item.notes ? `<p class="public-share-body">${escape(item.notes)}</p>` : ''}
         ${voteForm(item, state, helpers)}`

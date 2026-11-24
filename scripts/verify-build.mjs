@@ -18,7 +18,7 @@ async function read(path = '') {
 }
 
 const home = (await read()).toString();
-assert.match(home, /<title>콕앤콕/);
+assert.match(home, /<title>썬콕19/);
 const required = ['styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
@@ -38,8 +38,8 @@ const seed = window.clubModel.load();
 const { linkFor } = window.clubShare;
 
 for (const [kind, id, title] of [
-  ['vote', 'e-nov28', '토요 정기 운동'],
-  ['notice', 'n-schedule', '11월 정기 운동 안내'],
+  ['vote', 'e-nov28', '일요 정기 운동'],
+  ['notice', 'n-schedule', '일요모임 이용 안내'],
 ]) {
   const path = `share/${kind}/${id}/`;
   const html = (await read(path)).toString();
@@ -85,7 +85,7 @@ for (const [kind, id, title] of [
   assert.equal(stockLink.published, published);
   assert.doesNotMatch(runtime.get('published-shares.js'), /김서윤|roster|votes|attendance/);
   const publicFields = kind === 'vote'
-    ? ['title', 'date', 'time', 'endTime', 'place', 'deadline', 'notes', 'pollOpen', 'finalized']
+    ? ['title', 'date', 'time', 'endTime', 'place', 'deadline', 'deadlineTime', 'earlyTime', 'lateTime', 'notes', 'pollOpen', 'finalized']
     : ['title', 'date', 'body'];
   for (const field of publicFields) {
     const modified = { ...item, [field]: typeof item[field] === 'boolean' ? !item[field] : item[field] + '!' };

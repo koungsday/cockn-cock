@@ -115,6 +115,7 @@ p { line-height: 1.58; }
 .poll-grid i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .poll-grid strong { display: block; color: #1d3225; font-size: 1.49rem; margin-top: 2px; font-weight: 850; font-variant-numeric: tabular-nums; }
 .poll-grid small { font-size: .72rem; margin-left: 2px; font-weight: 700; color: #5e6e64; }
+.poll-subline { margin: 0 0 10px; color: #4d5e53; font-size: .8rem; }
 .poll-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid #e8ede6; display: flex; align-items: center; justify-content: space-between; gap: 7px; }
 .poll-footer>span { font-size: .79rem; color: #586b5f; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 13px; margin: 17px 0; }
@@ -232,6 +233,9 @@ textarea { min-height: 100px; resize: vertical; }
 .form-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-weight: 700; font-size: .90rem; }
 .form-field input, .form-field select, .form-field textarea { width: 100%; font-weight: 450; }
 .form-field-full { grid-column: 1 / -1; }
+.guest-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 14px; }
+.guest-form .form-field { flex: 1 1 165px; }
+.settlement-form { margin-top: 18px; }
 .form-check { display: flex; align-items: center; gap: 6px; font-size: .90rem; }
 .form-note { font-size: .86rem; color: var(--muted); }
 .form-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
