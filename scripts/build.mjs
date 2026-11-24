@@ -30,6 +30,7 @@ const entries = [
     kind: 'vote',
     item: event,
     category: '참석 투표',
+    publicFields: ['id', 'title', 'date', 'time', 'endTime', 'place', 'deadline', 'notes', 'pollOpen', 'finalized'],
     description: `${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`,
     body: event.notes,
     cta: '투표 화면 체험하기',
@@ -38,6 +39,7 @@ const entries = [
     kind: 'notice',
     item: notice,
     category: '모임 공지',
+    publicFields: ['id', 'title', 'date', 'body'],
     description: notice.body.replace(/\s+/g, ' ').trim(),
     body: notice.body,
     cta: '회원 화면 체험하기',
@@ -46,10 +48,14 @@ const entries = [
 const escapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escape = value => String(value).replace(/[&<>"']/g, char => escapes[char]);
 
+function shareUrl(kind, id) {
+  return new URL(`share/${kind}/${id}/`, site);
+}
+
 function shareHtml(entry) {
   const { kind, item, category, description, body, cta } = entry;
   const title = `${category} · ${item.title} | 콕앤콕`;
-  const canonical = new URL(`share/${kind}/${item.id}/`, site);
+  const canonical = shareUrl(kind, item.id);
   const image = new URL(`assets/kakao-${kind}.png`, site);
   const demoRoute = `${site.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
   return `<!doctype html>
@@ -100,7 +106,7 @@ function shareHtml(entry) {
 
 await rm(dist, { recursive: true, force: true });
 const staticFiles = [
-  'index.html', 'styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'app.js',
+  'styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'app.js',
   'assets/court.webp', 'assets/kakao-notice.png', 'assets/kakao-vote.png',
 ];
 for (const source of staticFiles) {
@@ -108,9 +114,27 @@ for (const source of staticFiles) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(join(root, source), destination);
 }
+const appScript = '<script defer src="app.js"></script>';
+const index = await readFile(join(root, 'index.html'), 'utf8');
+if (!index.includes(appScript)) throw new Error('The demo entry script is missing.');
+await writeFile(
+  join(dist, 'index.html'),
+  index.replace(appScript, `<script defer src="published-shares.js"></script>
+  ${appScript}`),
+);
+const publishedShares = Object.fromEntries(entries.map(({ kind, item, publicFields }) => [
+  kind,
+  {
+    href: shareUrl(kind, item.id).href,
+    fields: Object.fromEntries(publicFields.map(field => [field, item[field]])),
+  },
+]));
+await writeFile(join(dist, 'published-shares.js'), `window.clubPublishedShares = ${JSON.stringify(publishedShares)};
+`);
+
 for (const entry of entries) {
   const destination = join(dist, 'share', entry.kind, entry.item.id, 'index.html');
   await mkdir(dirname(destination), { recursive: true });
   await writeFile(destination, shareHtml(entry));
 }
-console.log(`Built ${staticFiles.length} runtime files and ${entries.length} share pages in dist/.`);
+console.log(`Built ${staticFiles.length + 2} runtime files and ${entries.length} share pages in dist/.`);

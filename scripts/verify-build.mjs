@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const dist = fileURLToPath(new URL('../dist', import.meta.url));
 const remote = process.argv[2] ? new URL(process.argv[2]) : null;
@@ -18,12 +19,23 @@ async function read(path = '') {
 
 const home = (await read()).toString();
 assert.match(home, /<title>콕앤콕/);
-const required = ['styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'app.js'];
+const required = ['styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
+const runtime = new Map();
 for (const file of required) {
   assert(home.includes(`="${file}"`), `${file} is referenced by the demo`);
-  assert((await read(file)).length > 0, `${file} is available`);
+  const content = await read(file);
+  assert(content.length > 0, `${file} is available`);
+  if (file.endsWith('.js')) runtime.set(file, content.toString());
 }
+assert(home.indexOf('src="published-shares.js"') < home.indexOf('src="app.js"'));
 assert((await read('assets/court.webp')).length > 0);
+
+const window = { localStorage: { getItem: () => null } };
+for (const file of ['state.js', 'share.js']) {
+  runInNewContext(runtime.get(file), { URL, window }, { filename: file });
+}
+const seed = window.clubModel.load();
+const { linkFor } = window.clubShare;
 
 for (const [kind, id, title] of [
   ['vote', 'e-nov28', '토요 정기 운동'],
@@ -54,8 +66,40 @@ for (const [kind, id, title] of [
   assert.equal(png.readUInt32BE(20), Number(og['image:height']));
   assert.equal(og['image:width'], '1200');
   assert.equal(og['image:height'], '630');
-  assert(html.includes(`href="${base.pathname}#public-${kind}/${id}"`));
+  const demoHash = `#public-${kind}/${id}`;
+  assert(html.includes(`href="${base.pathname}${demoHash}"`));
   assert.doesNotMatch(html, /<script\b|<form\b|김서윤|localStorage/);
-  console.log(`Verified ${og.url}: HTML head, canonical URL, OG PNG 1200×630, member demo link.`);
+
+  const records = kind === 'vote' ? seed.events : seed.notices;
+  const item = records.find(record => record.id === id);
+  window.location = new URL('#home', base);
+  const localHref = new URL(demoHash, base).href;
+  delete window.clubPublishedShares;
+  assert.equal(linkFor(kind, item).href, localHref);
+  assert.equal(linkFor(kind, item).published, false);
+
+  runInNewContext(runtime.get('published-shares.js'), { window }, { filename: 'published-shares.js' });
+  const published = base.protocol === 'https:';
+  const stockLink = linkFor(kind, item);
+  assert.equal(stockLink.href, published ? og.url : localHref);
+  assert.equal(stockLink.published, published);
+  assert.doesNotMatch(runtime.get('published-shares.js'), /김서윤|roster|votes|attendance/);
+  const publicFields = kind === 'vote'
+    ? ['title', 'date', 'time', 'endTime', 'place', 'deadline', 'notes', 'pollOpen', 'finalized']
+    : ['title', 'date', 'body'];
+  for (const field of publicFields) {
+    const modified = { ...item, [field]: typeof item[field] === 'boolean' ? !item[field] : item[field] + '!' };
+    const link = linkFor(kind, modified);
+    assert.equal(link.href, localHref, `${kind} modified ${field} uses local preview`);
+    assert.equal(link.published, false);
+  }
+  const otherItem = records.find(record => record.id !== id);
+  assert.equal(linkFor(kind, otherItem).published, false);
+
+  const helpers = { escape: String, icon: () => '', dateLabel: window.clubModel.dateLabel };
+  const dialog = window.clubShare.renderShare({ kind, id }, seed, helpers);
+  assert(dialog.includes(`value="${stockLink.href}"`));
+  assert(dialog.includes(published ? '카카오톡 공유용 예시 링크' : '이 브라우저 미리보기 링크'));
+  console.log(`Verified ${og.url}: HTML head, OG PNG 1200×630, share dialog, modified-record fallback.`);
 }
 console.log('Verified demo routes and runtime assets.');

@@ -1,0 +1,10 @@
+{
+  "name": "cockn-cock-database-check",
+  "private": true,
+  "scripts": {
+    "test": "node --test verify.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.6.0"
+  }
+}

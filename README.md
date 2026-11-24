@@ -1,5 +1,7 @@
 # 콕앤콕 배드민턴 모임 관리 초안
 
+[공개 데모](https://koungsday.github.io/cockn-cock/) · [참석 투표 링크 예시](https://koungsday.github.io/cockn-cock/share/vote/e-nov28/) · [공지 링크 예시](https://koungsday.github.io/cockn-cock/share/notice/n-schedule/) · [운영 환경](OPERATIONS.md)
+
 `index.html`을 브라우저에서 열면 설치 없이 둘러볼 수 있습니다. 콕앤콕은 임시 이름입니다. 화면의 회원, 장소, 일정은 가상 예시이며 기준일은 2026년 11월 24일입니다. 변경한 내용은 같은 브라우저에 저장됩니다.
 
 ## 운영 흐름
@@ -15,6 +17,6 @@
 - [공지 이미지](assets/kakao-notice.png)에는 제목과 본문 요약을 넣었습니다. 링크는 해당 공지 본문을 엽니다.
 - 두 이미지 모두 1200 × 630px입니다. 투표는 짙은 초록, 공지는 따뜻한 노랑으로 구분했습니다. 응답 수와 회원 이름은 미리보기 이미지에 넣지 않습니다.
 
-초안의 링크는 같은 기기에서 확인할 수 있습니다. 실제 운영에서는 공지와 투표마다 카카오톡이 가져올 수 있는 HTTPS 주소와 이미지를 제공하고, 각 페이지의 HTML에 `og:title`, `og:description`, `og:image`를 넣습니다. 배포 후 카카오톡에서 링크를 직접 보내 카드와 이동 화면을 확인합니다. 이미지나 제목을 바꿨을 때는 카카오의 URL 메타정보 관리 도구로 캐시를 확인할 수 있습니다. [카카오 스크랩 메시지](https://developers.kakao.com/docs/ko/message-template/common#scrap-message) · [카카오 URL 메타정보 관리](https://developers.kakao.com/docs/ko/tool/common)
+위에 연결한 두 링크는 공개 카드 예시입니다. 브라우저에서 새로 추가하거나 수정한 내용은 같은 브라우저에 저장됩니다. 실제 운영에서는 공지와 투표마다 카카오톡이 가져올 수 있는 HTTPS 주소와 이미지를 제공하고, 각 페이지의 HTML에 `og:title`, `og:description`, `og:image`를 넣습니다. 배포 후 카카오톡에서 링크를 직접 보내 카드와 이동 화면을 확인합니다. 이미지나 제목을 바꿨을 때는 카카오의 URL 메타정보 관리 도구로 캐시를 확인할 수 있습니다. [카카오 스크랩 메시지](https://developers.kakao.com/docs/ko/message-template/common#scrap-message) · [카카오 URL 메타정보 관리](https://developers.kakao.com/docs/ko/tool/common)
 
 실제 운영용으로 옮길 때는 여러 회원의 응답을 한 곳에 모을 서버 저장소와 운영진 권한이 필요합니다. 공유 투표 링크에서 각 회원이 본인 응답 한 건을 수정할 수 있도록 인증 방식도 정해야 합니다. 초안에서는 가상 명단에서 이름을 골라 이 흐름을 체험합니다.

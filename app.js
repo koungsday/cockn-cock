@@ -296,12 +296,6 @@
     if (shareFeedback) shareFeedback.textContent = message;
     else showToast(message);
   }
-  function shareURL(kind,id) {
-    const url = new URL(location.href);
-    url.hash = 'public-'+kind+'/'+id;
-    return url.href;
-  }
-
   app.addEventListener('click', handleClick);
   modal.addEventListener('click', handleClick);
   function handleClick(ev) {
@@ -329,7 +323,14 @@
       app.querySelector('.mobile-menu')?.focus();
     }
     if (action === 'generate-next') generateNext(control);
-    if (action === 'copy-share') copy(shareURL(kind,id)).then(result => notifyCopy(result,'미리보기 링크를 복사했어요.'));
+    if (action === 'copy-share') {
+      const item = kind === 'vote' ? event : state.notices.find(notice => notice.id === id);
+      if (!item) return;
+      const { href, published } = window.clubShare.linkFor(kind, item);
+      const message = published ? '공개 예시 링크를 복사했어요.' : '이 브라우저 미리보기 링크를 복사했어요.';
+      copy(href).then(result => notifyCopy(result, message));
+      return;
+    }
     if (action === 'copy-notice') {
       const notice = state.notices.find(item => item.id === id);
       if (notice) copy(`${notice.title}\n\n${notice.body}`).then(result => notifyCopy(result,'공지 내용을 복사했어요.'));

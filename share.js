@@ -35,6 +35,18 @@
       </div>`;
   }
 
+  function linkFor(kind, item) {
+    const example = window.clubPublishedShares?.[kind];
+    if (example?.href.startsWith('https://') &&
+        Object.entries(example.fields).every(([field, value]) => item[field] === value)) {
+      return { href: example.href, published: true };
+    }
+
+    const link = new URL(window.location.href);
+    link.hash = `public-${kind}/${item.id}`;
+    return { href: link.href, published: false };
+  }
+
   function renderShare(dialog, state, helpers) {
     const { kind, id } = dialog;
     const item = content(kind, id, state);
@@ -46,8 +58,11 @@
       ? `${summary(kind, item, helpers)} · ${item.place}`
       : summary(kind, item, helpers);
     const publicRoute = `public-${kind}/${id}`;
-    const link = new URL(window.location.href);
-    link.hash = publicRoute;
+    const link = linkFor(kind, item);
+    const linkLabel = link.published ? '카카오톡 공유용 예시 링크' : '이 브라우저 미리보기 링크';
+    const linkNote = link.published
+      ? '카카오톡에 붙여 넣으면 고정된 예시가 열려요. 편집 내용과 투표 응답은 이 브라우저에만 저장돼요.'
+      : '이 링크로는 이 브라우저에 저장된 내용을 확인할 수 있어요. 다른 사람에게 편집 내용이나 카카오톡 미리보기가 전달되지 않아요.';
 
     return `
       <div class="share-dialog-content">
@@ -73,7 +88,7 @@
           </div>
         </div>
         <label class="share-link-field">
-          <span>공유 링크</span>
+          <span>${linkLabel}</span>
           <input type="text" value="${helpers.escape(link.href)}" readonly>
         </label>
         <div class="share-dialog-actions">
@@ -81,7 +96,7 @@
           <button type="button" class="share-button share-button--primary" data-action="copy-share" data-kind="${kind}" data-id="${helpers.escape(id)}">링크 복사</button>
         </div>
         <p class="share-feedback" role="status"></p>
-        <p class="share-preview-note">초안 링크는 이 기기에서 열립니다. 카카오톡에서 멤버가 열 수 있는 링크와 미리보기 이미지는 배포 후 적용됩니다.</p>
+        <p class="share-preview-note">${linkNote}</p>
       </div>`;
   }
 
@@ -173,5 +188,5 @@
       </section>`;
   }
 
-  window.clubShare = { renderPublic, renderShare };
+  window.clubShare = { renderPublic, renderShare, linkFor };
 })();
