@@ -4,11 +4,12 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[character]);
 
-const koreanDate = new Intl.DateTimeFormat('ko-KR', {
-  month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC',
-});
+const courtLines = '<div class="share-art-decoration" aria-hidden="true"><span></span><span></span><span></span></div>';
+const chevron = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
 
-export function renderDemoClub({ club, basePath, vote, notice }) {
+// The demo member home uses the live member home's markup (worker/public/views.mjs homeScreen) and the same share.css.
+// The demo has no sign-in, so the next event always offers 투표하기 with an example member.
+export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
   const base = basePath.endsWith('/') ? basePath : basePath + '/';
   if (!base.startsWith('/') || base.startsWith('//') || /[\\?#]/.test(base)) {
     throw new Error('Demo club basePath must be a same-site path.');
@@ -17,9 +18,11 @@ export function renderDemoClub({ club, basePath, vote, notice }) {
   const root = escape(base);
   const brand = escape(PLATFORM_NAME);
   const name = escape(club.name);
-  const clubPath = base + 'clubs/' + encodeURIComponent(club.slug) + '/';
-  const votePath = escape(clubPath + 'share/vote/' + encodeURIComponent(vote.id) + '/');
-  const noticePath = escape(clubPath + 'share/notice/' + encodeURIComponent(notice.id) + '/');
+  const admin = base + 'clubs/' + encodeURIComponent(club.slug) + '/admin/';
+  const route = (kind, id) => escape(`${admin}#public-${kind}/${encodeURIComponent(id)}`);
+  const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${route('notice', notice.id)}">
+          <span><strong>${escape(notice.title)}</strong><time class="member-record-meta" datetime="${escape(notice.date)}">${escape(dateLabel(notice.date))}</time></span>
+          <span class="member-record-arrow" aria-hidden="true">${chevron}</span></a></li>`).join('');
 
   return `<!doctype html>
 <html lang="ko">
@@ -29,41 +32,37 @@ export function renderDemoClub({ club, basePath, vote, notice }) {
   <meta name="theme-color" content="#f3f2ec">
   <meta name="description" content="${name} 회원 화면에서 일정, 투표, 공지를 체험하세요.">
   <title>${name} · ${brand}</title>
+  <link rel="icon" type="image/png" sizes="96x96" href="${root}assets/shuttlecock-icon-96.png">
+  <link rel="stylesheet" href="${root}styles.css">
+  <link rel="stylesheet" href="${root}share.css">
   <link rel="stylesheet" href="${root}platform.css">
   <script src="${root}legacy-links.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#content">본문 바로가기</a>
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="site-header">
     <div class="page-width header-inner">
-      <a class="site-brand" href="${root}" aria-label="${brand} 등록 모임"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
-      <a class="header-link member-admin-link" href="${escape(clubPath + 'admin/')}">운영 화면 체험</a>
+      <a class="site-brand" href="${root}" aria-label="${brand} 소개 홈"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
+      <a class="header-link" href="${escape(admin)}">운영 화면 체험</a>
     </div>
   </header>
-  <main id="content" class="page-width member-page">
-    <section class="hero member-hero" aria-labelledby="club-title">
-      <div class="hero-copy">
-        <p class="hero-label">${escape(club.subtitle)}</p>
-        <h1 id="club-title">${name}</h1>
-        <span class="demo-label member-demo-label">가상 데이터 체험</span>
-      </div>
-    </section>
-    <div class="member-panel-grid">
-      <section class="member-panel member-panel-vote" aria-labelledby="vote-label">
-        <p id="vote-label" class="member-panel-label">다음 운동</p>
-        <h2>${escape(vote.title)}</h2>
-        <p class="member-vote-meta"><time datetime="${escape(vote.date)}">${escape(koreanDate.format(new Date(vote.date + 'T00:00:00Z')))}</time><span>${escape(vote.time)}–${escape(vote.endTime)}</span></p>
-        <p class="member-panel-detail">${escape(vote.place)}</p>
-        <a class="club-action" href="${votePath}">참석 투표 보기</a>
-      </section>
-      <section class="member-panel" aria-labelledby="notice-label">
-        <p id="notice-label" class="member-panel-label">모임 공지</p>
-        <h2>${escape(notice.title)}</h2>
-        <p class="member-panel-detail">${escape(notice.body)}</p>
-        <a class="club-action member-action-secondary" href="${noticePath}">공지 내용 보기</a>
-      </section>
+  <main id="main-content" class="public-share-page member-page" tabindex="-1">
+    <div class="member-demo-head">
+      <h1>${name} <span class="sr-only">모임 홈</span></h1>
+      <span class="demo-label">가상 데이터 체험</span>
     </div>
-    <p class="directory-note">체험 응답은 이 브라우저에 저장됩니다.</p>
+    <article class="public-share-card member-next" aria-labelledby="member-next-title">
+      <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">참석 투표</span>
+        <h2 id="member-next-title" class="public-title">${escape(vote.title)}</h2><time datetime="${escape(vote.date)}">${escape(dateLabel(vote.date))} ${escape(vote.time)}–${escape(vote.endTime)}</time></header>
+      <div class="public-share-content">
+        <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(vote.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(dateLabel(vote.deadline))} ${escape(vote.deadlineTime)}</dd></div></dl>
+        <p class="member-answer">예시 회원을 골라 응답해 볼 수 있어요.</p>
+        <a class="share-button share-button--primary member-next-action" href="${route('vote', vote.id)}">투표하기</a>
+      </div>
+    </article>
+    <section class="public-share-card member-list" aria-labelledby="member-notices"><div class="public-share-content">
+      <h2 id="member-notices">공지</h2><ul class="member-records">${noticeRows}</ul></div></section>
+    <p class="public-form-note member-demo-note">체험 응답은 이 브라우저에만 저장돼요.</p>
   </main>
 </body>
 </html>`;

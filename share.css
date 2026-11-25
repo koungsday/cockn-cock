@@ -635,3 +635,37 @@
     font-size: .875rem;
   }
 }
+
+/* Member club screens (DESIGN.md 5): the same markup in the demo and the live member home. */
+.member-page { display: grid; gap: 12px; padding-top: clamp(14px, 4vw, 36px); }
+.member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: #23523b; font-size: .9rem; font-weight: 700; }
+.member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
+.public-receipt strong { margin-left: 4px; }
+.member-confirmed { margin-left: 6px; color: #1f5a36; font-weight: 800; }
+.public-status strong { display: block; }
+.member-records { list-style: none; margin: 0; padding: 0; }
+.member-record + .member-record { border-top: 1px solid var(--line); }
+.member-record-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 10px 0; overflow-wrap: anywhere; }
+.member-record-link strong { display: block; }
+.member-record-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.member-record-meta { display: grid; color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
+.member-record-action { padding: 6px 10px; border: 1px solid #cfdcd2; border-radius: 8px; color: #23523b; font-size: .86rem; font-weight: 750; white-space: nowrap; }
+.member-record-open { border-color: transparent; background: #e2efdc; }
+.member-record-arrow { display: grid; color: var(--muted); }
+.member-list h2 { font-size: 1.12rem; margin-bottom: 4px; }
+.member-record-done { border-color: transparent; background: #e8f3e7; color: #28583e; }
+.public-story-head .public-title {
+  margin: 7px 0 0;
+  color: inherit;
+  font-size: clamp(1.65rem, 5vw, 2.15rem);
+  letter-spacing: -.055em;
+  line-height: 1.24;
+  overflow-wrap: anywhere;
+}
+.member-next .public-share-content { display: grid; gap: 14px; }
+.member-answer { margin: 0; color: #344b3b; font-size: 1rem; line-height: 1.55; }
+.member-answer strong { color: #193b27; }
+.member-next-action { width: 100%; }
+.member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
+.member-pin h2 { font-size: 1.05rem; }
+.member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }

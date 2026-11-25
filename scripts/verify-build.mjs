@@ -32,7 +32,11 @@ assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB
 assert(memberHome.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
 assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
 assert(memberHome.includes('/' + adminPath + '"'));
-assert(memberHome.includes('/' + clubPath + 'share/vote/e-nov28/"'));
+assert(memberHome.includes('/' + adminPath + '#public-vote/e-nov28"'), 'the member home vote button opens the demo vote');
+// The demo member home shares the live member home's markup and stylesheet (worker/public/views.mjs homeScreen).
+for (const marker of ['public-share-card member-next', 'member-next-action', 'member-records', 'share.css"']) {
+  assert(memberHome.includes(marker), `the demo member home uses ${marker}`);
+}
 assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD/);
 const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1];
 assert(basePath, 'the club demo links back to the directory');
