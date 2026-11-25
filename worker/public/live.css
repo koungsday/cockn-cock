@@ -211,7 +211,7 @@ button.login-back { flex: 0 0 var(--touch-target); padding: 0; }
   cursor: text;
 }
 .login-code-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(.28rem, 1.8vw, .55rem); }
-.login-code-cells > span { display: grid; place-items: center; min-height: 36px; aspect-ratio: 1; }
+.login-code-cells > span { display: grid; place-items: center; inline-size: 100%; min-height: var(--touch-target); aspect-ratio: 1; }
 .login-code:focus-within .login-code-cells > [data-position] { border-color: var(--action); background: var(--leaf); }
 .login-code-cells > [data-filled]::after { content: ''; width: .56rem; height: .56rem; border-radius: 50%; background: var(--ink); }
 .login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
