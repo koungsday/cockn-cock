@@ -315,6 +315,16 @@ export function adminMenu(section) {
   </nav>`;
 }
 
+// Phones: the first four sections stay one tap away; 더보기 opens the full menu (DESIGN.md 4).
+function adminTabBar(section) {
+  const tabs = adminSections.slice(0, 4);
+  const inMore = !tabs.some(([name]) => name === section);
+  return `<nav class="tab-bar" aria-label="운영 바로가기">
+    ${tabs.map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 22)}<span>${title}</span></button>`).join('')}
+    <button type="button" class="tab-bar-link${inMore ? ' active' : ''}" data-action="admin-menu" aria-haspopup="dialog" aria-controls="dialog">${icon('menu', 22)}<span>더보기</span></button>
+  </nav>`;
+}
+
 export function adminShell(section, contents, club) {
   const title = adminSections.find(([name]) => name === section)?.[1] ?? '운영 홈';
   return `<div class="admin-app">
@@ -324,12 +334,12 @@ export function adminShell(section, contents, club) {
     <div class="main-shell">
       <header class="topbar">
         <div class="breadcrumb">
-          <button type="button" class="icon-button mobile-menu" data-action="admin-menu" aria-label="운영 메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${icon('menu', 22)}</button>
           <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
         ${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
+      ${adminTabBar(section)}
     </div>
   </div>`;
 }

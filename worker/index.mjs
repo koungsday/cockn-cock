@@ -139,7 +139,7 @@ function adminManifest(request, club) {
   const manifest = {
     id: start, start_url: start, scope: start, display: 'standalone', lang: 'ko',
     name: `${club.name} 운영진 · ${PLATFORM_NAME}`, short_name: `${club.name} 운영진`,
-    background_color: '#f2f3f1', theme_color: '#f2f3f1',
+    background_color: '#f3f2ec', theme_color: '#f3f2ec',
     icons: [192, 512].map(size => ({
       src: `/assets/shuttlecock-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
     }))
