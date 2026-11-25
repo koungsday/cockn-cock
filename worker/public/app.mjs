@@ -123,6 +123,44 @@ const id = value => encodeURIComponent(value);
 const adminEventPath = (eventId = state.selectedEvent) => `/api/admin/events/${id(eventId)}`;
 const votePath = () => `/api/votes/${id(route.id)}`;
 
+// Admin addresses use the demo's hash format (app.js): #home, #event/:id[/:tab], #notices, #members, #progress.
+// A refresh, the back button or the home-screen app reopened on an address shows the same section, session and tab.
+const adminSectionNames = ['home', 'event', 'notices', 'members', 'progress'];
+const sessionTabNames = ['poll', 'attendance', 'settlement'];
+let lostEvent = false;
+
+function readAdminHash() {
+  const [section, eventId = '', tab = ''] = location.hash.slice(1).split('/').map(part => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return '';
+    }
+  });
+  if (!adminSectionNames.includes(section)) return { section: 'home', eventId: null, tab: null };
+  return { section, eventId: section === 'event' && eventId ? eventId : null, tab: section === 'event' && sessionTabNames.includes(tab) ? tab : null };
+}
+
+function applyAdminHash() {
+  const { section, eventId, tab } = readAdminHash();
+  state.section = section;
+  state.eventTab = tab;
+  if (eventId) state.selectedEvent = eventId;
+}
+
+function writeAdminHash({ replace = false } = {}) {
+  if (route.kind !== 'admin' || state.user?.role !== 'admin') return;
+  const hash = state.section !== 'event' || !state.selectedEvent ? `#${state.section}`
+    : `#event/${id(state.selectedEvent)}${state.eventTab ? `/${state.eventTab}` : ''}`;
+  if (location.hash !== hash) history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+}
+
+function noteLostEvent() {
+  if (!lostEvent) return;
+  lostEvent = false;
+  showMessage('주소의 회차를 찾지 못해 가장 가까운 회차를 열었어요.');
+}
+
 function hideMessage() {
   clearTimeout(messageTimer);
   message.textContent = '';
@@ -197,6 +235,10 @@ async function load() {
     const kstMinute = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
     const soonest = [...events].reverse().find(event => `${event.date}T${event.endTime}` > kstMinute);
     if (!events.some(event => event.id === state.selectedEvent)) {
+      if (state.selectedEvent && state.section === 'event') {
+        lostEvent = true;
+        state.eventTab = null;
+      }
       state.selectedEvent = soonest?.id ?? events[0]?.id ?? null;
     }
     if (state.section === 'home') {
@@ -284,8 +326,11 @@ async function initialize() {
         return;
       }
     }
+    if (route.kind === 'admin') applyAdminHash();
     await load();
     render();
+    writeAdminHash({ replace: true });
+    noteLostEvent();
   } catch (error) {
     if (error.name === 'AbortError') return;
     if (error.status === 401) return loginExpired();
@@ -296,8 +341,11 @@ async function initialize() {
 async function openSignedInPage() {
   showLoading();
   try {
+    if (route.kind === 'admin') applyAdminHash();
     await load();
     render();
+    writeAdminHash({ replace: true });
+    noteLostEvent();
   } catch (error) {
     if (error.name === 'AbortError' || error.status === 401) throw error;
     failedPage(error);
@@ -464,6 +512,34 @@ function submitCompleteCode(input) {
   if (input.value.length === 6 && !busy) input.form.requestSubmit();
 }
 
+// Moves to a section, session or tab. Only a new section or session is fetched; a tab change redraws what is already here.
+async function goTo(section, { eventId = null, tab = null, push = true } = {}) {
+  const previous = { section: state.section, selectedEvent: state.selectedEvent, eventTab: state.eventTab };
+  const reload = section !== previous.section || (section === 'event' && eventId !== null && eventId !== previous.selectedEvent);
+  state.section = section;
+  state.eventTab = section === 'event' ? tab : null;
+  if (eventId) state.selectedEvent = eventId;
+  if (reload) {
+    try {
+      await load();
+    } catch (error) {
+      if (state.section === section) Object.assign(state, previous);
+      writeAdminHash({ replace: true });
+      throw error;
+    }
+  }
+  render({ motion: reload ? 'section' : '' });
+  writeAdminHash({ replace: !push });
+  noteLostEvent();
+  if (!reload) {
+    main.querySelector('.tabs [aria-current]')?.focus({ preventScroll: true });
+    return;
+  }
+  window.scrollTo(0, 0);
+  const target = desktopNavigation.matches ? main.querySelector('.sidebar [aria-current="page"]') : main.querySelector('.admin-content h1');
+  (target ?? main).focus({ preventScroll: true });
+}
+
 async function doAction(action, itemId, tab) {
   switch (action) {
     case 'reload':
@@ -503,29 +579,11 @@ async function doAction(action, itemId, tab) {
       if (state.section !== section) dialogOpener = null;
       closeDialog();
       if (state.section === section) break;
-      const previous = state.section;
-      const previousEvent = state.selectedEvent;
-      state.section = section;
-      state.eventTab = tab ?? null;
-      if (action === 'open-event') state.selectedEvent = itemId;
-      try {
-        await load();
-      } catch (error) {
-        if (state.section === section) {
-          state.section = previous;
-          state.selectedEvent = previousEvent;
-        }
-        throw error;
-      }
-      render({ motion: 'section' });
-      window.scrollTo(0, 0);
-      const target = desktopNavigation.matches ? main.querySelector('.sidebar [aria-current="page"]') : main.querySelector('.admin-content h1');
-      (target ?? main).focus({ preventScroll: true });
+      await goTo(section, { eventId: action === 'open-event' ? itemId : null, tab: tab ?? null });
       break;
     }
     case 'event-tab':
-      state.eventTab = itemId;
-      render();
+      await goTo('event', { tab: itemId });
       break;
     case 'refresh':
       await load();
@@ -565,8 +623,11 @@ async function doAction(action, itemId, tab) {
       const member = findRoster(itemId);
       const present = member.present === true ? null : true;
       const recognition = present === null && member.recognition !== 'approved' ? null : member.recognition;
-      await update(`${adminEventPath()}/attendance/${id(itemId)}`, 'PUT', { present, recognition },
-        present ? '출석을 기록했어요.' : '출석 표시를 취소했어요.');
+      // One request per tap: the saved answer updates this row in place instead of reloading the whole screen.
+      const { attendance } = await request(`${adminEventPath()}/attendance/${id(itemId)}`, 'PUT', { present, recognition });
+      Object.assign(member, attendance);
+      render();
+      showMessage(present ? '출석을 기록했어요.' : '출석 표시를 취소했어요.');
       break;
     }
     case 'attendance':
@@ -691,7 +752,9 @@ async function doSubmit(kind, itemId, data) {
         dialogOpener = null;
       }
       state.selectedEvent = result.event.id;
+      if (!itemId) state.eventTab = null;
       await showSaved('회차를 저장했어요.', fromHome ? 'section' : '');
+      writeAdminHash();
       if (fromHome) (main.querySelector('.admin-content h1') ?? main).focus({ preventScroll: true });
       break;
     }
@@ -871,6 +934,7 @@ main.addEventListener('change', event => {
     state.selectedEvent = selected;
     state.eventTab = null;
     render();
+    writeAdminHash();
     main.querySelector('[data-action=switch-event]')?.focus({ preventScroll: true });
   }, control);
 });
@@ -943,6 +1007,26 @@ dialog.addEventListener('close', () => {
   if (target) target.focus({ preventScroll: true });
   else if (opener && document.activeElement === document.body) main.focus({ preventScroll: true });
 });
+// Back and forward follow the address like a menu tap, with the same section loader, errors and focus as run().
+// An answer still on its way is dropped (as on pagehide); the screen that opens loads what the server kept.
+window.addEventListener('popstate', () => {
+  if (route.kind !== 'admin' || state.user?.role !== 'admin') return;
+  navigationVersion++;
+  busy = false;
+  dialogOpener = null;
+  closeDialog();
+  const { section, eventId, tab } = readAdminHash();
+  const control = document.createElement('button');
+  Object.assign(control.dataset, { action: 'tab', id: section });
+  void run(() => goTo(section, { eventId, tab, push: false }), control);
+});
+
+// The skip link moves focus without changing the address: #main-content is not an admin route.
+document.querySelector('.skip-link')?.addEventListener('click', event => {
+  event.preventDefault();
+  document.querySelector('#main-content')?.focus();
+});
+
 desktopNavigation.addEventListener('change', event => {
   if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
   dialogOpener = main.querySelector('.sidebar [aria-current="page"]');
