@@ -37,6 +37,8 @@ assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN
 const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1];
 assert(basePath, 'the club demo links back to the directory');
 assert((await read('platform.css')).length > 0);
+assert(catalog.includes(`src="${basePath}shuttlecock.js"`));
+assert((await read('shuttlecock.js')).length > 0);
 const legacy = (await read('legacy-links.js')).toString();
 let redirect;
 const oldHash = '#public-vote/e-nov28';

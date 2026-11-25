@@ -12,6 +12,7 @@ await rm(site, { recursive: true, force: true });
 await cp(new URL('./public/', import.meta.url), site, { recursive: true });
 const platformCss = await readFile(new URL('../platform/platform.css', import.meta.url), 'utf8');
 await writeFile(new URL('./platform.css', site), theme + '\n' + platformCss);
+await copyFile(new URL('../platform/shuttlecock.mjs', import.meta.url), new URL('./shuttlecock.js', site));
 await mkdir(new URL('./assets/', site), { recursive: true });
 await cp(new URL('../assets/fonts/', import.meta.url), new URL('./assets/fonts/', site), { recursive: true });
 for (const file of [

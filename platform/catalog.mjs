@@ -1,7 +1,7 @@
 import { PLATFORM_NAME } from './clubs.mjs';
+import { shuttlecockPath } from './shuttlecock.mjs';
 
-const shuttlecockFeathers = '<span class="shuttlecock-feather"></span>'.repeat(16);
-const shuttlecockCork = '<span class="shuttlecock-cork"></span>'.repeat(8);
+const restingShuttlecock = shuttlecockPath();
 
 const escape = value => String(value).replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -39,6 +39,7 @@ export function renderCatalog({ clubs, basePath, mode }) {
   <meta name="description" content="등록된 배드민턴 모임의 일정과 공지, 참석 투표를 확인하세요.">
   <title>${brand} · 배드민턴 모임 관리</title>
   <link rel="stylesheet" href="${root}platform.css">
+  <script type="module" src="${root}shuttlecock.js"></script>
   ${demo ? `<script src="${root}legacy-links.js" defer></script>` : ''}
 </head>
 <body>
@@ -65,8 +66,21 @@ export function renderCatalog({ clubs, basePath, mode }) {
   </main>
   <footer class="site-footer">
     <label class="shuttlecock">
-      <input class="shuttlecock-toggle" type="checkbox" aria-label="셔틀콕 계속 회전">
-      <span class="shuttlecock-scene" aria-hidden="true">${shuttlecockFeathers}${shuttlecockCork}</span>
+      <input class="shuttlecock-toggle" type="checkbox" aria-label="셔틀콕 계속 회전" disabled>
+      <svg class="shuttlecock-scene" viewBox="0 0 120 112" aria-hidden="true">
+        <defs>
+          <filter id="shuttlecock-gap-rounding" x="0" y="0" width="120" height="112" filterUnits="userSpaceOnUse">
+            <feGaussianBlur in="SourceAlpha" stdDeviation=".75"/>
+            <feComponentTransfer result="rounded-gaps">
+              <feFuncA type="linear" slope="12" intercept="-6.18"/>
+            </feComponentTransfer>
+            <feFlood flood-color="currentColor"/>
+            <feComposite in2="rounded-gaps" operator="in" result="fillets"/>
+            <feMerge><feMergeNode in="fillets"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <path fill="currentColor" filter="url(#shuttlecock-gap-rounding)" d="${restingShuttlecock}"/>
+      </svg>
     </label>
   </footer>
 </body>
