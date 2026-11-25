@@ -227,7 +227,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
-  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요. 운영진이 열면 이 화면에서 응답할 수 있어요.'}</p></div>`;
+  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
   if (event.canVote && eligible) {
     response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요')}
       <p class="inline-error" role="alert" hidden></p>
@@ -254,7 +254,7 @@ function memberEventState(event) {
   }
   if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
   if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 회차에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
-  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요.' };
+  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
 function nextEventCard(event, club) {
