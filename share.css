@@ -22,9 +22,9 @@
 
 .share-close {
   display: grid;
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
+  flex: 0 0 var(--touch-target, 44px);
+  width: var(--touch-target, 44px);
+  height: var(--touch-target, 44px);
   place-items: center;
   padding: 0 0 2px;
   border: 0;
@@ -349,7 +349,7 @@
   min-height: 44px;
   padding: 8px 10px;
   box-sizing: border-box;
-  border: 1px solid #cfdcd2;
+  border: 1px solid var(--field-line);
   border-radius: 9px;
   background: #f2f5f0;
   color: #405349;
@@ -530,11 +530,11 @@
 }
 
 .public-field select,
-.public-field input {
+.public-field input:not([type=checkbox]):not([type=radio]) {
   width: 100%;
   min-height: 46px;
   padding: 8px 12px;
-  border: 1px solid #b8cabb;
+  border: 1px solid var(--field-line);
   border-radius: 10px;
   background-color: #fff;
   color: #243f30;
@@ -571,7 +571,7 @@
   min-height: 46px;
   place-items: center;
   padding: 8px;
-  border: 1px solid #b8cabb;
+  border: 1px solid var(--field-line);
   border-radius: 10px;
   color: #2a4a37;
   font-size: .94rem;
@@ -593,7 +593,7 @@
 
 .public-lunch {
   display: flex;
-  min-height: 42px;
+  min-height: var(--touch-target, 44px);
   align-items: center;
   gap: 9px;
   font-weight: 750;

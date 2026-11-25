@@ -132,7 +132,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .login-greeting p { font-weight: 750; overflow-wrap: anywhere; }
 .login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
 .login-form input[name="name"] { width: 100%; min-height: 46px; }
-.login-form input[name], .login-code-cells > span { border: 1px solid #9baa99; border-radius: 8px; background: #fff; }
+.login-form input[name], .login-code-cells > span { border: 1px solid var(--field-line); border-radius: 8px; background: #fff; }
 .login-form input[name]:focus { border-color: var(--action); outline: 2px solid var(--leaf); outline-offset: 0; }
 .login-submit { width: 100%; min-height: 46px; }
 .login-code { position: relative; display: block; max-width: 20rem; }

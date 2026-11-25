@@ -34,6 +34,7 @@
   --leaf: #def49f;
   --line: #d8ddd9;
   --hint: #edf0ee;
+  --field-line: #7b8f78;
   --focus: var(--action);
   --accent-red: #ff5b45;
   --font-text: "Wanted Sans UI", "Wanted Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
