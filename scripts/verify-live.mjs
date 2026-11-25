@@ -27,8 +27,15 @@ async function shell(path) {
 const intro = await get('/');
 assert.equal(intro.status, 200, 'the root serves the intro home');
 const introHtml = await intro.text();
-assert(introHtml.includes(`href="${home}"`), 'the intro home links to the club');
+// PLATFORM.md: the public intro lists no clubs; a device that opened one sees it through the recent-club cookie.
+assert(!introHtml.includes(`href="${home}"`) && !introHtml.includes(club.name), 'the intro home lists no clubs');
+assert(introHtml.includes('<script src="/recent-club.js" defer></script>'), 'the intro home loads the recent-club script');
 assert.doesNotMatch(introHtml, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|_DB\b/);
+const recentScript = await get('/recent-club.js');
+assert.equal(recentScript.status, 200, 'the recent-club script is served');
+assert.match(recentScript.headers.get('content-type') ?? '', /javascript/);
+const remembered = (await get(home)).headers.get('set-cookie') ?? '';
+assert.match(remembered, /^cockcockcock-recent=[^;]+; Path=\/; Max-Age=15552000; SameSite=Lax; Secure$/, 'a club page remembers itself');
 
 const [memberPage, adminPage, privateApi, manifest] = await Promise.all([
   shell(home), shell(admin), get(`${home}api/admin`), get(`${admin}manifest.webmanifest`),

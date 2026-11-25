@@ -25,9 +25,9 @@ const memberHome = (await read(clubPath)).toString();
 const adminPath = clubPath + 'admin/';
 const home = (await read(adminPath)).toString();
 assert(catalog.includes(PLATFORM_NAME));
-assert(catalog.includes(club.name));
+assert(!catalog.includes('id="clubs"') && !catalog.includes(club.name), 'the intro home lists no clubs (PLATFORM.md)');
 assert(catalog.includes(`href="${remote?.pathname ?? ''}${clubPath}"`) ||
-  (!remote && catalog.includes(`${clubPath}"`)), 'the directory links to the club page');
+  (!remote && catalog.includes(`${clubPath}"`)), 'the demo try links open the demo member page');
 assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
 assert(memberHome.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
 assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
@@ -42,6 +42,8 @@ const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1]
 assert(basePath, 'the club demo links back to the directory');
 assert((await read('platform.css')).length > 0);
 assert(catalog.includes(`src="${basePath}shuttlecock.js"`));
+assert(catalog.includes(`src="${basePath}recent-club.js"`));
+assert((await read('recent-club.js')).length > 0);
 assert((await read('shuttlecock.js')).length > 0);
 const legacy = (await read('legacy-links.js')).toString();
 let redirect;
