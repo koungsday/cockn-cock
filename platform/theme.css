@@ -24,17 +24,23 @@
 
 :root {
   color-scheme: light;
-  --paper: #f2f3f1;
-  --surface: #fcfdfb;
+  --paper: #f3f2ec;
+  --surface: #ffffff;
   --ink: #252c29;
   --muted: #56605a;
   --court: #10483a;
   --action: #126047;
   --lime: #d0f988;
   --leaf: #def49f;
-  --line: #d8ddd9;
+  --line: #e3e1d9;
   --hint: #edf0ee;
   --field-line: #7b8f78;
+  /* Dark menu (sidebar, mobile menu) on --ink: text 12.5 / 10.0 / 6.6:1, hover and current surfaces, dividers. */
+  --menu-text: #eef1ee;
+  --menu-text-2: #d3d9d4;
+  --menu-muted: #a9b2ac;
+  --menu-hover: #2f3733;
+  --menu-line: #3a433e;
   --focus: var(--action);
   --accent-red: #ff5b45;
   --font-text: "Wanted Sans UI", "Wanted Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
