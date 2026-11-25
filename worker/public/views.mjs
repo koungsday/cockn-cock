@@ -89,7 +89,6 @@ const paths = {
   link: '<path d="m10 13 4-4m-6 6-1 1a3 3 0 1 1-4-4l4-4a3 3 0 0 1 4 0m2 8a3 3 0 0 0 4 0l4-4a3 3 0 1 0-4-4l-1 1"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
-  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3m-5-3 5-5-5-5m5 5H3"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4m-4 5a8 8 0 0 0 14.9 4M20 20v-4h-4"/>',
 };
@@ -111,12 +110,16 @@ export function loadingPage(kind = 'member:home', text = undefined) {
 const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
 
 // css takes a tone (secondary, quiet/text, lime, glass) and "compact"/"small"; other words pass through.
+// The phone menu button: two lines that cross into × inside the open menu (styles.css .menu-toggle).
+export const menuIcon = '<svg class="menu-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path class="menu-icon-top" d="M4 9h16"/><path class="menu-icon-bottom" d="M4 15h16"/></svg>';
+
 // tab opens a session on that tab (poll, attendance, settlement) with open-event.
+// An icon-only button (css 'btn-icon') takes its name from label, shown on hover as the title too.
 export function button(text, action, { id = '', css = '', disabled = false, label = '', tab = '' } = {}) {
   const words = css.split(/\s+/).filter(Boolean);
   const tone = words.find(word => tones[word]) ?? 'primary';
   const extra = words.filter(word => !tones[word]).map(word => word === 'compact' || word === 'small' ? 'btn-small' : word);
-  return `<button type="button" class="${['btn', tones[tone], ...extra].join(' ')}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${tab ? ` data-tab="${tab}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''}${disabled ? ' disabled' : ''}>${text}</button>`;
+  return `<button type="button" class="${['btn', tones[tone], ...extra].join(' ')}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${tab ? ` data-tab="${tab}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''}${label && words.includes('btn-icon') ? ` title="${esc(label)}"` : ''}${disabled ? ' disabled' : ''}>${text}</button>`;
 }
 
 function pill(text, tone = 'muted') {
@@ -381,7 +384,7 @@ export function adminShell(section, contents, club) {
           <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
         <div class="topbar-actions">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small topbar-logout' })}
-          <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${icon('menu', 24)}</button></div>
+          <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${menuIcon}</button></div>
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
       ${adminTabBar(section)}
@@ -539,7 +542,7 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
   return `<div class="dashboard">
     <header class="dashboard-heading">
       <div><h1 tabindex="-1">운영 홈</h1><p>이번 회차의 진행 단계와 챙길 일을 확인하세요.</p></div>
-      <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(`${icon('plus', 18)} 새 회차`, 'new-event')}</div>
+      <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' })}</div>
     </header>
     <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
     <div class="dashboard-grid dashboard-bottom">${homeTodo(events, upcoming, last)}${lastPanel(last)}</div>
@@ -609,7 +612,7 @@ function sessionStatus(item) {
 
 export function eventScreen(events, detail, club, tab = null) {
   const event = detail?.event;
-  const actions = button(`${icon('plus', 18)} 새 회차`, 'new-event') + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
+  const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' }) + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
   const head = pageHead('운동 운영', '회차를 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
   if (!event) return `<div class="secondary-page">${head}${panel('회차', '<p class="empty-state">회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p>')}</div>`;
   const { roster, guests, settlement } = detail;
@@ -736,7 +739,7 @@ export function membersScreen(members) {
     <td>${pill(member.active ? '활동 중' : '비활성', member.active ? 'green' : 'muted')}</td>
     <td class="table-actions">${button('회원 수정', 'edit-member', { id: member.id, css: 'text small', label: `${member.name} 회원 수정` })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'text small', disabled: !member.active, label: `${member.name} 접속 재설정` })}</td>
   </tr>`);
-  return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(`${icon('plus', 18)} 회원 추가`, 'new-member'))}
+  return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}
     ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.'), {
     subtitle: `전체 ${members.length}명 · 활동 중 ${active}명`, actions: search('members'),
   })}</div>`;
@@ -765,7 +768,7 @@ export function noticesScreen(notices) {
     <div class="notice-actions">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary small' })}
       ${button(`${icon('link', 17)} 카톡 링크 복사`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
   </article>`);
-  return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(`${icon('plus', 18)} 새 공지`, 'new-notice'))}
+  return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
 }
 

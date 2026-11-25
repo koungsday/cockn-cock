@@ -1,7 +1,7 @@
 import {
   adminHome, adminMenu, adminShell, attendanceForm, attendanceRow, attendanceSubtitle, brand, button, countEvent, deadlinePassed,
   esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
-  homeVoteCounts, icon, loader, loadingPage, messagePage,
+  homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
@@ -309,7 +309,7 @@ function clearProtectedView() {
   eventSnapshot = null;
   Object.assign(signIn, { name: null, numberStep: false });
   dialogOpener = null;
-  closeDialog();
+  closeDialog({ instant: true });
   dialog.replaceChildren();
   account.replaceChildren();
   clubLink.hidden = true;
@@ -381,6 +381,7 @@ async function checkAdminSession() {
 
 function showDialog(markup, className, focusTarget) {
   startedOnBackdrop = false;
+  if (menuClosing) closeDialog({ instant: true });
   dialog.className = className;
   dialog.innerHTML = markup;
   if (!dialog.open) {
@@ -399,11 +400,12 @@ function openDialog(title, body, className = '') {
 }
 
 // The demo's full-screen mobile menu: brand, the same section links as the sidebar, and sign-out.
+// The phone menu: a drawer from the right, with the top bar's button repeated at the same spot as × (styles.css).
 function openAdminMenu() {
-  showDialog(`<header class="mobile-nav-header">${brand(club)}
-    <button type="button" class="icon-button" data-action="close" aria-label="메뉴 닫기">${icon('x', 24)}</button></header>
+  showDialog(`<button type="button" class="icon-button menu-toggle" data-action="close" aria-label="메뉴 닫기">${menuIcon}</button>
+    <div class="menu-panel"><header class="mobile-nav-header">${brand(club)}</header>
     <div class="mobile-nav-links"><h2 id="dialog-title" class="sr-only">운영 메뉴</h2>${adminMenu(state.section)}
-      <div class="mobile-nav-account">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div>`,
+      <div class="mobile-nav-account">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div></div>`,
   'mobile-navigation admin-menu-dialog', '[aria-current="page"]');
 }
 
@@ -415,8 +417,25 @@ function unlockDialogScroll() {
   dialogScrollTop = null;
 }
 
-function closeDialog() {
+// The phone menu slides back out (×, Esc, the dim area); instant closes are for moving to another section or signing out.
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let menuClosing = null;
+
+function closeDialog({ instant = false } = {}) {
   if (!dialog.open) return;
+  if (menuClosing) {
+    if (!instant) return;
+    clearTimeout(menuClosing);
+    menuClosing = null;
+  }
+  if (!instant && dialog.classList.contains('mobile-navigation') && !reducedMotion.matches) {
+    dialog.classList.add('is-closing');
+    menuClosing = setTimeout(() => {
+      menuClosing = null;
+      closeDialog({ instant: true });
+    }, 220);
+    return;
+  }
   dialog.close();
   unlockDialogScroll();
 }
@@ -608,7 +627,7 @@ async function doAction(action, itemId, tab) {
     case 'tab': {
       const section = action === 'open-event' ? 'event' : itemId;
       if (state.section !== section) dialogOpener = null;
-      closeDialog();
+      closeDialog({ instant: state.section !== section });
       if (state.section === section) break;
       await goTo(section, { eventId: action === 'open-event' ? itemId : null, tab: tab ?? null });
       break;
@@ -1055,6 +1074,7 @@ main.addEventListener('paste', event => {
 
 function onDialogBackdrop(event) {
   if (event.target !== dialog) return false;
+  if (dialog.classList.contains('mobile-navigation')) return true;
   const { top, right, bottom, left } = dialog.getBoundingClientRect();
   return event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom;
 }
@@ -1089,7 +1109,7 @@ window.addEventListener('popstate', () => {
   navigationVersion++;
   busy = false;
   dialogOpener = null;
-  closeDialog();
+  closeDialog({ instant: true });
   const { section, eventId, tab } = readAdminHash();
   const control = document.createElement('button');
   Object.assign(control.dataset, { action: 'tab', id: section });
@@ -1105,7 +1125,7 @@ document.querySelector('.skip-link')?.addEventListener('click', event => {
 desktopNavigation.addEventListener('change', event => {
   if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
   dialogOpener = main.querySelector('.sidebar [aria-current="page"]');
-  closeDialog();
+  closeDialog({ instant: true });
 });
 
 if (route && club.name) {

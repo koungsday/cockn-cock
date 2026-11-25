@@ -75,6 +75,9 @@ p { line-height: 1.58; }
 .icon-button, .icon-btn { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 0; background: transparent; border-radius: 8px; color: #43654f; flex: none; padding: 0; }
 .tab-bar { display: none; }
 .topbar-actions { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* Icon-only buttons: + for the one create action in a page head, a magnifier for opening a row. Names are aria-label + title. */
+.btn.btn-icon, :is(.heading-actions, .page-actions, .table-actions) .btn.btn-icon { width: var(--touch-target); min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; }
+.btn-icon svg { flex: none; }
 .topbar-menu { display: none; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0,1.78fr) minmax(308px,1fr); gap: 17px; }
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
@@ -365,6 +368,8 @@ html.menu-locked body {
   width: 100%;
   overflow: hidden;
 }
+/* Phones: the full menu is a drawer that slides in from the right (DESIGN.md 4·6). The dialog fills the screen so the
+   dim area beside the drawer closes it, and it repeats the top bar's two-line button at the same spot, where it turns into ×. */
 .mobile-navigation {
   position: fixed;
   inset: 0;
@@ -377,40 +382,78 @@ html.menu-locked body {
   padding: 0;
   border: 0;
   color: var(--menu-text);
-  background: var(--ink);
+  background: transparent;
   overflow: hidden;
 }
-.mobile-navigation[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.mobile-navigation[open] { display: block; }
+.mobile-navigation::backdrop { background: #10171399; }
+.menu-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(86vw, 360px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--ink);
+  box-shadow: -18px 0 40px #0b100d40;
+}
 .mobile-nav-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: calc(12px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left));
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 64px 0 18px;
   border-bottom: 1px solid var(--menu-line);
 }
 .mobile-nav-header .brand { margin: 0; }
-.mobile-nav-header .icon-button,
 .mobile-navigation .nav-link { min-width: 44px; min-height: 44px; }
 .mobile-nav-links {
-  padding: 10px max(14px, env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  padding: 10px 14px calc(18px + env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 .mobile-nav-links .platform-link { display: inline-block; margin: 8px 11px 0; }
 .mobile-nav-links .navigation { margin-top: 14px; }
+/* Same spot and size as .topbar-menu: top bar row 56px under the safe area, right padding max(14px, safe area) − 6px. */
+.menu-toggle {
+  position: absolute;
+  z-index: 1;
+  top: calc(env(safe-area-inset-top) + 6px);
+  right: calc(max(14px, env(safe-area-inset-right)) - 6px);
+  width: var(--touch-target);
+  height: var(--touch-target);
+}
+.mobile-navigation .menu-toggle { color: var(--menu-text); }
+.menu-icon path { transform-origin: 12px 12px; }
+.menu-toggle .menu-icon-top { transform: translateY(3px) rotate(45deg); }
+.menu-toggle .menu-icon-bottom { transform: translateY(-3px) rotate(-45deg); }
 /* Dark menu on --ink (sidebar and mobile menu): text 6.6–12.5:1; the focus ring turns lime (12:1) because --focus is 1.9:1 here. */
 :is(.sidebar, .mobile-navigation, .tab-bar) { color-scheme: dark; }
 :is(.sidebar, .mobile-navigation) :is(.brand small, .sidebar-footer small) { color: var(--menu-muted); }
 :is(.sidebar, .mobile-navigation, .tab-bar) :focus-visible { outline-color: var(--lime); }
 .mobile-navigation :is(.icon-button, .btn-text) { color: var(--menu-text-2); }
 .mobile-navigation :is(.icon-button:hover, .btn-text:not(:disabled):hover) { background: var(--menu-hover); }
-/* The full-screen menu unfolds down from the top bar (DESIGN.md 6): the panel opens like a blind, then the links settle in.
-   Closing stays instant so a tapped section appears at once. */
+/* Opening: the drawer slides in from the right while the two lines cross into ×. Closing (×, Esc, the dim area) runs
+   the same in reverse; picking another section closes at once so it appears right away. */
 @media (prefers-reduced-motion: no-preference) {
-  .mobile-navigation[open] { animation: menu-unfold var(--dur-arrive) var(--ease-settle); }
-  .mobile-navigation[open] .mobile-nav-links { animation: menu-links-arrive var(--dur-arrive) var(--ease-settle) 60ms both; }
+  .mobile-navigation[open] .menu-panel { animation: menu-slide-in var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation[open]::backdrop { animation: menu-dim-in var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation[open] .menu-toggle { animation: menu-toggle-in var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation[open] .menu-icon-top { animation: menu-top-in var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation[open] .menu-icon-bottom { animation: menu-bottom-in var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation.is-closing .menu-panel { animation: menu-slide-out var(--dur-arrive) var(--ease-settle) forwards; }
+  .mobile-navigation.is-closing::backdrop { animation: menu-dim-out var(--dur-arrive) var(--ease-settle) forwards; }
+  .mobile-navigation.is-closing .menu-toggle { animation: menu-toggle-out var(--dur-arrive) var(--ease-settle) forwards; }
+  .mobile-navigation.is-closing .menu-icon-top { animation: menu-top-out var(--dur-arrive) var(--ease-settle) forwards; }
+  .mobile-navigation.is-closing .menu-icon-bottom { animation: menu-bottom-out var(--dur-arrive) var(--ease-settle) forwards; }
 }
-@keyframes menu-unfold { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
-@keyframes menu-links-arrive { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
+@keyframes menu-slide-in { from { translate: 100% 0; } }
+@keyframes menu-slide-out { to { translate: 100% 0; } }
+@keyframes menu-dim-in { from { opacity: 0; } }
+@keyframes menu-dim-out { to { opacity: 0; } }
+@keyframes menu-toggle-in { from { color: var(--ink); } }
+@keyframes menu-toggle-out { to { color: var(--ink); } }
+@keyframes menu-top-in { from { transform: none; } }
+@keyframes menu-bottom-in { from { transform: none; } }
+@keyframes menu-top-out { to { transform: none; } }
+@keyframes menu-bottom-out { to { transform: none; } }
 /* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. */
 html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); }
