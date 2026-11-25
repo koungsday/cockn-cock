@@ -78,7 +78,7 @@ npm run live:build
 npx wrangler deploy --config worker/wrangler.production.local.json --secrets-file worker/.dev.vars.production
 ```
 
-기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 커밋하지 않은 변경이 있거나 GitHub `main`과 다른 코드면 배포를 거부하고, 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. D1 스키마나 운영 계정 변경이 포함된 릴리스에서 해당 마이그레이션과 비밀 갱신을 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
+기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 한 컴퓨터에서 한 번에 하나만 실행됩니다(작업 폴더가 함께 쓰는 `.git/cockcockcock-deploy.lock`). 커밋하지 않은 변경이 있거나, GitHub `main`과 다른 코드거나, 지금 실사용에 있는 `live` 커밋보다 오래된 코드면 배포를 거부합니다. `main` 확인은 빌드 전과 Worker 업로드 직전에 두 번 합니다. 그다음 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. D1 스키마나 운영 계정 변경이 포함된 릴리스에서 해당 마이그레이션과 비밀 갱신을 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
 
 ## 화면 변경과 출시 검증
 

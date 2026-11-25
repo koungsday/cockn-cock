@@ -33,7 +33,7 @@ Codex·Claude Code 등 이 저장소를 고치는 모든 에이전트의 공통 
 - 작업을 시작하거나 다시 이어갈 때 먼저 `git fetch origin main`을 실행하고, 작업 트리 상태와 `origin/main` 기준 커밋을 확인한다. 원래 폴더의 `main`에 진행 중인 변경이 없으면 `git pull --ff-only origin main`으로 맞추고, 새 작업 폴더는 확인한 `origin/main`에서 시작한다. 기존 브랜치에 작업이 있으면 그 변경을 보존하면서 최신 변경을 반영한다.
 - Codex와 Claude Code는 각자 별도 작업 폴더(git worktree)와 브랜치에서 일한다. 같은 폴더를 함께 쓰지 않는다.
 - PR을 머지한 뒤 원래 폴더의 `main`도 같은 방식으로 맞춘다. 로컬 변경이나 분기로 안전하게 맞출 수 없으면 현재 상태와 이유를 기록한다.
-- 끝난 작업은 **PR → 머지 → 실사용 배포(`npm run deploy`)까지 한 번에** 한다(사용자 지시, 2026-11-25). 머지 전 빌드·검증·테스트를 통과시키고, 문제가 생기면 GitHub의 Revert와 `npx wrangler rollback`으로 되돌린다. 사용자가 "로컬로" 확인만 요청하면 PR 없이 로컬 화면으로 보여 준다.
+- 끝난 작업은 **PR → 머지 → 실사용 배포(`npm run deploy`)까지 한 번에** 한다(사용자 지시, 2026-11-25). PR마다 GitHub 검사 `Check pull request`(빌드·가상 체험 검증·실사용 테스트·실사용 빌드)가 돈다. `gh pr checks <번호> --watch`로 통과를 확인한 뒤에만 머지한다. `npm run deploy`는 한 번에 하나만 실행되고 최신 `main`이 아니거나 실사용보다 오래된 코드면 멈추니, 멈추면 출력의 해결 방법대로 맞춘다. 머지 전 빌드·검증·테스트를 통과시키고, 문제가 생기면 GitHub의 Revert와 `npx wrangler rollback`으로 되돌린다. 사용자가 "로컬로" 확인만 요청하면 PR 없이 로컬 화면으로 보여 준다.
 - 끝나면 **한 일을 요약해 알린다.** 무엇을 바꿨는지, 어디까지 반영됐는지(PR·머지·가상 체험·실사용), 확인한 것과 못 한 것. `npm run deploy`가 출력하는 변경 목록을 근거로 쓴다.
 - 사용자에게는 **한글로** 답한다.
 - `main`에 올라가면 GitHub Pages 가상 체험이 배포된다. 실사용 Worker 배포는 별도다(OPERATIONS.md).
