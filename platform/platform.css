@@ -216,8 +216,9 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   position: relative;
   display: block;
   color: var(--court);
-  cursor: pointer;
 }
+
+.shuttlecock:has(.shuttlecock-toggle:enabled) { cursor: pointer; }
 
 .shuttlecock-toggle {
   position: absolute;
@@ -228,93 +229,16 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 }
 
 .shuttlecock-scene {
-  position: relative;
   display: block;
   width: 7.5rem;
   height: 7rem;
   border-radius: .7rem;
-  perspective: 280px;
 }
 
 .shuttlecock-toggle:focus-visible + .shuttlecock-scene {
   outline: 3px solid #3e714e;
   outline-offset: 4px;
 }
-
-@property --shuttlecock-pitch {
-  syntax: "<angle>";
-  inherits: true;
-  initial-value: -12deg;
-}
-
-@property --shuttlecock-yaw {
-  syntax: "<angle>";
-  inherits: true;
-  initial-value: 0deg;
-}
-
-/* The eight cork planes reuse the first eight angles of the feather ring. */
-.shuttlecock-scene > :nth-child(16n + 2) { --angle: 22.5deg; }
-.shuttlecock-scene > :nth-child(16n + 3) { --angle: 45deg; }
-.shuttlecock-scene > :nth-child(16n + 4) { --angle: 67.5deg; }
-.shuttlecock-scene > :nth-child(16n + 5) { --angle: 90deg; }
-.shuttlecock-scene > :nth-child(16n + 6) { --angle: 112.5deg; }
-.shuttlecock-scene > :nth-child(16n + 7) { --angle: 135deg; }
-.shuttlecock-scene > :nth-child(16n + 8) { --angle: 157.5deg; }
-.shuttlecock-feather:nth-child(9) { --angle: 180deg; }
-.shuttlecock-feather:nth-child(10) { --angle: 202.5deg; }
-.shuttlecock-feather:nth-child(11) { --angle: 225deg; }
-.shuttlecock-feather:nth-child(12) { --angle: 247.5deg; }
-.shuttlecock-feather:nth-child(13) { --angle: 270deg; }
-.shuttlecock-feather:nth-child(14) { --angle: 292.5deg; }
-.shuttlecock-feather:nth-child(15) { --angle: 315deg; }
-.shuttlecock-feather:nth-child(16) { --angle: 337.5deg; }
-
-.shuttlecock-feather, .shuttlecock-cork {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  background: currentColor;
-  transform-origin: 0 0;
-  /* Applying the full rotation to each plane keeps the silhouette from flattening in WebKit. */
-  transform: rotateX(var(--shuttlecock-pitch, -12deg)) rotateY(var(--shuttlecock-yaw, 0deg)) rotateZ(-24deg) var(--plane);
-}
-
-/* Each feather flares outward from the top of the rounded cork. */
-.shuttlecock-feather {
-  width: 15px;
-  height: 54px;
-  clip-path: polygon(20% 0, 80% 0, 100% 13%, 90% 32%, 58% 54%, 57% 100%, 43% 100%, 42% 54%, 10% 32%, 0 13%);
-  --plane: rotateY(var(--angle, 0deg)) translate3d(-7.5px, 14px, 10px) rotateX(-25deg) translateY(-100%);
-}
-
-.shuttlecock-cork {
-  width: 24px;
-  height: 20px;
-  border-radius: 2px 2px 50% 50% / 2px 2px 62% 62%;
-  --plane: rotateY(var(--angle, 0deg)) translate(-12px, 12px);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .shuttlecock-scene {
-    transition: --shuttlecock-pitch .8s cubic-bezier(.16, 1, .3, 1);
-    animation: shuttlecock-spin 3s linear infinite paused;
-  }
-
-  .shuttlecock-toggle:checked + .shuttlecock-scene {
-    --shuttlecock-pitch: -34deg;
-    animation-play-state: running;
-  }
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .shuttlecock:hover .shuttlecock-scene {
-    --shuttlecock-pitch: -34deg;
-    animation-play-state: running;
-  }
-}
-
-@keyframes shuttlecock-spin { to { --shuttlecock-yaw: 1turn; } }
 
 @media (prefers-reduced-motion: reduce) {
   .shuttlecock { pointer-events: none; }

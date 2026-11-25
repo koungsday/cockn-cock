@@ -1,9 +1,10 @@
 import {
-  adminHome, adminMenu, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
-  homeVoteCounts,
+  adminHome, adminMenu, adminShell, attendanceForm, brand, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  homeVoteCounts, icon, loader, loadingPage, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
+import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
@@ -11,8 +12,13 @@ const clubLink = document.querySelector('#club-home');
 const loginMenu = document.querySelector('#login-menu');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
-const desktopNavigation = window.matchMedia('(min-width: 900px)');
-const loadingMarkup = '<p role="status">모임을 불러오는 중이에요.</p>';
+// Matches the width where styles.css shows the sidebar instead of the menu button.
+const desktopNavigation = window.matchMedia('(min-width: 701px)');
+
+function showLoading() {
+  main.innerHTML = loadingPage();
+  spinShuttlecocks(main);
+}
 
 const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.trim() ?? '';
 const clubBase = meta('club-base');
@@ -143,18 +149,17 @@ function renderAccount() {
   }
   const user = state.user;
   clubLink.href = user.role === 'admin' ? club.admin : club.home;
-  account.innerHTML = `${user.role === 'admin' ? `<button class="quiet admin-menu-toggle" type="button" data-action="admin-menu" aria-label="운영 메뉴 열기" aria-haspopup="dialog" aria-controls="dialog"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>` : ''}
-    <span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
-    ${user.role === 'member' ? button('PIN 관리', 'pin', { css: 'quiet compact' }) : ''}
-    ${button('로그아웃', 'logout', { css: 'quiet compact' })}`;
+  // The admin shell carries its own menu and sign-out; members keep them in the site header.
+  account.innerHTML = user.role === 'admin' ? '' : `<span class="account-name">${esc(user.name)}</span>
+    ${button('PIN 관리', 'pin', { css: 'text small' })}${button('로그아웃', 'logout', { css: 'text small' })}`;
 }
 
 function failedPage(error) {
   renderAccount();
   main.classList.add('narrow');
-  main.innerHTML = `<div class="panel"><h1>${error.status === 404 ? '페이지를 찾을 수 없어요' : '모임을 불러오지 못했어요'}</h1>
-    <p>${error.status === 404 ? '공지나 투표 링크를 운영진에게 확인해 주세요.' : esc(error.message)}</p>
-    <div class="actions">${button('다시 불러오기', 'reload', { css: 'secondary' })}<a class="button secondary" href="${esc(club.home)}">모임 홈으로</a></div></div>`;
+  main.innerHTML = messagePage(error.status === 404 ? '페이지를 찾을 수 없어요' : '모임을 불러오지 못했어요',
+    error.status === 404 ? '공지나 투표 링크를 운영진에게 확인해 주세요.' : esc(error.message),
+    `${button('다시 불러오기', 'reload', { css: 'secondary' })}<a class="btn btn-secondary" href="${esc(club.home)}">모임 홈으로</a>`);
 }
 
 async function loadEvent() {
@@ -219,7 +224,7 @@ function render({ voteSaved = false, motion = '' } = {}) {
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
     else body = eventScreen(state.admin.events, state.detail, club);
-    main.innerHTML = adminShell(state.section, body);
+    main.innerHTML = adminShell(state.section, body, club);
     const newSearch = main.querySelector('input[data-filter]');
     if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
       newSearch.value = search.value;
@@ -246,7 +251,7 @@ function clearProtectedView() {
   document.title = clubTitle;
   hideMessage();
   main.classList.add('narrow');
-  main.innerHTML = loadingMarkup;
+  showLoading();
 }
 
 function loginExpired() {
@@ -279,7 +284,7 @@ async function initialize() {
 }
 
 async function openSignedInPage() {
-  main.innerHTML = loadingMarkup;
+  showLoading();
   try {
     await load();
     render();
@@ -302,19 +307,32 @@ async function checkAdminSession() {
   }
 }
 
-function openDialog(title, body, className = '') {
+function showDialog(markup, className, focusTarget) {
   startedOnBackdrop = false;
   dialog.className = className;
-  dialog.innerHTML = `<div class="dialog-heading"><h2 id="dialog-title" tabindex="-1">${title}</h2>
-    <button type="button" class="dialog-close" data-action="close" aria-label="닫기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
-    <div class="dialog-body stack"><p class="inline-error" role="alert" hidden></p>${body}</div>`;
+  dialog.innerHTML = markup;
   if (!dialog.open) {
     dialogScrollTop = window.scrollY;
     document.body.style.top = `-${dialogScrollTop}px`;
     document.body.classList.add('dialog-scroll-lock');
     dialog.showModal();
   }
-  dialog.querySelector('#dialog-title').focus({ preventScroll: true });
+  dialog.querySelector(focusTarget).focus({ preventScroll: true });
+}
+
+function openDialog(title, body, className = '') {
+  showDialog(`<header class="dialog-head"><h2 id="dialog-title" tabindex="-1">${title}</h2>
+    <button type="button" class="icon-button dialog-close" data-action="close" aria-label="닫기">${icon('x')}</button></header>
+    <div class="dialog-body"><p class="inline-error" role="alert" hidden></p>${body}</div>`, `dialog ${className}`.trim(), '#dialog-title');
+}
+
+// The demo's full-screen mobile menu: brand, the same section links as the sidebar, and sign-out.
+function openAdminMenu() {
+  showDialog(`<header class="mobile-nav-header">${brand(club)}
+    <button type="button" class="icon-button" data-action="close" aria-label="메뉴 닫기">${icon('x', 24)}</button></header>
+    <div class="mobile-nav-links"><h2 id="dialog-title" class="sr-only">운영 메뉴</h2>${adminMenu(state.section)}
+      <div class="mobile-nav-account">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div>`,
+  'mobile-navigation admin-menu-dialog', '[aria-current="page"]');
 }
 
 function unlockDialogScroll() {
@@ -350,7 +368,7 @@ async function copy(text) {
     await navigator.clipboard.writeText(text);
     showMessage('복사했어요.');
   } catch {
-    openDialog('직접 복사하기', `<label class="field"><span>아래 내용을 선택해 복사해 주세요.</span>
+    openDialog('직접 복사하기', `<label class="form-field"><span>아래 내용을 선택해 복사해 주세요.</span>
       <textarea readonly rows="6">${esc(text)}</textarea></label>`);
     const textarea = dialog.querySelector('textarea');
     textarea.focus();
@@ -445,8 +463,8 @@ async function doAction(action, itemId) {
       closeDialog();
       break;
     case 'login-menu': {
-      const home = route.kind === 'home' ? '' : `<a class="button secondary" href="${esc(club.home)}">모임 홈</a>`;
-      openDialog('메뉴', `<div class="stack">${home}${button('로그인 도움말', 'login-help', { css: 'secondary' })}</div>`, 'login-menu-dialog');
+      const home = route.kind === 'home' ? '' : `<a class="btn btn-secondary" href="${esc(club.home)}">모임 홈</a>`;
+      openDialog('메뉴', `<div class="menu-actions">${home}${button('로그인 도움말', 'login-help', { css: 'secondary' })}</div>`, 'login-menu-dialog');
       break;
     }
     case 'login-help':
@@ -467,7 +485,7 @@ async function doAction(action, itemId) {
       openDialog('PIN 설정·변경', pinForm());
       break;
     case 'admin-menu':
-      openDialog('운영 메뉴', adminMenu(state.section), 'admin-menu-dialog');
+      openAdminMenu();
       break;
     case 'open-event':
     case 'tab': {
@@ -490,7 +508,7 @@ async function doAction(action, itemId) {
       }
       render({ motion: 'section' });
       window.scrollTo(0, 0);
-      const target = desktopNavigation.matches ? main.querySelector('.admin-sidebar [aria-current="page"]') : main.querySelector('.admin-section-head h1');
+      const target = desktopNavigation.matches ? main.querySelector('.sidebar [aria-current="page"]') : main.querySelector('.admin-content h1');
       (target ?? main).focus({ preventScroll: true });
       break;
     }
@@ -616,7 +634,7 @@ async function doSubmit(kind, itemId, data) {
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);
       if (user.role !== authRole) {
-        main.innerHTML = loadingMarkup;
+        showLoading();
         location.replace(user.role === 'admin' ? club.admin : club.home);
         break;
       }
@@ -656,7 +674,7 @@ async function doSubmit(kind, itemId, data) {
       }
       state.selectedEvent = result.event.id;
       await showSaved('회차를 저장했어요.', fromHome ? 'section' : '');
-      if (fromHome) (main.querySelector('.admin-section-head h1') ?? main).focus({ preventScroll: true });
+      if (fromHome) (main.querySelector('.admin-content h1') ?? main).focus({ preventScroll: true });
       break;
     }
     case 'attendance': {
@@ -724,20 +742,22 @@ async function run(work, control) {
   const code = form?.querySelector('[data-login-code]');
   const pendingStatus = form?.querySelector('.login-pending');
   const section = ['tab', 'open-event'].includes(control.dataset.action) ? main.querySelector('.admin-content') : null;
-  const sectionPendingMessage = '화면을 불러오는 중이에요.';
   if (code) {
     code.readOnly = true;
     control.hidden = true;
   }
-  const label = control.textContent;
+  const label = control.innerHTML;
+  // DESIGN.md 6: after 180ms a shuttlecock shows the wait; it leaves as soon as the answer arrives.
   const pending = setTimeout(() => {
     if (form) {
       form.setAttribute('aria-busy', 'true');
       if (pendingStatus) pendingStatus.hidden = false;
-      else control.textContent = form.dataset.form === 'progress' ? '조회 중…' : '저장 중…';
+      else control.innerHTML = shuttlecockMark('shuttle-spin shuttle-inline') + (form.dataset.form === 'progress' ? '조회 중…' : '저장 중…');
+      spinShuttlecocks(pendingStatus ?? control);
     } else if (section) {
       section.setAttribute('aria-busy', 'true');
-      showMessage(sectionPendingMessage);
+      section.insertAdjacentHTML('beforeend', loader('화면을 불러오는 중이에요.', 'section-loader'));
+      spinShuttlecocks(section);
     } else {
       control.setAttribute('data-pending', '');
     }
@@ -746,11 +766,11 @@ async function run(work, control) {
     clearTimeout(pending);
     control.removeAttribute('data-pending');
     section?.removeAttribute('aria-busy');
-    if (section && message.textContent === sectionPendingMessage) hideMessage();
+    section?.querySelector('.section-loader')?.remove();
     if (pendingStatus) pendingStatus.hidden = true;
     if (form?.hasAttribute('aria-busy')) {
       form.removeAttribute('aria-busy');
-      if (!pendingStatus) control.textContent = label;
+      if (!pendingStatus) control.innerHTML = label;
     }
   }
   if (inline) inline.hidden = true;
@@ -838,7 +858,7 @@ main.addEventListener('change', event => {
 
 function applyFilter(control) {
   const term = control.value.trim().toLocaleLowerCase('ko-KR');
-  for (const item of main.querySelectorAll('.row[data-search]')) {
+  for (const item of main.querySelectorAll('[data-search]')) {
     item.hidden = !item.dataset.search.toLocaleLowerCase('ko-KR').includes(term);
   }
 }
@@ -896,7 +916,7 @@ dialog.addEventListener('cancel', event => {
 dialog.addEventListener('close', () => {
   if (dialog.open) return;
   unlockDialogScroll();
-  dialog.className = '';
+  dialog.className = 'dialog';
   dialog.replaceChildren();
   const opener = dialogOpener;
   dialogOpener = null;
@@ -906,11 +926,12 @@ dialog.addEventListener('close', () => {
 });
 desktopNavigation.addEventListener('change', event => {
   if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
-  dialogOpener = main.querySelector('.admin-sidebar [aria-current="page"]');
+  dialogOpener = main.querySelector('.sidebar [aria-current="page"]');
   closeDialog();
 });
 
 if (route && club.name) {
+  spinShuttlecocks(main);
   document.title = clubTitle;
   clubLink.href = club.home;
   document.querySelector('#club-name').textContent = club.name;
@@ -924,5 +945,5 @@ if (route && club.name) {
   setInterval(refreshVoteCounts, 15_000);
 } else {
   main.classList.add('narrow');
-  main.innerHTML = '<section class="panel"><h1>모임을 찾을 수 없어요</h1><p><a href="/">콕콕콕! 모임 목록으로</a></p></section>';
+  main.innerHTML = messagePage('모임을 찾을 수 없어요', '주소를 다시 확인해 주세요.', '<a class="btn btn-secondary" href="/">콕콕콕! 모임 목록으로</a>');
 }

@@ -14,7 +14,7 @@
   <script type="module" src="/app.mjs"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">본문 바로가기</a>
+  <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="site-header">
     <div class="header-inner">
       <nav class="club-navigation" aria-label="서비스와 모임">
@@ -26,17 +26,19 @@
           <small id="club-subtitle"></small>
         </a>
       </nav>
-      <button type="button" id="login-menu" class="quiet login-menu-toggle" data-action="login-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog" hidden>
+      <button type="button" id="login-menu" class="icon-button login-menu-toggle" data-action="login-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog" hidden>
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>
       </button>
       <div id="account"></div>
     </div>
   </header>
-  <main id="main" class="main" tabindex="-1">
-    <p role="status">모임을 불러오는 중이에요.</p>
-  </main>
+  <div id="main" class="main" tabindex="-1">
+    <main id="main-content" class="loading-page" tabindex="-1">
+      <div class="shuttle-loader" role="status"><!-- shuttle-mark --><span>모임을 불러오는 중이에요.</span></div>
+    </main>
+  </div>
   <div id="message" class="message" role="status" aria-live="polite" hidden></div>
-  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <dialog id="dialog" class="dialog" aria-labelledby="dialog-title"></dialog>
   <noscript><p class="noscript">투표와 모임 운영 화면을 보려면 브라우저에서 자바스크립트를 켜 주세요.</p></noscript>
 </body>
 </html>

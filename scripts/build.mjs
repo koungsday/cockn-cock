@@ -129,6 +129,7 @@ for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platfor
   const css = await readFile(join(root, source), 'utf8');
   await writeFile(join(dist, output), theme + '\n' + css);
 }
+await copyFile(join(root, 'platform/shuttlecock.mjs'), join(dist, 'shuttlecock.js'));
 await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo' }));
 await writeFile(join(dist, 'legacy-links.js'), `
 if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
