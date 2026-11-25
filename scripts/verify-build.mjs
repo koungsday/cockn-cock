@@ -55,6 +55,15 @@ for (const file of required) {
 }
 assert(home.indexOf(`src="${basePath}published-shares.js"`) < home.indexOf(`src="${basePath}app.js"`));
 assert((await read('assets/court.webp')).length > 0);
+for (const file of ['styles.css', 'platform.css']) {
+  const css = (await read(file)).toString();
+  const urls = [...css.matchAll(/url\("(assets\/fonts\/[^"]+\.(?:woff2|ttf))"\)/g)].map(match => match[1]);
+  assert.equal(urls.length, 3, `${file} references the title, body and fallback fonts`);
+  await Promise.all(urls.map(async url => {
+    const bytes = await read(url);
+    assert.equal(bytes.subarray(0, 4).toString('hex'), url.endsWith('.woff2') ? '774f4632' : '00010000');
+  }));
+}
 
 const window = { localStorage: { getItem: () => null } };
 for (const file of ['state.js', 'share.js']) {

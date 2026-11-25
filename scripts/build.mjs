@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
@@ -123,7 +123,8 @@ for (const source of staticFiles) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(join(root, source), destination);
 }
-const theme = await readFile(join(root, 'platform/theme.css'), 'utf8');
+await cp(join(root, 'assets/fonts'), join(dist, 'assets/fonts'), { recursive: true });
+const theme = (await readFile(join(root, 'platform/theme.css'), 'utf8')).replaceAll('../assets/fonts/', 'assets/fonts/');
 for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platform.css', 'platform.css']]) {
   const css = await readFile(join(root, source), 'utf8');
   await writeFile(join(dist, output), theme + '\n' + css);

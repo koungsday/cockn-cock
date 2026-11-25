@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "Nexen Tire";
+  src: url("../assets/fonts/NexenTire-Regular-2014.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Wanted Sans UI";
+  src: url("../assets/fonts/WantedSansUI-v1.0.3.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 1000;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Wanted Sans";
+  src: url("../assets/fonts/WantedSansVariable-v1.0.3.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 1000;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --paper: #f2f3f1;
@@ -12,10 +36,15 @@
   --hint: #edf0ee;
   --focus: var(--action);
   --accent-red: #ff5b45;
-  --font-text: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --font-text: "Wanted Sans UI", "Wanted Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-display: "Nexen Tire", var(--font-text);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --page-gutter: max(1rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --mark-radius: 9px;
   --touch-target: 44px;
+}
+
+h1, h2, .site-brand, .brand strong, .current-club strong, .public-brand strong {
+  font-family: var(--font-display);
 }

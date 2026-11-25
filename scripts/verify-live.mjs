@@ -6,8 +6,8 @@ const club = CLUBS[0];
 const home = `/clubs/${club.slug}/`;
 const admin = `${home}admin/`;
 
-function get(path) {
-  return fetch(new URL(path, origin), { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+function get(path, method = 'GET') {
+  return fetch(new URL(path, origin), { method, redirect: 'manual', signal: AbortSignal.timeout(15000) });
 }
 
 async function shell(path) {
@@ -41,6 +41,16 @@ await Promise.all([adminPage.style, adminPage.script, views].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable', path);
+  if (path !== adminPage.style) return;
+  const css = await asset.text();
+  const urls = [...css.matchAll(/url\("(\/assets\/fonts\/[^"]+\.(woff2|ttf))"\)/g)];
+  assert.equal(urls.length, 3);
+  await Promise.all(urls.map(async ([, url, format]) => {
+    const font = await get(url, 'HEAD');
+    assert.equal(font.status, 200, url);
+    assert.equal(font.headers.get('content-type'), `font/${format}`, url);
+    assert.equal(font.headers.get('cache-control'), 'public, max-age=31536000, immutable', url);
+  }));
 }));
 
 for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', process.env.CLUB_NOTICE_PATH]]) {
@@ -64,5 +74,5 @@ for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', pr
   assert.equal(bytes.readUInt32BE(20), 630);
 }
 
-console.log(`Verified ${origin.origin}: member/admin shells, UI release hashes, protected API, app manifest, share images${
+console.log(`Verified ${origin.origin}: member/admin shells, UI release hashes, fonts, protected API, app manifest, share images${
   process.env.CLUB_VOTE_PATH || process.env.CLUB_NOTICE_PATH ? ', selected share previews' : ''}.`);

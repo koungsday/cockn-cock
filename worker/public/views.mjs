@@ -200,7 +200,9 @@ export function loginScreen(club, name, numberStep, otherCredential) {
       </button><p id="login-greeting">안녕하세요. ${esc(name)}님!</p></div>` : ''}
       <div class="login-field">
         <div class="login-label-row"><label for="login-value">${label}</label>
-          <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog"><span aria-hidden="true">ⓘ</span></button>
+          <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>
+          </button>
         </div>
         ${input}
         ${autoSubmit ? '<p class="login-pending help" role="status" hidden>로그인 중…</p>' : ''}

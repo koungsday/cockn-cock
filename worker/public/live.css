@@ -191,7 +191,7 @@ button.admin-menu-toggle { display: inline-flex; width: var(--touch-target); pad
 }
 .login-label-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
 .login-label-row label { color: var(--muted); font-size: .875rem; font-weight: 650; }
-button.login-help-button { width: 44px; flex: none; color: var(--muted); font-size: 1.25rem; }
+button.login-help-button { width: var(--touch-target); flex: none; color: var(--muted); }
 .login-guide { display: grid; gap: .65rem; word-break: keep-all; }
 .login-form { gap: .75rem; }
 .login-greeting { display: flex; align-items: center; gap: .45rem; padding-top: .25rem; }
