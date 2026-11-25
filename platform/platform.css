@@ -185,7 +185,7 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   min-width: 7.8rem;
   padding: .5rem .8rem;
   border-radius: .5rem;
-  background: #235940;
+  background: var(--ink);
   color: #fff;
   font-size: .9rem;
   font-weight: 750;
@@ -201,7 +201,8 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   transform: rotate(45deg);
 }
 
-.club-entry:hover .club-action { background: #173e2f; }
+.club-entry:hover .club-action { background: var(--menu-hover); }
+.club-entry:active .club-action { background: var(--menu-line); }
 
 .directory-note { margin-top: .8rem; font-size: .89rem; }
 
@@ -265,8 +266,9 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   font-weight: 750;
 }
 .try-link:hover { background: var(--hint); }
-.try-link-primary { border-color: #235940; background: #235940; color: #fff; }
-.try-link-primary:hover { background: #173e2f; }
+.try-link-primary { border-color: transparent; background: var(--ink); color: #fff; }
+.try-link-primary:hover { background: var(--menu-hover); }
+.try-link-primary:active { background: var(--menu-line); }
 
 @media (min-width: 44rem) {
   .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
