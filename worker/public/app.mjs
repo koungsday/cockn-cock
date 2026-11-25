@@ -42,8 +42,10 @@ const state = {
   user: null,
   section: 'home',
   selectedEvent: null,
+  eventTab: null,
   admin: null,
   upcoming: null,
+  last: null,
   listing: { events: [], notices: [] },
   detail: null,
   event: null,
@@ -197,7 +199,15 @@ async function load() {
     if (!events.some(event => event.id === state.selectedEvent)) {
       state.selectedEvent = soonest?.id ?? events[0]?.id ?? null;
     }
-    if (state.section === 'home') state.upcoming = soonest ? await request(adminEventPath(soonest.id)) : null;
+    if (state.section === 'home') {
+      state.upcoming = soonest ? await request(adminEventPath(soonest.id)) : null;
+      // 지난 회차 is a side panel: if it cannot load, the rest of the home still shows (only that panel says so).
+      const latest = events.find(event => `${event.date}T${event.endTime}` <= kstMinute);
+      state.last = latest ? await request(adminEventPath(latest.id)).catch(error => {
+        if (error.status === 401 || error.name === 'AbortError') throw error;
+        return { failed: true };
+      }) : null;
+    }
     if (state.section === 'event') await loadEvent();
     if (state.section === 'progress') await loadProgress();
   }
@@ -219,11 +229,11 @@ function render({ voteSaved = false, motion = '' } = {}) {
     main.innerHTML = homeScreen(state.listing, club, state.user);
   } else if (isAdmin) {
     let body;
-    if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club);
+    if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club, state.last);
     else if (state.section === 'members') body = membersScreen(state.admin.members);
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
-    else body = eventScreen(state.admin.events, state.detail, club);
+    else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
     main.innerHTML = adminShell(state.section, body, club);
     const newSearch = main.querySelector('input[data-filter]');
     if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
@@ -237,7 +247,7 @@ function clearProtectedView() {
   navigationVersion++;
   busy = false;
   Object.assign(state, {
-    user: null, section: 'home', selectedEvent: null, admin: null, upcoming: null, listing: { events: [], notices: [] },
+    user: null, section: 'home', selectedEvent: null, eventTab: null, admin: null, upcoming: null, last: null, listing: { events: [], notices: [] },
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
@@ -454,7 +464,7 @@ function submitCompleteCode(input) {
   if (input.value.length === 6 && !busy) input.form.requestSubmit();
 }
 
-async function doAction(action, itemId) {
+async function doAction(action, itemId, tab) {
   switch (action) {
     case 'reload':
       await initialize();
@@ -496,6 +506,7 @@ async function doAction(action, itemId) {
       const previous = state.section;
       const previousEvent = state.selectedEvent;
       state.section = section;
+      state.eventTab = tab ?? null;
       if (action === 'open-event') state.selectedEvent = itemId;
       try {
         await load();
@@ -512,6 +523,10 @@ async function doAction(action, itemId) {
       (target ?? main).focus({ preventScroll: true });
       break;
     }
+    case 'event-tab':
+      state.eventTab = itemId;
+      render();
+      break;
     case 'refresh':
       await load();
       render();
@@ -571,6 +586,9 @@ async function doAction(action, itemId) {
       break;
     case 'copy-report':
       await copy(reportText(state.detail, club.name));
+      break;
+    case 'copy-last-report':
+      await copy(reportText(state.last, club.name));
       break;
     case 'new-member':
       openDialog('회원 등록', memberForm());
@@ -820,10 +838,10 @@ async function run(work, control) {
 document.addEventListener('click', event => {
   const control = event.target.closest('button[data-action]');
   if (!control) return;
-  const { action, id: itemId } = control.dataset;
+  const { action, id: itemId, tab } = control.dataset;
   void run(() => {
     if (!dialog.open) dialogOpener = control;
-    return doAction(action, itemId);
+    return doAction(action, itemId, tab);
   }, control);
 });
 
@@ -851,6 +869,7 @@ main.addEventListener('change', event => {
       throw error;
     }
     state.selectedEvent = selected;
+    state.eventTab = null;
     render();
     main.querySelector('[data-action=switch-event]')?.focus({ preventScroll: true });
   }, control);
