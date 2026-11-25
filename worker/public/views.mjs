@@ -102,11 +102,12 @@ export function loadingPage(text = '모임을 불러오는 중이에요.') {
 const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
 
 // css takes a tone (secondary, quiet/text, lime, glass) and "compact"/"small"; other words pass through.
-export function button(text, action, { id = '', css = '', disabled = false, label = '' } = {}) {
+// tab opens a session on that tab (poll, attendance, settlement) with open-event.
+export function button(text, action, { id = '', css = '', disabled = false, label = '', tab = '' } = {}) {
   const words = css.split(/\s+/).filter(Boolean);
   const tone = words.find(word => tones[word]) ?? 'primary';
   const extra = words.filter(word => !tones[word]).map(word => word === 'compact' || word === 'small' ? 'btn-small' : word);
-  return `<button type="button" class="${['btn', tones[tone], ...extra].join(' ')}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''}${disabled ? ' disabled' : ''}>${text}</button>`;
+  return `<button type="button" class="${['btn', tones[tone], ...extra].join(' ')}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${tab ? ` data-tab="${tab}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''}${disabled ? ' disabled' : ''}>${text}</button>`;
 }
 
 function pill(text, tone = 'muted') {
@@ -226,7 +227,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
-  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요. 운영진이 열면 이 화면에서 응답할 수 있어요.'}</p></div>`;
+  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
   if (event.canVote && eligible) {
     response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요')}
       <p class="inline-error" role="alert" hidden></p>
@@ -253,7 +254,7 @@ function memberEventState(event) {
   }
   if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
   if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 회차에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
-  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요.' };
+  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
 function nextEventCard(event, club) {
@@ -381,21 +382,52 @@ export function adminShell(section, contents, club) {
   </div>`;
 }
 
-function featured(event, club) {
+// Where a session stands (DESIGN.md 5 회차 진행): 0 회차 준비, 1 참석 투표, 2 당일 출석, 3 마무리, 4 마무리 확정.
+export function sessionStage({ event, settlement }) {
+  const day = today();
+  return settlement?.confirmed ? 4 : event.date < day ? 3 : event.date === day ? 2 : event.published ? 1 : 0;
+}
+
+const stageTabs = ['poll', 'poll', 'attendance', 'settlement', 'settlement'];
+
+// The tab a session opens on when none was picked: the vote before the day, check-in on the day, wrap-up after it.
+export function defaultTab(event) {
+  const day = today();
+  return event.date > day ? 'poll' : event.date === day ? 'attendance' : 'settlement';
+}
+
+function sessionSteps(steps, stage) {
+  return `<ol class="session-steps" aria-label="회차 진행">${steps.map(([label, detail], index) => {
+    const [step, word] = index < stage ? ['done', '완료'] : index === stage ? ['now', '지금'] : ['next', '예정'];
+    return `<li data-step="${step}"${step === 'now' ? ' aria-current="step"' : ''}><span class="session-step-state">${word}</span><strong>${label}</strong><small>${esc(detail)}</small></li>`;
+  }).join('')}</ol>`;
+}
+
+function featured(detail, club) {
+  const event = detail?.event;
   if (!event) {
     return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
       <div class="featured-kicker"><i></i> 다음 모임</div><h2 id="next-event-title">예정된 회차가 없어요.</h2>
       <div class="featured-actions">${button(`${icon('plus', 17)} 새 회차`, 'new-event', { css: 'lime' })}</div></div></section>`;
   }
+  const stage = sessionStage(detail);
+  const present = detail.roster.filter(row => row.present === true).length;
+  const steps = [
+    ['회차 준비', event.published ? '링크 공개함' : '비공개 준비'],
+    ['참석 투표', event.canVote ? `${deadlineLabel(event.deadline)} 마감` : !event.published ? '공개 후 시작' : event.open ? '마감됨' : '투표 닫힘'],
+    ['당일 출석', stage >= 2 ? `${present}명 출석` : dateLabel(event.date)],
+    ['마무리', stage === 4 ? '확정' : '콕·찬조금 기록'],
+  ];
+  const go = stage === 2 ? '당일 출석 체크' : stage >= 3 ? '마무리하기' : '회차 관리';
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
     <div class="featured-kicker"><i></i> 다음 모임</div>
     <h2 id="next-event-title">${esc(event.title)}</h2>
     <div class="featured-meta"><span>${icon('calendar', 18)} <time datetime="${esc(`${event.date}T${event.time}`)}">${esc(fullDate(event.date))} · ${esc(event.time)}–${esc(event.endTime)}</time></span>
       <span>${icon('pin', 18)} ${esc(event.place)}</span></div>
-    <div class="featured-actions">${button(`회차 관리 ${icon('chevron-right', 17)}`, 'open-event', { id: event.id, css: 'lime' })}
+    <div class="featured-actions">${button(`${go} ${icon('chevron-right', 17)}`, 'open-event', { id: event.id, css: 'lime', tab: stageTabs[stage] })}
       <span ${hidden}><a class="btn btn-glass" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 17)} 회원 투표 화면</a></span></div>
-  </div></section>`;
+  </div>${sessionSteps(steps, stage)}</section>`;
 }
 
 export function homeVoteCounts({ event, roster }) {
@@ -431,37 +463,80 @@ function metric(section, glyph, tone, label, value, unit) {
     <div><span class="metric-label">${label}</span><div class="metric-value">${value}<small>${unit}</small></div></div>${icon('chevron-right', 16)}</button>`;
 }
 
-export function adminHome({ events, members, notices }, detail, club) {
+function todoRow(glyph, tone, title, detail, action) {
+  return `<li class="todo-row"><span class="metric-icon ${tone}">${icon(glyph, 19)}</span><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
+}
+
+// 챙길 일: only what the data shows to be true now, one action each (DESIGN.md 5).
+function todoPanel(items) {
+  return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">챙길 일</h2></header>
+    ${items.length ? `<ul class="todo-list">${items.join('')}</ul>` : '<p class="muted todo-empty">지금 챙길 일이 없어요.</p>'}</section>`;
+}
+
+function lastPanel(last) {
+  let body = '<p class="muted">아직 지난 회차가 없어요.</p>';
+  if (last?.failed) body = '<p class="muted">지난 회차를 불러오지 못했어요. 잠시 뒤 운영 홈을 다시 열어 주세요.</p>';
+  else if (last) {
+    const { event, roster, guests, settlement } = last;
+    const c = countEvent(roster, guests);
+    const skipped = roster.filter(row => (row.slot === 'early' || row.slot === 'late') && row.present === false).length;
+    const done = Boolean(settlement?.confirmed);
+    body = `<div class="last-session"><div><strong>${esc(event.title)}</strong><p>${esc(dateLabel(event.date))} · ${esc(event.place)}</p></div>${pill(done ? '마무리 완료' : '마무리 전', done ? 'green' : 'warm')}</div>
+      ${summary([['출석', `${c.members}명`, 'green'], ['게스트 도착', `${c.guests}명`], ['응답 후 불참', `${skipped}명`]])}
+      <div class="last-session-action">${done
+        ? button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-last-report', { css: 'secondary small' })
+        : button('마무리하기', 'open-event', { id: event.id, css: 'secondary small', tab: 'settlement' })}</div>`;
+  }
+  return `<section class="panel last-panel" aria-labelledby="home-last-title"><header class="dashboard-panel-head"><h2 id="home-last-title">지난 회차</h2></header>${body}</section>`;
+}
+
+export function adminHome({ events, members, notices }, upcoming, club, last = null) {
   const month = today().slice(0, 7);
-  const last = events[0];
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
     <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}<span>${esc(notice.title)}</span></button>
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
     ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 링크 복사" title="카톡 링크 복사">${icon('link', 17)}</button>` : ''}
   </div>`);
-  const prepare = last
-    ? `<div class="routine-summary"><span class="metric-icon mint">${icon('repeat', 21)}</span><div><strong>${weekday(last.date)}요일 ${esc(last.time)}–${esc(last.endTime)}</strong><p>지난 회차 · ${esc(last.place)}</p></div></div>
-      ${button(`${icon('plus', 17)} 다음 주 회차 만들기`, 'clone-event', { id: last.id, css: 'secondary routine-action' })}`
-    : `<div class="routine-summary"><span class="metric-icon mint">${icon('repeat', 21)}</span><div><strong>등록된 회차가 없어요</strong><p>첫 회차를 만들면 다음부터 복제할 수 있어요.</p></div></div>`;
+  const todos = [];
+  if (upcoming) {
+    const { event } = upcoming;
+    const when = dateLabel(event.date);
+    const waiting = upcoming.roster.filter(row => row.active && !row.slot).length;
+    if (!event.published) {
+      todos.push(todoRow('calendar', 'sand', `${esc(when)} 회차가 아직 비공개예요`, '링크를 공개해야 회원이 일정을 보고 투표할 수 있어요.',
+        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
+    } else if (!event.open && sessionStage(upcoming) < 2) {
+      todos.push(todoRow('clipboard', 'sand', '참석 투표가 닫혀 있어요', `${esc(when)} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
+        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
+    } else if (event.canVote && waiting) {
+      todos.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
+        button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { id: event.id, css: 'secondary small' })));
+    }
+  }
+  if (last && !last.failed && !last.settlement?.confirmed) {
+    todos.push(todoRow('clipboard', 'mint', `${esc(dateLabel(last.event.date))} 회차 마무리 전이에요`, '출석과 콕·찬조금을 기록하고 마무리 글을 올려 주세요.',
+      button('마무리하기', 'open-event', { id: last.event.id, css: 'secondary small', tab: 'settlement' })));
+  }
+  if (!upcoming && events.length) {
+    todos.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
+      button('다음 주 회차 만들기', 'clone-event', { id: events[0].id, css: 'secondary small' })));
+  }
   return `<div class="dashboard">
     <header class="dashboard-heading">
-      <div><h1 tabindex="-1">운영 홈</h1><p>다음 모임의 투표 응답과 최근 공지를 확인하세요.</p></div>
+      <div><h1 tabindex="-1">운영 홈</h1><p>이번 회차의 진행 단계와 챙길 일을 확인하세요.</p></div>
       <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(`${icon('plus', 18)} 새 회차`, 'new-event')}</div>
     </header>
-    <div class="dashboard-grid">${featured(detail?.event, club)}${pollPanel(detail)}</div>
+    <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
+    <div class="dashboard-grid dashboard-bottom">${todoPanel(todos)}${lastPanel(last)}</div>
     <div class="dashboard-metrics" aria-label="모임 현황">
       ${metric('members', 'users', 'mint', '활동 회원', members.filter(member => member.active).length, '명')}
       ${metric('event', 'calendar', 'sand', `${Number(month.slice(5))}월 회차`, events.filter(event => event.date.startsWith(month)).length, '회')}
       ${metric('notices', 'megaphone', 'lavender', '공개 공지', notices.filter(notice => notice.published).length, '건')}
     </div>
-    <div class="dashboard-grid dashboard-bottom">
+    <div class="dashboard-bottom">
       <section class="panel dashboard-notices" aria-labelledby="home-notices-title">
         <header class="dashboard-panel-head"><h2 id="home-notices-title">최근 공지</h2><button type="button" class="small-link" data-action="tab" data-id="notices">전체 보기 ${icon('chevron-right', 15)}</button></header>
         <div class="home-notice-list">${recent.length ? recent.join('') : '<p class="muted">아직 등록한 공지가 없어요.</p>'}</div>
-      </section>
-      <section class="panel dashboard-routine" aria-labelledby="home-prepare-title">
-        <header class="dashboard-panel-head"><h2 id="home-prepare-title">다음 회차 준비</h2><button type="button" class="small-link" data-action="tab" data-id="event">운동 운영 ${icon('chevron-right', 15)}</button></header>
-        ${prepare}
       </section>
     </div>
   </div>`;
@@ -505,7 +580,9 @@ export function eventForm(event, id = '') {
     id ? '회차 저장' : '회차 만들기', id);
 }
 
-export function eventScreen(events, detail, club) {
+const sessionTabs = [['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']];
+
+export function eventScreen(events, detail, club, tab = null) {
   const event = detail?.event;
   const actions = button(`${icon('plus', 18)} 새 회차`, 'new-event') + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
   const head = pageHead('운동 운영', '회차를 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
@@ -528,7 +605,13 @@ export function eventScreen(events, detail, club) {
     ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
     ${event.open && !event.canVote ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
   { subtitle: `${esc(deadlineLabel(event.deadline))} 마감`, actions: voteActions });
-  return `<div class="secondary-page">${head}${overview}${vote}${attendancePanel(event, roster, counts, settlement?.confirmed)}${guestsPanel(guests, settlement?.confirmed)}${settlementPanel(settlement, counts)}</div>`;
+  // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
+  const current = tab ?? defaultTab(event);
+  const nav = `<nav class="tabs" aria-label="회차 단계">${sessionTabs.map(([name, label]) => `<button type="button" data-action="event-tab" data-id="${name}"${name === current ? ' aria-current="page"' : ''}>${label}</button>`).join('')}</nav>`;
+  const guestList = guestsPanel(guests, settlement?.confirmed);
+  const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed) + guestList
+    : current === 'settlement' ? settlementPanel(settlement, counts) : vote + guestList;
+  return `<div class="secondary-page">${head}${overview}${nav}${content}</div>`;
 }
 
 const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정', approved: '별도 승인' };

@@ -87,7 +87,7 @@
       if (!event) return heading('일정을 찾을 수 없어요', '', routeLink('일정 목록', 'events', 'secondary'));
       const pollAvailable = event.pollOpen && !event.finalized && !deadlinePassed(event);
       const subheader = `<div class="event-facts"><span>${icon('calendar')}${e(dateLabel(event.date))}</span><span>${icon('clock')}${eventTime(event)}</span><span>${icon('pin')}${e(event.place)}</span></div>`;
-      const nav = `<nav class="tabs" aria-label="일정 상세 메뉴">${[['poll', '웹 투표'], ['attendance', '당일 체크'], ['settlement', '마무리']].map(([tab, label]) => {
+      const nav = `<nav class="tabs" aria-label="회차 단계">${[['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']].map(([tab, label]) => {
         const path = eventPath(event, tab);
         const active = tab === route.tab;
         return `<a href="#${path}" data-route="${path}"${active ? ' aria-current="page"' : ''}>${label}</a>`;
