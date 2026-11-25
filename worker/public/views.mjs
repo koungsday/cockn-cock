@@ -193,7 +193,7 @@ export function loginScreen(club, name, numberStep, otherCredential) {
       <span class="login-code-cells" aria-hidden="true">${'<span></span>'.repeat(6)}</span>
     </span>`;
   return `<div class="login-stack">
-    ${hero(club.name, '로그인', club.subtitle ? [club.subtitle] : [])}
+    ${hero(club.name, 'login', club.subtitle ? [club.subtitle] : [])}
     <form class="form login-form login-card" aria-label="로그인" data-form="${numberStep ? 'login' : 'login-name'}">
       ${numberStep ? `<div class="login-greeting"><button type="button" class="quiet login-back" data-action="login-back" aria-label="성함 입력으로 돌아가기">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
@@ -208,7 +208,7 @@ export function loginScreen(club, name, numberStep, otherCredential) {
         ${autoSubmit ? '<p class="login-pending help" role="status" hidden>로그인 중…</p>' : ''}
         <p id="login-error" class="inline-error" role="alert" hidden></p>
       </div>
-      <button type="submit"${autoSubmit ? ' hidden' : ''}>${numberStep ? '로그인' : '다음'}</button>
+      <button type="submit"${autoSubmit ? ' hidden' : ''}>${numberStep ? 'login' : '다음'}</button>
     </form>
   </div>`;
 }

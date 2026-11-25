@@ -6,6 +6,8 @@ import {
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
+const clubLink = document.querySelector('#club-home');
+const loginMenu = document.querySelector('#login-menu');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
 const desktopNavigation = window.matchMedia('(min-width: 900px)');
@@ -130,7 +132,10 @@ function renderAccount() {
   document.title = state.user?.role === 'admin' ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
   if (renderedAccountUser === state.user) return;
   renderedAccountUser = state.user;
-  if (!state.user || (route.kind === 'admin' && state.user.role !== 'admin')) {
+  const signedIn = state.user?.role === authRole;
+  clubLink.hidden = !signedIn;
+  loginMenu.hidden = signedIn;
+  if (!signedIn) {
     account.innerHTML = '';
     return;
   }
@@ -229,6 +234,7 @@ function clearProtectedView() {
   closeDialog();
   dialog.replaceChildren();
   account.replaceChildren();
+  clubLink.hidden = true;
   renderedAccountUser = undefined;
   document.title = clubTitle;
   hideMessage();
@@ -384,17 +390,19 @@ function shareLink(kind, itemId) {
   return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
 }
 
-function showLoginStep(error = '') {
+function showLoginStep() {
   hideMessage();
   render();
-  const input = main.querySelector('.login-form input');
-  if (error) {
-    const inline = main.querySelector('#login-error');
-    inline.textContent = error;
-    inline.hidden = false;
-    input.setAttribute('aria-describedby', inline.id);
-  }
-  input.focus();
+  main.querySelector('.login-form input').focus();
+}
+
+function clearLoginRejection(input) {
+  const field = input.closest('.login-rejected');
+  if (!field || !input.value) return;
+  field.classList.remove('login-rejected');
+  field.querySelector('#login-error').hidden = true;
+  input.removeAttribute('aria-invalid');
+  input.removeAttribute('aria-describedby');
 }
 
 function updateLoginCode(input) {
@@ -418,6 +426,11 @@ async function doAction(action, itemId) {
     case 'close':
       closeDialog();
       break;
+    case 'login-menu': {
+      const home = route.kind === 'home' ? '' : `<a class="button secondary" href="${esc(club.home)}">모임 홈</a>`;
+      openDialog('메뉴', `<div class="stack">${home}${button('로그인 도움말', 'login-help', { css: 'secondary' })}</div>`, 'login-menu-dialog');
+      break;
+    }
     case 'login-help':
       hideMessage();
       openDialog('로그인 도움말', loginHelp(signIn.numberStep, signIn.otherCredential));
@@ -577,18 +590,9 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'login': {
-      let result;
-      try {
-        result = await request('/api/login', 'POST', {
-          name: signIn.name, credential: raw(data, 'credential'),
-        });
-      } catch (error) {
-        if (error.status !== 401) throw error;
-        Object.assign(signIn, { name: '', numberStep: false, otherCredential: false });
-        showLoginStep(error.message);
-        break;
-      }
-      const { user } = result;
+      const { user } = await request('/api/login', 'POST', {
+        name: signIn.name, credential: raw(data, 'credential'),
+      });
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);
       if (user.role !== authRole) {
@@ -703,12 +707,21 @@ async function run(work, control) {
     if (pendingStatus) pendingStatus.hidden = false;
     else control.textContent = form.dataset.form === 'login' ? '로그인 중…' : '처리 중…';
   }, 180) : null;
+  function finishPending() {
+    clearTimeout(pending);
+    if (pendingStatus) pendingStatus.hidden = true;
+    if (form?.hasAttribute('aria-busy')) {
+      form.removeAttribute('aria-busy');
+      if (!pendingStatus) control.textContent = label;
+    }
+  }
   if (inline) inline.hidden = true;
   field?.removeAttribute('aria-invalid');
   field?.removeAttribute('aria-describedby');
   try {
     await work();
   } catch (error) {
+    finishPending();
     if (error.name === 'AbortError') return;
     if (error.status === 401 && state.user) return loginExpired();
     if (inline?.isConnected && (form?.contains(inline) || dialog.open)) {
@@ -719,6 +732,14 @@ async function run(work, control) {
         control.hidden = false;
       }
       if (field && (error.status === 400 || error.status === 401 || error.status === 403)) {
+        if (form.dataset.form === 'login' && error.status === 401) {
+          field.value = '';
+          if (code) {
+            code.readOnly = false;
+            updateLoginCode(code);
+          }
+          field.closest('.login-field').classList.add('login-rejected');
+        }
         field.setAttribute('aria-invalid', 'true');
         field.setAttribute('aria-describedby', inline.id);
         field.focus({ preventScroll: true });
@@ -727,13 +748,8 @@ async function run(work, control) {
       showMessage(error.message, true);
     }
   } finally {
-    clearTimeout(pending);
+    finishPending();
     if (code) code.readOnly = false;
-    if (pendingStatus) pendingStatus.hidden = true;
-    if (form?.hasAttribute('aria-busy')) {
-      form.removeAttribute('aria-busy');
-      if (!pendingStatus) control.textContent = label;
-    }
     if (control.isConnected) control.disabled = saved;
     else if (!dialog.open && version === navigationVersion &&
       (document.activeElement === document.body || document.activeElement === initialFocus)) {
@@ -794,8 +810,10 @@ main.addEventListener('input', event => {
   if (input.hasAttribute('data-login-code')) {
     const digits = input.value.replace(/[^0-9]/g, '');
     if (input.value !== digits) input.value = digits;
+    clearLoginRejection(input);
     submitCompleteCode(input);
-  } else if (input.dataset.filter) applyFilter(input);
+  } else if (input.name === 'credential') clearLoginRejection(input);
+  else if (input.dataset.filter) applyFilter(input);
 });
 
 for (const type of ['focusin', 'click', 'keyup', 'select']) {
@@ -816,6 +834,7 @@ main.addEventListener('paste', event => {
     const available = 6 - input.value.length + selectionEnd - selectionStart;
     input.setRangeText(digits.slice(0, available), selectionStart, selectionEnd, 'end');
   }
+  clearLoginRejection(input);
   submitCompleteCode(input);
 });
 
@@ -856,11 +875,9 @@ desktopNavigation.addEventListener('change', event => {
 
 if (route && club.name) {
   document.title = clubTitle;
-  const clubLink = document.querySelector('#club-home');
   clubLink.href = club.home;
   document.querySelector('#club-name').textContent = club.name;
   document.querySelector('#club-subtitle').textContent = club.subtitle;
-  clubLink.hidden = false;
   window.addEventListener('pagehide', clearProtectedView);
   window.addEventListener('pageshow', event => {
     if (event.persisted) void initialize();

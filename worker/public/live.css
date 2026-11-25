@@ -47,9 +47,8 @@ html:has(#account:not(:empty)) { scroll-padding-top: calc(var(--site-header-bloc
   justify-content: space-between;
   gap: 1rem;
 }
-.brand { display: inline-flex; align-items: center; text-decoration: none; color: var(--ink); }
+.brand { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: var(--touch-target); min-height: var(--touch-target); text-decoration: none; color: var(--ink); }
 .club-navigation { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; }
-.site-header:has(#account:not(:empty)) .brand { flex: none; justify-content: center; min-width: var(--touch-target); min-height: var(--touch-target); }
 .site-header:has(#account:not(:empty)) .club-navigation { flex-wrap: nowrap; }
 .site-header:has(#account:not(:empty)) .current-club { min-width: var(--touch-target); min-height: var(--touch-target); align-content: center; }
 .site-header:has(#account:not(:empty)) .current-club :is(strong, small),
@@ -66,6 +65,7 @@ html:has(#account:not(:empty)) { scroll-padding-top: calc(var(--site-header-bloc
 .current-club small { color: var(--muted); font-size: .75rem; }
 .current-club small:empty { display: none; }
 #account { min-width: 0; display: flex; gap: .35rem .55rem; align-items: center; justify-content: flex-end; }
+#account:empty, button.login-menu-toggle[hidden] { display: none; }
 #account button { flex: none; white-space: nowrap; }
 .account-name { max-width: 18ch; color: var(--muted); font-size: .9rem; }
 .main { width: min(1120px, calc(100% - var(--page-gutter) - var(--page-gutter))); margin: 0 auto; padding: clamp(1.35rem, 4.5vw, 3.2rem) 0 calc(4rem + var(--safe-bottom)); }
@@ -130,6 +130,7 @@ button.danger { color: var(--ink); background: var(--hint); border-color: var(--
 button.compact { padding-inline: .65rem; font-size: .875rem; }
 .button.block, button.block { width: 100%; }
 button.admin-menu-toggle { display: inline-flex; width: var(--touch-target); padding: 0; }
+button.login-menu-toggle { width: var(--touch-target); padding: 0; }
 .main:has(> .admin-shell) { padding-top: clamp(1rem, 2vw, 1.75rem); }
 .admin-sidebar { display: none; }
 .admin-content { min-width: 0; }
@@ -215,6 +216,21 @@ button.login-back { flex: 0 0 var(--touch-target); padding: 0; }
 .login-code:focus-within .login-code-cells > [data-position] { border-color: var(--action); background: var(--leaf); }
 .login-code-cells > [data-filled]::after { content: ''; width: .56rem; height: .56rem; border-radius: 50%; background: var(--ink); }
 .login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
+.login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) {
+  border-color: #b13f39;
+  background: #fff1ef;
+}
+.login-form .login-field.login-rejected input[name="credential"]:focus { outline-color: #b13f39; }
+.login-rejected > .inline-error { color: #9d2e30; }
+@media (prefers-reduced-motion: no-preference) {
+  .login-field.login-rejected { animation: login-nudge 520ms ease-out; }
+}
+@keyframes login-nudge {
+  0%, 65%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-4px); }
+  30% { transform: translateX(4px); }
+  45% { transform: translateX(-2px); }
+}
 .inline-error { color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
 .login-field :is(.inline-error, .login-pending) { margin-top: .4rem; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
@@ -346,7 +362,7 @@ dialog::backdrop { background: #14271fc0; }
 button.dialog-close { inline-size: 44px; block-size: 44px; padding: 0; border: 0; color: var(--ink); background: transparent; }
 @media (hover: hover) { button.dialog-close:hover:not(:disabled) { background: var(--hint); filter: none; } }
 @media (prefers-reduced-motion: no-preference) { button.dialog-close { transition: background-color 160ms ease; } }
-.admin-menu-dialog[open] {
+:is(.admin-menu-dialog, .login-menu-dialog)[open] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   inset: calc(var(--site-header-block) + .5rem) 0 auto;
@@ -356,11 +372,11 @@ button.dialog-close { inline-size: 44px; block-size: 44px; padding: 0; border: 0
   margin-block: 0;
   overflow: hidden;
 }
-.admin-menu-dialog .dialog-heading {
+:is(.admin-menu-dialog, .login-menu-dialog) .dialog-heading {
   padding: .35rem .5rem .35rem .85rem;
   border-bottom: 1px solid var(--line);
 }
-.admin-menu-dialog .dialog-body {
+:is(.admin-menu-dialog, .login-menu-dialog) .dialog-body {
   display: block;
   min-height: 0;
   overflow-y: auto;
