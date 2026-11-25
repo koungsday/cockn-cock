@@ -76,6 +76,7 @@ a { color: inherit; text-decoration: none; }
   background: #edf3e6;
 }
 
+.header-link { display: inline-flex; align-items: center; min-height: var(--touch-target); }
 .header-link:hover { text-decoration: underline; }
 
 main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
@@ -85,7 +86,7 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   align-items: center;
   min-height: clamp(19rem, 41vw, 25rem);
   padding: clamp(1.4rem, 6vw, 4.4rem);
-  border-radius: clamp(1rem, 3vw, 1.6rem);
+  border-radius: 16px;
   background-color: var(--court);
   background-image: linear-gradient(90deg, var(--court) 2%, #10483afa 25%, #10483ac2 51%, #10483a18 81%), url("assets/court.webp");
   background-position: center, right 53%;
@@ -114,7 +115,7 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 
 .directory { padding-top: clamp(1.55rem, 4.1vw, 2.8rem); }
 
-.directory h2 {
+.directory h2, .intro-section h2 {
   margin-bottom: .85rem;
   font-size: clamp(1.44rem, 3vw, 1.8rem);
   font-weight: 800;
@@ -203,6 +204,78 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 .club-entry:hover .club-action { background: #173e2f; }
 
 .directory-note { margin-top: .8rem; font-size: .89rem; }
+
+/* Intro home (DESIGN.md: white panels on --paper, no cards inside cards, one accent-red in the hero). */
+.intro-section { padding-top: clamp(2.2rem, 5vw, 3.4rem); }
+.intro-lead { margin: -.35rem 0 1rem; color: var(--muted); font-size: .98rem; word-break: keep-all; }
+.intro-panel {
+  min-width: 0;
+  margin: 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+}
+.intro-note { color: var(--muted); font-size: .89rem; word-break: keep-all; }
+
+.flow-steps { display: grid; margin: 0; padding: 0; list-style: none; }
+.flow-steps li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: .9rem;
+  padding-block: 1rem;
+  border-top: 1px solid var(--line);
+}
+.flow-no {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--court);
+  color: var(--lime);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.flow-steps h3, .role-panel h3 { font-size: 1.08rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.35; }
+.flow-steps p { margin-top: .2rem; color: var(--muted); font-size: .94rem; word-break: keep-all; }
+
+.role-grid { display: grid; gap: .9rem; }
+.role-who { color: var(--action); font-size: .86rem; font-weight: 800; }
+.role-panel h3 { margin-top: .15rem; font-size: 1.2rem; }
+.role-steps { display: grid; gap: .55rem; margin: .9rem 0 0; padding-left: 1.3rem; word-break: keep-all; }
+.role-steps li::marker { color: var(--court); font-weight: 800; }
+
+.promise-list { display: grid; gap: .8rem; list-style: none; word-break: keep-all; }
+.promise-list li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: .6rem; align-items: start; }
+.promise-list svg { margin-top: .2rem; color: var(--action); }
+
+.try-panel { display: grid; gap: .8rem; }
+.try-links { display: flex; flex-wrap: wrap; gap: .6rem; }
+.try-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: .5rem .95rem;
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: .94rem;
+  font-weight: 750;
+}
+.try-link:hover { background: var(--hint); }
+.try-link-primary { border-color: #235940; background: #235940; color: #fff; }
+.try-link-primary:hover { background: #173e2f; }
+
+@media (min-width: 44rem) {
+  .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 60rem) {
+  .flow-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.1rem; }
+  .flow-steps li { grid-template-columns: minmax(0, 1fr); gap: .7rem; align-content: start; }
+}
 
 .site-footer {
   display: grid;

@@ -24,6 +24,12 @@ async function shell(path) {
   return { style, script, html };
 }
 
+const intro = await get('/');
+assert.equal(intro.status, 200, 'the root serves the intro home');
+const introHtml = await intro.text();
+assert(introHtml.includes(`href="${home}"`), 'the intro home links to the club');
+assert.doesNotMatch(introHtml, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|_DB\b/);
+
 const [memberPage, adminPage, privateApi, manifest] = await Promise.all([
   shell(home), shell(admin), get(`${home}api/admin`), get(`${admin}manifest.webmanifest`),
 ]);

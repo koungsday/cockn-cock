@@ -307,13 +307,17 @@ test('administration shell contains no private data and scoped admin API still r
 
 });
 
-test('a single registered club is the domain login entry point', async t => {
+test('the root is the intro home even with a single registered club', async t => {
   const {env} = setup(t);
   const worker = createWorker([first]);
   const response = await worker.fetch(new Request(origin + '/?from=homescreen'), env);
-  assert.equal(response.status, 302);
-  assert.equal(response.headers.get('Location'), '/clubs/first-club/?from=homescreen');
-  assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Cache-Control'), 'public, max-age=60, s-maxage=60');
+  const html = await response.text();
+  assert.match(html, /콕콕콕!/);
+  assert.match(html, /href="\/clubs\/first-club\/"/);
+  assert.match(html, /한 회차가 이렇게 이어져요/);
+  assert.doesNotMatch(html, /FIRST_DB|FIRST_ADMIN|FIRST_PEPPER|id="try"/);
 });
 
 test('a configured address move preserves paths without redirecting credential requests', async t => {

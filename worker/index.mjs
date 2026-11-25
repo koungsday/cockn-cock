@@ -185,12 +185,7 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();
-        if (clubs.length === 1) {
-          return new Response(null, {
-            status: 302,
-            headers: { Location: `/clubs/${clubs[0].slug}/${url.search}`, 'Cache-Control': 'no-store' }
-          });
-        }
+        // The root is the 콕콕콕! intro home; members and organisers enter a club from its directory.
         return htmlResponse(request, renderCatalog({ clubs: catalogClubs, basePath: '/', mode: 'live' }), {
           cacheControl: 'public, max-age=60, s-maxage=60'
         });
