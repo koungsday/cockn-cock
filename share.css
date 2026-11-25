@@ -299,12 +299,16 @@
 }
 
 .share-button--primary {
-  background: #23523b;
+  background: var(--ink);
   color: #fff;
 }
 
-.share-button--primary:hover {
-  background: #163d2a;
+.share-button--primary:not(:disabled):hover {
+  background: var(--menu-hover);
+}
+
+.share-button--primary:not(:disabled):active {
+  background: var(--menu-line);
 }
 
 .share-button--secondary {

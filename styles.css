@@ -61,8 +61,9 @@ p { line-height: 1.58; }
 .today-label { display: inline-flex; align-items: center; gap: 8px; color: #4d6153; font-size: .88rem; padding-right: 7px; font-weight: 700; white-space: nowrap; }
 .btn { min-height: 41px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; padding: 8px 13px; border: 1px solid transparent; border-radius: 8px; font-size: .89rem; font-weight: 750; white-space: nowrap; line-height: 1.25; transition: background .16s; }
 .btn svg { flex: none; }
-.btn-primary { background: #225a40; color: #fff; }
-.btn-primary:not(:disabled):hover { background: #173f2c; }
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:not(:disabled, [aria-pressed="true"]):hover { background: var(--menu-hover); }
+.btn-primary:not(:disabled, [aria-pressed="true"]):active { background: var(--menu-line); }
 .btn-secondary { background: #fff; border-color: #d8e3d9; color: #2d533d; }
 .btn-secondary:not(:disabled):hover, .btn-text:not(:disabled):hover, .icon-button:hover, .icon-btn:hover { background: #edf4ed; }
 .btn-text { background: transparent; color: #315f47; }
