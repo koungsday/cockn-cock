@@ -130,7 +130,9 @@ for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platfor
   await writeFile(join(dist, output), theme + '\n' + css);
 }
 await copyFile(join(root, 'platform/shuttlecock.mjs'), join(dist, 'shuttlecock.js'));
-await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo' }));
+await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo', demo: {
+  vote: `${adminUrl.pathname}#public-vote/${event.id}`, admin: `${adminUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
+} }));
 await writeFile(join(dist, 'legacy-links.js'), `
 if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
   location.replace(${JSON.stringify(adminUrl.pathname)} + location.search + location.hash);
