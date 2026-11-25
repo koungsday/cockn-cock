@@ -10,7 +10,7 @@ const migrations = await Promise.all(['0001.sql', '0002_member_name.sql'].map(
 ));
 const origin = 'https://club.test';
 const adminId = 'fixture-organizer';
-const adminPassword = ' local-test-organizer-secret ';
+const adminPin = '583471';
 
 function makeDatabase() {
   const sqlite = new DatabaseSync(':memory:');
@@ -56,7 +56,7 @@ function setup(t) {
   const DB = makeDatabase();
   t.after(() => DB.close());
   const env = {
-    DB, CLUB_ADMIN_ID: adminId, CLUB_ADMIN_PASSWORD: adminPassword,
+    DB, CLUB_ADMIN_ID: adminId, CLUB_ADMIN_PIN: adminPin,
     CLUB_AUTH_PEPPER: 'local-test-cryptographic-pepper-not-a-hosted-secret'
   };
   function client(ip = '203.0.113.10') {
@@ -95,8 +95,8 @@ function setup(t) {
       login(name, credential, expect = 200) {
         return this.request('/api/login', {method:'POST', body:{name, credential}, expect});
       },
-      adminLogin({ id = adminId, password = adminPassword, expect = 200 } = {}) {
-        return this.login(id, password, expect);
+      adminLogin({ id = adminId, pin = adminPin, expect = 200 } = {}) {
+        return this.login(id, pin, expect);
       }
     };
   }
@@ -172,6 +172,8 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   const reset = await admin.request('/api/admin/members/' + member.member.id + '/reset', {method:'POST', body:{}});
   await visitor.request('/api/votes/' + event.id, {expect:401});
   assert.deepEqual(Object.keys(reset), ['temporaryPin']);
+  assert.match(reset.temporaryPin, /^\d{6}$/);
+  assert.notEqual(reset.temporaryPin, '684270');
   await visitor.login(name, '684270', 401);
   assert.equal((await visitor.login(name, reset.temporaryPin)).user.mustChange, true);
 });
@@ -192,7 +194,7 @@ test('credential limits are tracked before verification for name and source addr
   for (let i = 0; i < 30; i++) await repeated.login('등록하지 않은 예시 ' + i, '000001', 401);
   await repeated.login(member.name, '000001', 429);
   const failedAdmin = client('203.0.113.32');
-  for (let i = 0; i < 5; i++) await failedAdmin.adminLogin({ password:'wrong-local-password', expect:401 });
+  for (let i = 0; i < 5; i++) await failedAdmin.adminLogin({ pin:'583470', expect:401 });
   await failedAdmin.adminLogin({ expect:429 });
   assert.equal((await client('203.0.113.33').adminLogin()).user.role, 'admin');
 });
@@ -234,11 +236,11 @@ test('same-name records use their own credentials and identical matches are deni
 test('shared login assigns role and cookie lifetime on the server', async t => {
   const {DB, client, env} = setup(t);
   const admin = client();
-  await admin.request('/api/login', {method:'POST', body:{memberCode:'admin', credential:adminPassword}, expect:400});
+  await admin.request('/api/login', {method:'POST', body:{memberCode:'admin', credential:adminPin}, expect:400});
   const wrongId = await admin.adminLogin({ id:'wrong-operator', expect:401 });
-  const wrongPassword = await admin.adminLogin({ password:adminPassword.trim(), expect:401 });
-  assert.deepEqual(wrongId, wrongPassword);
-  await admin.request('/api/login', {method:'POST', body:{name:adminId, credential:adminPassword}, requestOrigin:'https://unrelated.test', expect:403});
+  const wrongPin = await admin.adminLogin({ pin:'583470', expect:401 });
+  assert.deepEqual(wrongId, wrongPin);
+  await admin.request('/api/login', {method:'POST', body:{name:adminId, credential:adminPin}, requestOrigin:'https://unrelated.test', expect:403});
   await admin.adminLogin();
   assert.match(admin.setCookie, /^__Host-suncok19-admin=/);
   assert.match(admin.setCookie, /Max-Age=2592000/);
@@ -247,7 +249,7 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
   assert.equal((await admin.request('/api/session')).user, null);
   await admin.request('/api/public', {expect:401});
-  await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPassword}, expect:404});
+  await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPin}, expect:404});
   const sharedName = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:adminId, birthday:'19890810'}
   });
@@ -276,51 +278,103 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   env.CLUB_ADMIN_ID = 'rotated-fixture-operator';
   assert.equal((await admin.request('/api/admin/session')).user, null);
   await admin.adminLogin({id:env.CLUB_ADMIN_ID});
-  env.CLUB_ADMIN_PASSWORD = 'rotated-fixture-operator-secret';
+  env.CLUB_ADMIN_PIN = '316794';
   assert.equal((await admin.request('/api/admin/session')).user, null);
-  await admin.adminLogin({id:env.CLUB_ADMIN_ID, password:env.CLUB_ADMIN_PASSWORD});
+  await admin.adminLogin({id:env.CLUB_ADMIN_ID, pin:env.CLUB_ADMIN_PIN});
   const expiredCookie = admin.cookie;
   await DB.prepare("UPDATE sessions SET expires_at = unixepoch() WHERE role='admin'").run();
   await admin.request('/api/admin', {headerCookie:expiredCookie, expect:401});
 });
 
-test('a short operator PIN needs a current proof issued by a strong login on this club', async t => {
+test('a fresh browser signs in with an administrator name and PIN alone', async t => {
   const { client, env } = setup(t);
   env.CLUB_ADMIN_ID = '가상 운영진';
-  env.CLUB_ADMIN_PIN = '583471';
-  const enrolled = client();
-  const otherBrowser = client('203.0.113.25');
-  const { CLUB_ADMIN_ID: name, CLUB_ADMIN_PIN: pin } = env;
-  await otherBrowser.login(name, pin, 401);
-  assert.equal((await enrolled.login(name.normalize('NFD'), adminPassword)).user.role, 'admin');
-  const strongSession = enrolled.cookie;
-  const [, proof] = enrolled.setCookies;
-  assert.match(proof, /^__Host-suncok19-admin-device=/);
-  assert.match(proof, /Path=\/; HttpOnly; SameSite=Lax; Max-Age=7776000; Secure$/);
-  assert.doesNotMatch(proof, /Domain=/i);
-  const deviceCookie = proof.split(';')[0];
-  const pinLogin = (browser, credential, headerCookie, expect = 200) => browser.request('/api/login', {
-    method:'POST', body:{name, credential}, headerCookie, expect
+  env.CLUB_ADMIN_PASSWORD = 'fixture-only-former-enrollment';
+  const browser = client();
+  assert.equal(browser.cookie, '');
+  const name = env.CLUB_ADMIN_ID.normalize('NFD');
+  await browser.login(name, env.CLUB_ADMIN_PASSWORD, 401);
+  assert.equal(browser.cookie, '');
+  assert.equal((await browser.login(name, adminPin)).user.role, 'admin');
+  assert.equal(browser.setCookies.length, 1);
+  assert.match(browser.setCookie, /^__Host-suncok19-admin=/);
+  assert.equal((await browser.request('/api/admin/session')).user.role, 'admin');
+  await browser.request('/api/admin');
+});
+
+test('member changes cannot create the same login as the administrator', async t => {
+  const { client, env } = setup(t);
+  env.CLUB_ADMIN_PIN = '580724';
+  const admin = client();
+  await admin.adminLogin({pin:env.CLUB_ADMIN_PIN});
+  await admin.request('/api/admin/members', {
+    method:'POST', expect:409, body:{name:adminId, birthday:'19580724'}
   });
-  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:deviceCookie})).user, null);
-  await pinLogin(otherBrowser, pin, strongSession, 401);
-  await pinLogin(otherBrowser, pin, deviceCookie + '0', 401);
-  assert.equal((await pinLogin(enrolled, pin, deviceCookie)).user.role, 'admin');
-  assert.equal(enrolled.setCookies.length, 1);
-  const pinSession = enrolled.cookie;
-  assert.equal((await enrolled.request('/api/admin/session')).user.role, 'admin');
+  const {member: alias} = await admin.request('/api/admin/members', {
+    method:'POST', expect:201, body:{name:'가상 관리자와 같은 번호', birthday:'19580724'}
+  });
+  await admin.request('/api/admin/members/' + alias.id, {
+    method:'PATCH', expect:409, body:{name:adminId}
+  });
+  const {member: sameName} = await admin.request('/api/admin/members', {
+    method:'POST', expect:201, body:{name:adminId, birthday:'780925'}
+  });
+  const member = client();
+  assert.equal((await member.login(adminId, '780925')).user.id, sameName.id);
+  await member.request('/api/pin', {
+    method:'POST', expect:400, body:{currentPin:'780925', newPin:'6534983'}
+  });
+  await member.request('/api/pin', {
+    method:'POST', expect:409, body:{currentPin:'780925', newPin:env.CLUB_ADMIN_PIN}
+  });
+  await member.request('/api/admin', {expect:401});
+  const {temporaryPin: reset} = await admin.request('/api/admin/members/' + sameName.id + '/reset', {method:'POST', body:{}});
+  assert.match(reset, /^\d{6}$/);
+  assert.notEqual(reset, env.CLUB_ADMIN_PIN);
+  assert.equal((await member.login(adminId, reset)).user.id, sameName.id);
+});
+
+test('rotating an administrator PIN to a member credential grants neither role', async t => {
+  const { DB, client, env } = setup(t);
+  const operator = client();
+  await operator.adminLogin();
+  const {member} = await operator.request('/api/admin/members', {
+    method:'POST', expect:201, body:{name:adminId, birthday:'780925'}
+  });
+  const memberPin = '780925';
+  assert.equal((await client().login(adminId, memberPin)).user.id, member.id);
+
+  env.CLUB_ADMIN_PIN = memberPin;
+  await operator.request('/api/admin', {expect:401});
+  const newBrowser = client();
+  await newBrowser.login(adminId, memberPin, 401);
+  assert.equal(newBrowser.cookie, '');
+  await DB.prepare('UPDATE members SET active = 0 WHERE id = ?').bind(member.id).run();
+  await newBrowser.login(adminId, memberPin, 401);
+  assert.equal(newBrowser.cookie, '');
 
   env.CLUB_ADMIN_PIN = '316794';
-  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:pinSession})).user, null);
-  assert.equal((await enrolled.request('/api/admin/session', {headerCookie:strongSession})).user.role, 'admin');
-  await pinLogin(otherBrowser, env.CLUB_ADMIN_PIN, deviceCookie, 401);
-  env.CLUB_ADMIN_PIN = pin;
-  const otherClub = env.CLUB_SCOPE = 'second-club';
-  await pinLogin(otherBrowser, pin, deviceCookie.replace('suncok19', otherClub), 401);
-  env.CLUB_SCOPE = 'suncok19';
-  const expiry = Number(deviceCookie.split('=')[1].split('.')[0]);
-  t.mock.timers.enable({apis:['Date'], now: expiry * 1000});
-  await pinLogin(otherBrowser, pin, deviceCookie, 401);
+  assert.equal((await newBrowser.adminLogin({pin:env.CLUB_ADMIN_PIN})).user.role, 'admin');
+  await newBrowser.request('/api/admin');
+});
+
+test('administrator PIN attempts share a limit across source addresses', async t => {
+  const { client } = setup(t);
+  const operator = client();
+  await operator.adminLogin();
+  const {member} = await operator.request('/api/admin/members', {
+    method:'POST', expect:201, body:{name:'별도 가상 회원', birthday:'880726'}
+  });
+  t.mock.timers.enable({apis:['Date'], now:Date.now()});
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await client('203.0.113.' + (60 + attempt)).adminLogin({pin:'583470', expect:401});
+  }
+  const newBrowser = client('203.0.113.90');
+  await newBrowser.adminLogin({expect:429});
+  assert.equal((await newBrowser.login(member.name, '880726')).user.id, member.id);
+  assert.equal((await operator.request('/api/admin/session')).user.role, 'admin');
+  t.mock.timers.tick(15 * 60 * 1000);
+  assert.equal((await newBrowser.adminLogin()).user.role, 'admin');
 });
 
 test('six-digit birthday enrollments preserve full entry and block duplicates of legacy birthdays', async t => {
@@ -341,6 +395,10 @@ test('six-digit birthday enrollments preserve full entry and block duplicates of
   });
   assert.equal((await client().login(legacyName, '19880131')).user.id, legacyId);
   assert.equal((await DB.prepare('SELECT credential_hash FROM members WHERE id=?').bind(legacyId).first()).credential_hash, hash);
+  const legacyShort = client();
+  assert.equal((await legacyShort.login(legacyName, '880131')).user.id, legacyId);
+  await legacyShort.request('/api/pin', {method:'POST', body:{currentPin:'880131', newPin:'698358'}});
+  assert.equal((await client().login(legacyName, '698358')).user.id, legacyId);
   await admin.request('/api/admin/members', {method:'POST', body:{name, birthday:'990231'}, expect:400});
   const {member} = await admin.request('/api/admin/members', {
     method:'POST', body:{name, birthday:'881031'}, expect:201

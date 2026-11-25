@@ -1,7 +1,7 @@
 import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 import { handleApi } from './api.mjs';
-import { isAdminId, isAdminPin } from './auth.mjs';
+import { isAdminId, isSixDigitPin } from './auth.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const bindingPattern = /^[A-Z][A-Z0-9_]*$/;
@@ -97,8 +97,7 @@ function registryIndex(clubs) {
     if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
       throw new Error('Each registered club must have a unique slug.');
     }
-    const keys = [club.databaseBinding, club.adminIdBinding, club.adminPasswordBinding, club.authPepperBinding];
-    if (club.adminPinBinding !== undefined) keys.push(club.adminPinBinding);
+    const keys = [club.databaseBinding, club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
     for (const key of keys) {
       if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
         throw new Error('Each registered club must use distinct database and secret bindings.');
@@ -113,25 +112,22 @@ function registryIndex(clubs) {
 function scopeEnv(club, clubs, env) {
   const db = env[club.databaseBinding];
   const adminId = env[club.adminIdBinding];
-  const adminPassword = env[club.adminPasswordBinding];
-  const adminPin = club.adminPinBinding === undefined ? undefined : env[club.adminPinBinding];
+  const adminPin = env[club.adminPinBinding];
   const authPepper = env[club.authPepperBinding];
   if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function' ||
-      !isAdminId(adminId) || typeof adminPassword !== 'string' || adminPassword.length < 16 || adminPassword.length > 128 ||
-      !adminPassword.trim() || adminPassword === adminId || (adminPin !== undefined && !isAdminPin(adminPin)) ||
-      typeof authPepper !== 'string' || authPepper.length < 32 || adminPassword === authPepper) return null;
+      !isAdminId(adminId) || !isSixDigitPin(adminPin) ||
+      typeof authPepper !== 'string' || authPepper.length < 32) return null;
 
   for (const other of clubs) {
     if (other.slug === club.slug) continue;
-    const otherSecrets = [env[other.adminPasswordBinding], env[other.authPepperBinding]];
-    if (env[other.databaseBinding] === db || otherSecrets.includes(adminPassword) || otherSecrets.includes(authPepper)) {
+    if (env[other.databaseBinding] === db || env[other.adminPinBinding] === adminPin ||
+        env[other.authPepperBinding] === authPepper) {
       return null;
     }
   }
   return {
     DB: db,
     CLUB_ADMIN_ID: adminId,
-    CLUB_ADMIN_PASSWORD: adminPassword,
     CLUB_ADMIN_PIN: adminPin,
     CLUB_AUTH_PEPPER: authPepper,
     CLUB_SCOPE: club.slug

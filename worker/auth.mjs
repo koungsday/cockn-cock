@@ -1,10 +1,9 @@
 const encoder = new TextEncoder();
 const memberSessionAge = 12 * 60 * 60;
 const adminSessionAge = 30 * 24 * 60 * 60;
-const adminDeviceAge = 90 * 24 * 60 * 60;
-const adminDeviceCookie = 'admin-device';
 const invalidLogin = '입력한 로그인 정보를 확인해 주세요.';
 const attemptWindow = 15 * 60;
+const loginNamespace = 'pin-login';
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -65,24 +64,25 @@ export function isAdminId(value) {
     && (/^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$/.test(value) || /^[가-힣]+(?: [가-힣]+)*$/.test(value));
 }
 
-export function isAdminPin(value) {
+export function isSixDigitPin(value) {
   return typeof value === 'string' && value.length === 6 && /^\d{6}$/.test(value);
 }
 
-async function adminVersion(env, id, password) {
-  return sha256('admin\0' + pepper(env) + '\0' + id + '\0' + password);
+async function adminVersion(env, id, pin) {
+  return sha256('admin-login-pin\0' + pepper(env) + '\0' + id + '\0' + pin);
 }
 
 function adminSettings(env) {
   const id = env.CLUB_ADMIN_ID;
-  const password = env.CLUB_ADMIN_PASSWORD;
   const pin = env.CLUB_ADMIN_PIN;
-  if (!isAdminId(id) || typeof password !== 'string' || password.length < 16
-    || password.length > 128 || !password.trim() || password === id
-    || (pin !== undefined && !isAdminPin(pin))) {
+  if (!isAdminId(id) || !isSixDigitPin(pin)) {
     throw new ApiError(503, '운영진 인증 설정을 확인해 주세요.');
   }
-  return { id, password, pin };
+  return { id, pin };
+}
+
+export function matchesAdminPin(env, name, credential) {
+  return name === env.CLUB_ADMIN_ID && equalDigest(env.CLUB_ADMIN_PIN, credential);
 }
 
 function cookieName(request, env, role) {
@@ -98,40 +98,13 @@ function sessionCookie(request, env, role, token = '') {
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 
-function cookieToken(request, env, role, format = /^[0-9a-f]{64}$/) {
+function cookieToken(request, env, role) {
   const name = cookieName(request, env, role) + '=';
   for (const cookie of (request.headers.get('cookie') || '').split(';')) {
     const value = cookie.trim();
-    if (value.startsWith(name) && format.test(value.slice(name.length))) return value.slice(name.length);
+    if (value.startsWith(name) && /^[0-9a-f]{64}$/.test(value.slice(name.length))) return value.slice(name.length);
   }
   return null;
-}
-
-async function adminPinVersion(env, strongVersion, pin) {
-  return sha256('admin-pin\0' + pepper(env) + '\0' + strongVersion + '\0' + pin);
-}
-
-async function adminDeviceSignature(env, pinVersion, timestamp, nonce) {
-  const key = await crypto.subtle.importKey(
-    'raw', encoder.encode(pepper(env)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const data = ['admin-device', env.CLUB_SCOPE ?? 'suncok19', pinVersion, timestamp, nonce].join('\0');
-  return bytesAsHex(new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(data))));
-}
-
-async function makeAdminDevice(request, env, pinVersion) {
-  const expiry = currentSeconds() + adminDeviceAge;
-  const nonce = randomHex(16);
-  const signature = await adminDeviceSignature(env, pinVersion, expiry, nonce);
-  return `${cookieName(request, env, adminDeviceCookie)}=${expiry}.${nonce}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${adminDeviceAge}; Secure`;
-}
-
-async function hasAdminDevice(request, env, pinVersion) {
-  const proof = cookieToken(request, env, adminDeviceCookie, /^\d{1,12}\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
-  if (!proof) return false;
-  const [expiry, nonce, signature] = proof.split('.');
-  if (Number(expiry) <= currentSeconds()) return false;
-  return equalDigest(signature, await adminDeviceSignature(env, pinVersion, expiry, nonce));
 }
 
 async function sessionHash(env, role, token) {
@@ -157,12 +130,9 @@ export async function readSession(request, env, role) {
   if (!found) return null;
 
   if (found.role === 'admin') {
-    const { id, password, pin } = adminSettings(env);
-    const version = await adminVersion(env, id, password);
-    if (!equalDigest(version, found.session_version)) {
-      const pinVersion = pin && await adminPinVersion(env, version, pin);
-      if (!equalDigest(pinVersion, found.session_version)) return null;
-    }
+    const { id, pin } = adminSettings(env);
+    const version = await adminVersion(env, id, pin);
+    if (!equalDigest(version, found.session_version)) return null;
     return { id: 'admin', name: '운영진', role: 'admin', mustChange: false, tokenHash, version: found.session_version };
   }
   if (!found.active || found.member_version !== found.session_version) return null;
@@ -295,32 +265,27 @@ export async function login(request, env, body) {
     || typeof credential !== 'string' || !credential || credential.length > 128) {
     throw new ApiError(400, invalidLogin);
   }
-  const source = await ipLimit(env, request, 'login');
-  const namedSource = await ipLimit(env, request, 'login', name);
+  const source = await ipLimit(env, request, loginNamespace);
+  const namedSource = await ipLimit(env, request, loginNamespace, name);
   const limits = [source, namedSource];
-  const { id, password, pin } = adminSettings(env);
-  const [version, submitted] = await Promise.all([
-    adminVersion(env, id, password),
-    adminVersion(env, name, credential)
-  ]);
-  const strong = equalDigest(version, submitted);
-  const secure = new URL(request.url).protocol === 'https:';
-  let adminSessionVersion = strong ? version : null;
-  const pinVersion = secure && pin && (strong || (name === id && equalDigest(credential, pin)))
-    ? await adminPinVersion(env, version, pin) : null;
-  if (pinVersion && !strong && await hasAdminDevice(request, env, pinVersion)) adminSessionVersion = pinVersion;
-  if (adminSessionVersion) {
-    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version: adminSessionVersion };
-    const session = await startSession(request, env, user, limits);
-    if (strong && pinVersion) session.deviceCookie = await makeAdminDevice(request, env, pinVersion);
-    return session;
+  const { id, pin } = adminSettings(env);
+  if (name === id) {
+    // A six-digit administrator PIN also needs a budget shared across source IPs.
+    const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + id);
+    limits.push({ key, expiresAt: await reserveAttempt(env, key, 20) });
   }
 
-  // Failed attempts follow the same path and message regardless of the account type.
-  const candidates = (await membersNamed(env, name, input)).filter(row => row.active);
-  if (!candidates.length) await credentialHash(env, credential, '00000000000000000000000000000000');
-  const matching = await matchingCredentials(env, candidates, credential);
-  if (matching.length !== 1) {
+  const adminMatch = matchesAdminPin(env, name, credential);
+  // A retired member can still know their credential after a secret rotation.
+  const candidates = (await membersNamed(env, name, input)).filter(row => adminMatch || row.active);
+  if (!candidates.length && !adminMatch) await credentialHash(env, credential, '00000000000000000000000000000000');
+  const matching = await matchingCredentials(env, candidates, credential, true);
+  if (adminMatch && !matching.length) {
+    const version = await adminVersion(env, id, pin);
+    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
+    return startSession(request, env, user, limits);
+  }
+  if (adminMatch || matching.length !== 1) {
     await env.DB.batch(cleanExpired(env));
     throw new ApiError(401, invalidLogin);
   }
@@ -345,21 +310,29 @@ function weakPin(pin) {
 export async function changePin(request, env, user, body) {
   const { currentPin, newPin } = body;
   if (typeof currentPin !== 'string' || !currentPin || currentPin.length > 128
-    || typeof newPin !== 'string' || !/^\d{6,10}$/.test(newPin) || weakPin(newPin)) {
-    throw new ApiError(400, '반복이나 연속 숫자를 피해서 새 PIN을 숫자 6~10자리로 입력해 주세요.');
+    || !isSixDigitPin(newPin) || weakPin(newPin)) {
+    throw new ApiError(400, '반복이나 연속 숫자를 피해서 새 PIN을 숫자 6자리로 입력해 주세요.');
   }
   if (currentPin === newPin) throw new ApiError(400, '현재 비밀번호와 다른 PIN을 입력해 주세요.');
   const source = await ipLimit(env, request, 'pin');
   const limitKey = memberLimitKey('pin', user.id);
   const expiresAt = await reserveAttempt(env, limitKey, 5);
   const row = await sql(env.DB, `
-    SELECT credential_salt, credential_hash, must_change FROM members
+    SELECT name, credential_salt, credential_hash, must_change FROM members
     WHERE id = ? AND active = 1 AND credential_version = ?
   `, user.id, user.version).first();
   if (!row) throw new ApiError(401, '다시 로그인해 주세요.');
-  const matched = await matchedMemberSecret(env, row, currentPin);
+  const matched = await matchedMemberSecret(env, row, currentPin, true);
   if (!matched) throw new ApiError(400, '현재 비밀번호가 맞지 않아요.');
-  if (matched === newPin) throw new ApiError(400, '현재 비밀번호와 다른 PIN을 입력해 주세요.');
+  if (matched === newPin || (row.must_change && fullBirthday(matched) && matched.slice(2) === newPin)) {
+    throw new ApiError(400, '현재 비밀번호와 다른 PIN을 입력해 주세요.');
+  }
+  const name = row.name.normalize('NFC');
+  const candidates = await membersNamed(env, name, row.name);
+  if (matchesAdminPin(env, name, newPin) ||
+      (await matchingCredentials(env, candidates.filter(candidate => candidate.id !== user.id), newPin, true)).length) {
+    throw new ApiError(409, '같은 이름으로 사용 중인 번호예요. 다른 번호를 입력해 주세요.');
+  }
 
   const version = randomHex(16);
   const salt = randomHex(16);
@@ -369,9 +342,16 @@ export async function changePin(request, env, user, body) {
   const results = await env.DB.batch([
     sql(env.DB, `
       UPDATE members SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
-      WHERE id = ? AND active = 1 AND credential_version = ?
-    `, version, salt, hash, user.id, user.version),
-    sql(env.DB, `DELETE FROM sessions WHERE role = 'member' AND member_id = ? AND credential_version = ?`, user.id, user.version),
+      WHERE id = ? AND name = ? AND active = 1 AND credential_version = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM members WHERE name IN (?, ?, ?) AND credential_version NOT IN (SELECT value FROM json_each(?))
+        )
+    `, version, salt, hash, user.id, row.name, user.version, name, name.normalize('NFD'), row.name,
+    JSON.stringify(candidates.map(candidate => candidate.credential_version))),
+    sql(env.DB, `
+      DELETE FROM sessions WHERE role = 'member' AND member_id = ? AND credential_version = ?
+        AND EXISTS (SELECT 1 FROM members WHERE id = ? AND credential_version = ?)
+    `, user.id, user.version, user.id, version),
     statement,
     ...releaseAttempt(env, source.key, source.expiresAt),
     ...releaseAttempt(env, limitKey, expiresAt),
@@ -389,6 +369,14 @@ export async function makeMemberCredential(env, activationSecret) {
 }
 
 export function temporaryPin() {
-  // A reset replaces the current credential with a randomly generated secret.
-  return randomHex(8);
+  // Rejection sampling avoids bias when shortening a random uint32 to six digits.
+  const codes = 1_000_000;
+  const upperBound = Math.floor(2 ** 32 / codes) * codes;
+  const sample = new Uint32Array(1);
+  while (true) {
+    crypto.getRandomValues(sample);
+    if (sample[0] >= upperBound) continue;
+    const pin = String(sample[0] % codes).padStart(6, '0');
+    if (!weakPin(pin)) return pin;
+  }
 }

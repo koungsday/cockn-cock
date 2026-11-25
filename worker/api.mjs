@@ -1,6 +1,6 @@
 import {
   ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  matchingCredentials, membersNamed, randomHex, readSession, sql, temporaryPin
+  matchesAdminPin, matchingCredentials, membersNamed, randomHex, readSession, sql, temporaryPin
 } from './auth.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -18,14 +18,13 @@ const bodyLimit = 24 * 1024;
 const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published';
 const noticeFields = 'id, title, body, date, published';
 
-function json(body, status = 200, cookie, deviceCookie) {
+function json(body, status = 200, cookie) {
   const headers = new Headers({
     'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
     'Cross-Origin-Resource-Policy': 'same-origin'
   });
   if (cookie) headers.set('Set-Cookie', cookie);
-  if (deviceCookie) headers.append('Set-Cookie', deviceCookie);
   return Response.json(body, { status, headers });
 }
 
@@ -299,14 +298,15 @@ async function listAdmin(db) {
   };
 }
 
-function rosterOpenEvents(db, id) {
+function rosterOpenEvents(db, id, version = null) {
   return sql(db, `
     INSERT INTO roster (event_id, member_id)
     SELECT e.id, m.id FROM events e CROSS JOIN members m
     WHERE m.id = ? AND m.active = 1 AND e.deadline_at > unixepoch()
+      AND (? IS NULL OR m.credential_version = ?)
       AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = e.id AND s.confirmed = 1)
     ON CONFLICT (event_id, member_id) DO NOTHING
-  `, id);
+  `, id, version, version);
 }
 
 async function addMember(env, body) {
@@ -314,7 +314,7 @@ async function addMember(env, body) {
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
-  if ((await matchingCredentials(env, candidates, birthday, true)).length) {
+  if (matchesAdminPin(env, name, birthday) || (await matchingCredentials(env, candidates, birthday, true)).length) {
     throw new ApiError(409, '같은 이름과 로그인 번호를 사용하는 회원이 있어요. 회원 목록을 확인해 주세요.');
   }
   const { hash, salt, version } = await makeMemberCredential(env, birthday);
@@ -337,32 +337,74 @@ async function addMember(env, body) {
   return { member: { id, name, active: true } };
 }
 
-async function updateMember(db, id, body) {
+async function updateMember(env, id, body) {
+  const db = env.DB;
   const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
-  const statements = [sql(db, 'UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ?', name, active, id)];
-  if (active === 0) statements.push(sql(db, 'DELETE FROM sessions WHERE member_id = ?', id));
-  if (active === 1) statements.push(rosterOpenEvents(db, id));
+  let version = null;
+  if (name === env.CLUB_ADMIN_ID) {
+    const target = await sql(db, `
+      SELECT credential_salt, credential_hash, credential_version, must_change FROM members WHERE id = ?
+    `, id).first();
+    if (!target) missing();
+    if ((await matchingCredentials(env, [target], env.CLUB_ADMIN_PIN, true)).length) {
+      throw new ApiError(409, '같은 이름과 로그인 번호가 이미 사용 중이에요. 회원의 번호를 재설정해 주세요.');
+    }
+    version = target.credential_version;
+  }
+  const statements = [sql(db, `
+    UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active)
+    WHERE id = ? AND (? IS NULL OR credential_version = ?)
+  `, name, active, id, version, version)];
+  if (active === 0) statements.push(sql(db, `
+    DELETE FROM sessions WHERE member_id = ?
+      AND EXISTS (SELECT 1 FROM members WHERE id = ? AND active = 0 AND (? IS NULL OR credential_version = ?))
+  `, id, id, version, version));
+  if (active === 1) statements.push(rosterOpenEvents(db, id, version));
   statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ?', id));
   const results = await db.batch(statements);
   const row = results.at(-1).results[0];
   if (!row) missing();
+  if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 시도해 주세요.');
   return { member: serializeMember(row) };
 }
 
 async function resetMember(env, id) {
   const db = env.DB;
-  if (!await sql(db, 'SELECT id FROM members WHERE id = ?', id).first()) missing();
-  const temporary = temporaryPin();
+  const target = await sql(db, 'SELECT name, credential_version FROM members WHERE id = ?', id).first();
+  if (!target) missing();
+  const name = target.name.normalize('NFC');
+  const candidates = await membersNamed(env, name, target.name);
+  let temporary;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const code = temporaryPin();
+    if (!matchesAdminPin(env, name, code) && !(await matchingCredentials(env, candidates, code, true)).length) {
+      temporary = code;
+      break;
+    }
+  }
+  if (!temporary) throw new ApiError(409, '임시 번호를 만들지 못했어요. 다시 시도해 주세요.');
   const { hash, salt, version } = await makeMemberCredential(env, temporary);
-  await db.batch([
+  const [updated] = await db.batch([
     sql(db, `
       UPDATE members SET credential_salt = ?, credential_hash = ?,
-        credential_version = ?, must_change = 1 WHERE id = ?
-    `, salt, hash, version, id),
-    sql(db, `DELETE FROM sessions WHERE role = 'member' AND member_id = ?`, id),
-    sql(db, 'DELETE FROM attempts WHERE key = ?', 'pin-member:' + id)
+        credential_version = ?, must_change = 1
+      WHERE id = ? AND name = ? AND credential_version = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM members WHERE name IN (?, ?, ?) AND credential_version NOT IN (SELECT value FROM json_each(?))
+        )
+    `, salt, hash, version, id, target.name, target.credential_version, name, name.normalize('NFD'), target.name,
+    JSON.stringify(candidates.map(row => row.credential_version))),
+    sql(db, `
+      DELETE FROM sessions WHERE role = 'member' AND member_id = ?
+        AND EXISTS (SELECT 1 FROM members WHERE id = ? AND credential_version = ?)
+    `, id, id, version),
+    sql(db, `
+      DELETE FROM attempts WHERE key = ?
+        AND EXISTS (SELECT 1 FROM members WHERE id = ? AND credential_version = ?)
+    `, 'pin-member:' + id, id, version)
   ]);
+  if (!updated.meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 시도해 주세요.');
   return { temporaryPin: temporary };
 }
 
@@ -606,7 +648,7 @@ async function routeAdmin(db, env, url, method, body) {
   }
   const member = memberPath.exec(path);
   if (member) {
-    if (method === 'PATCH' && !member[2]) return json(await updateMember(db, member[1], body));
+    if (method === 'PATCH' && !member[2]) return json(await updateMember(env, member[1], body));
     if (method === 'POST' && member[2]) return json(await resetMember(env, member[1]));
     methodNotAllowed();
   }
@@ -646,7 +688,7 @@ async function route(request, env) {
   if (path === '/api/login') {
     if (method !== 'POST') methodNotAllowed();
     const session = await login(request, env, body);
-    return json({ user: session.user }, 200, session.cookie, session.deviceCookie);
+    return json({ user: session.user }, 200, session.cookie);
   }
   if (path === authPath + '/logout') {
     if (method !== 'POST') methodNotAllowed();

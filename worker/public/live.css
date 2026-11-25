@@ -131,6 +131,17 @@ button.compact { padding-inline: .65rem; font-size: .875rem; }
 .button.block, button.block { width: 100%; }
 button.admin-menu-toggle { display: inline-flex; width: var(--touch-target); padding: 0; }
 button.login-menu-toggle { width: var(--touch-target); padding: 0; }
+:is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden]) { position: relative; }
+:is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden])::after {
+  content: '';
+  position: absolute;
+  inset: auto .75rem 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: .6;
+  pointer-events: none;
+}
 .main:has(> .admin-shell) { padding-top: clamp(1rem, 2vw, 1.75rem); }
 .admin-sidebar { display: none; }
 .admin-content { min-width: 0; }
@@ -361,7 +372,6 @@ dialog::backdrop { background: #14271fc0; }
 .dialog-body { padding: .65rem 1.2rem 1.2rem; }
 button.dialog-close { inline-size: 44px; block-size: 44px; padding: 0; border: 0; color: var(--ink); background: transparent; }
 @media (hover: hover) { button.dialog-close:hover:not(:disabled) { background: var(--hint); filter: none; } }
-@media (prefers-reduced-motion: no-preference) { button.dialog-close { transition: background-color 160ms ease; } }
 :is(.admin-menu-dialog, .login-menu-dialog)[open] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -383,6 +393,27 @@ button.dialog-close { inline-size: 44px; block-size: 44px; padding: 0; border: 0
   overscroll-behavior: contain;
   padding: .5rem;
 }
+@media (prefers-reduced-motion: no-preference) {
+  button.dialog-close { transition: background-color 160ms ease; }
+  main[data-motion="section"] .admin-content,
+  main:is([data-motion="login-next"], [data-motion="login-back"]) .login-card,
+  dialog[open] :is(.dialog-heading h2, .dialog-body),
+  #message:not([hidden], .visually-hidden) { animation: view-arrive 200ms cubic-bezier(.22, 1, .36, 1); }
+  main[data-motion="login-next"] .login-card { --view-entry: 6px 0; }
+  main[data-motion="login-back"] .login-card { --view-entry: -6px 0; }
+  :is(.admin-menu-dialog, .login-menu-dialog) { --view-entry: 0 -4px; }
+  dialog[open]::backdrop { animation: backdrop-arrive 160ms ease-out; }
+  :is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden])::after {
+    background: linear-gradient(90deg, transparent 15%, currentColor 50%, transparent 85%) 100% / 200% 100%;
+    animation: progress-sweep 850ms linear infinite;
+  }
+}
+@keyframes view-arrive {
+  from { opacity: .82; translate: var(--view-entry, 0 5px); }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes backdrop-arrive { from { opacity: .55; } to { opacity: 1; } }
+@keyframes progress-sweep { from { background-position: 100%; } to { background-position: -100%; } }
 details summary { min-height: 44px; align-content: center; cursor: pointer; font-weight: 690; color: var(--action); }
 details[open] summary { margin-bottom: .55rem; }
 @media (max-width: 430px) {

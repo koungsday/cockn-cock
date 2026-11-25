@@ -10,11 +10,11 @@ const migrations = await Promise.all(['0001.sql', '0002_member_name.sql'].map(
 const origin = 'https://clubs.test';
 const first = {
   slug: 'first-club', name: '가상 첫 모임', subtitle: '일요일 운동', schedule: '일요일',
-  databaseBinding: 'FIRST_DB', adminIdBinding: 'FIRST_ID', adminPasswordBinding: 'FIRST_ADMIN', authPepperBinding: 'FIRST_PEPPER'
+  databaseBinding: 'FIRST_DB', adminIdBinding: 'FIRST_ID', adminPinBinding: 'FIRST_ADMIN', authPepperBinding: 'FIRST_PEPPER'
 };
 const second = {
   slug: 'second-club', name: '가상 둘째 모임', subtitle: '토요일 운동', schedule: '토요일',
-  databaseBinding: 'SECOND_DB', adminIdBinding: 'SECOND_ID', adminPasswordBinding: 'SECOND_ADMIN', authPepperBinding: 'SECOND_PEPPER'
+  databaseBinding: 'SECOND_DB', adminIdBinding: 'SECOND_ID', adminPinBinding: 'SECOND_ADMIN', authPepperBinding: 'SECOND_PEPPER'
 };
 
 function database(t) {
@@ -56,8 +56,8 @@ function setup(t) {
   const env = {
     FIRST_DB: database(t), SECOND_DB: database(t),
     FIRST_ID: 'fixture-first-admin', SECOND_ID: 'fixture-second-admin',
-    FIRST_ADMIN: 'first-club-test-only-password',
-    SECOND_ADMIN: 'second-club-test-only-password',
+    FIRST_ADMIN: '548617',
+    SECOND_ADMIN: '275419',
     FIRST_PEPPER: 'first-club-test-only-pepper-value',
     SECOND_PEPPER: 'second-club-test-only-pepper-value',
     ASSETS: {
@@ -89,7 +89,7 @@ function setup(t) {
     return { user: (await response.json()).user, cookie: response.headers.get('Set-Cookie')?.split(';')[0] };
   }
   const login = (club, name, credential, status) => signIn(club, '/login', { name, credential }, status);
-  const adminLogin = (club, credential = env[club.adminPasswordBinding], status) =>
+  const adminLogin = (club, credential = env[club.adminPinBinding], status) =>
     login(club, env[club.adminIdBinding], credential, status);
   return { env, receive, request, login, adminLogin };
 }
@@ -192,7 +192,7 @@ test('duplicate or missing tenant configuration is rejected without falling back
   assert.throws(() => createWorker([first, { ...second, slug: 'bad--slug' }]));
   assert.throws(() => createWorker([first, { ...second, slug: 'x'.repeat(65) }]));
   assert.throws(() => createWorker([first, { ...second, databaseBinding: first.databaseBinding }]));
-  assert.throws(() => createWorker([first, { ...second, adminPasswordBinding: first.authPepperBinding }]));
+  assert.throws(() => createWorker([first, { ...second, adminPinBinding: first.authPepperBinding }]));
   const { env, receive, request } = setup(t);
   const secondDb = env.SECOND_DB;
 

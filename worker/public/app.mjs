@@ -53,7 +53,7 @@ let renderedAccountUser;
 let dialogOpener = null;
 let startedOnBackdrop = false;
 let dialogScrollTop = null;
-const signIn = { name: null, numberStep: false, otherCredential: false };
+const signIn = { name: null, numberStep: false };
 
 const authRole = route?.kind === 'admin' ? 'admin' : 'member';
 const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
@@ -193,13 +193,14 @@ async function load() {
   }
 }
 
-function render({ voteSaved = false } = {}) {
+function render({ voteSaved = false, motion = '' } = {}) {
+  main.dataset.motion = motion;
   const search = main.querySelector('input[data-filter]');
   renderAccount();
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   main.classList.toggle('narrow', !isAdmin);
   if (!state.user) {
-    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, signIn.otherCredential);
+    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep);
   } else if (route.kind === 'vote') {
     main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved);
   } else if (route.kind === 'notice') {
@@ -229,7 +230,7 @@ function clearProtectedView() {
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
-  Object.assign(signIn, { name: null, numberStep: false, otherCredential: false });
+  Object.assign(signIn, { name: null, numberStep: false });
   dialogOpener = null;
   closeDialog();
   dialog.replaceChildren();
@@ -332,7 +333,7 @@ function matchingControl(control) {
 }
 
 function credentialDialog(name, temporaryPin) {
-  const text = `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력한 뒤 도움말 ⓘ에서 ‘다른 번호 입력’을 선택해 임시 번호를 붙여넣어 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
+  const text = `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
   openDialog('회원에게 보낼 접속 안내', `<p>${esc(name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요.</p>
     <textarea class="copy-text" readonly rows="6" aria-label="회원 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
@@ -390,9 +391,9 @@ function shareLink(kind, itemId) {
   return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
 }
 
-function showLoginStep() {
+function showLoginStep(motion) {
   hideMessage();
-  render();
+  render({ motion });
   main.querySelector('.login-form input').focus();
 }
 
@@ -433,18 +434,11 @@ async function doAction(action, itemId) {
     }
     case 'login-help':
       hideMessage();
-      openDialog('로그인 도움말', loginHelp(signIn.numberStep, signIn.otherCredential));
+      openDialog('로그인 도움말', loginHelp());
       break;
     case 'login-back':
       signIn.numberStep = false;
-      signIn.otherCredential = false;
-      showLoginStep();
-      break;
-    case 'login-credential-mode':
-      signIn.otherCredential = !signIn.otherCredential;
-      dialogOpener = null;
-      closeDialog();
-      showLoginStep();
+      showLoginStep('login-back');
       break;
     case 'logout':
       await request(authPath('logout'), 'POST', {});
@@ -470,7 +464,7 @@ async function doAction(action, itemId) {
         if (state.section === itemId) state.section = previous;
         throw error;
       }
-      render();
+      render({ motion: 'section' });
       window.scrollTo(0, 0);
       const target = desktopNavigation.matches ? main.querySelector('.admin-sidebar [aria-current="page"]') : main.querySelector('.admin-section-head h1');
       (target ?? main).focus({ preventScroll: true });
@@ -586,7 +580,7 @@ async function doSubmit(kind, itemId, data) {
       if (!name) throw new RequestError('성함을 입력해 주세요.', 400);
       signIn.name = name;
       signIn.numberStep = true;
-      showLoginStep();
+      showLoginStep('login-next');
       break;
     }
     case 'login': {
@@ -697,18 +691,30 @@ async function run(work, control) {
   const field = form?.querySelector('#login-value');
   const code = form?.querySelector('[data-login-code]');
   const pendingStatus = form?.querySelector('.login-pending');
+  const section = control.dataset.action === 'tab' ? main.querySelector('.admin-content') : null;
+  const sectionPendingMessage = '화면을 불러오는 중이에요.';
   if (code) {
     code.readOnly = true;
     control.hidden = true;
   }
   const label = control.textContent;
-  const pending = form ? setTimeout(() => {
-    form.setAttribute('aria-busy', 'true');
-    if (pendingStatus) pendingStatus.hidden = false;
-    else control.textContent = form.dataset.form === 'login' ? '로그인 중…' : '처리 중…';
-  }, 180) : null;
+  const pending = setTimeout(() => {
+    if (form) {
+      form.setAttribute('aria-busy', 'true');
+      if (pendingStatus) pendingStatus.hidden = false;
+      else control.textContent = form.dataset.form === 'progress' ? '조회 중…' : '저장 중…';
+    } else if (section) {
+      section.setAttribute('aria-busy', 'true');
+      showMessage(sectionPendingMessage);
+    } else {
+      control.setAttribute('data-pending', '');
+    }
+  }, 180);
   function finishPending() {
     clearTimeout(pending);
+    control.removeAttribute('data-pending');
+    section?.removeAttribute('aria-busy');
+    if (section && message.textContent === sectionPendingMessage) hideMessage();
     if (pendingStatus) pendingStatus.hidden = true;
     if (form?.hasAttribute('aria-busy')) {
       form.removeAttribute('aria-busy');
@@ -812,8 +818,7 @@ main.addEventListener('input', event => {
     if (input.value !== digits) input.value = digits;
     clearLoginRejection(input);
     submitCompleteCode(input);
-  } else if (input.name === 'credential') clearLoginRejection(input);
-  else if (input.dataset.filter) applyFilter(input);
+  } else if (input.dataset.filter) applyFilter(input);
 });
 
 for (const type of ['focusin', 'click', 'keyup', 'select']) {

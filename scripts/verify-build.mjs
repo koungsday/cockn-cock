@@ -28,12 +28,12 @@ assert(catalog.includes(PLATFORM_NAME));
 assert(catalog.includes(club.name));
 assert(catalog.includes(`href="${remote?.pathname ?? ''}${clubPath}"`) ||
   (!remote && catalog.includes(`${clubPath}"`)), 'the directory links to the club page');
-assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
+assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
 assert(memberHome.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
 assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
 assert(memberHome.includes('/' + adminPath + '"'));
 assert(memberHome.includes('/' + clubPath + 'share/vote/e-nov28/"'));
-assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_PASSWORD/);
+assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD/);
 const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1];
 assert(basePath, 'the club demo links back to the directory');
 assert((await read('platform.css')).length > 0);

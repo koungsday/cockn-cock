@@ -98,13 +98,13 @@ function voteLabel(slot, event) {
 
 export function pinForm() {
   return form('pin', field('현재 로그인 번호', 'currentPin', '', {
-    type: 'password', attrs: 'autocomplete="off" maxlength="128" enterkeyhint="next" required',
+    type: 'password', attrs: 'autocomplete="off" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" enterkeyhint="next" required',
     help: '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
   }) + field('새 PIN', 'newPin', '', {
-    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" enterkeyhint="next" required',
-    help: '6~10자리 숫자를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
+    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" enterkeyhint="next" required',
+    help: '숫자 6자리를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
   }) + field('새 PIN 확인', 'confirmPin', '', {
-    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6,10}" minlength="6" maxlength="10" enterkeyhint="done" required',
+    type: 'password', attrs: 'autocomplete="new-password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" enterkeyhint="done" required',
   }), '새 PIN 저장');
 }
 
@@ -179,17 +179,14 @@ export function homeScreen({ events, notices }, club) {
     <section class="panel member-panel"><h2>공지</h2>${list(noticeRows, '게시된 공지가 없습니다.')}</section></div>`;
 }
 
-export function loginScreen(club, name, numberStep, otherCredential) {
-  const autoSubmit = numberStep && !otherCredential;
-  const label = !numberStep ? '성함' : otherCredential ? '생년월일 또는 비밀번호' : '생년월일';
+export function loginScreen(club, name, numberStep) {
+  const label = numberStep ? '번호 6자리' : '성함';
   const input = !numberStep
     ? `<input id="login-value" name="name" type="text" value="${esc(name)}" autocomplete="off" autocapitalize="off"
       spellcheck="false" maxlength="64" enterkeyhint="next" required>`
-    : otherCredential
-    ? `<input id="login-value" name="credential" type="password" autocomplete="off" maxlength="128" enterkeyhint="go" required>`
     : `<span class="login-code">
       <input id="login-value" name="credential" type="password" inputmode="numeric" autocomplete="off" enterkeyhint="go"
-        maxlength="6" pattern="[0-9]{6}" aria-label="생년월일 또는 6자리 번호" data-login-code required>
+        maxlength="6" pattern="[0-9]{6}" data-login-code required>
       <span class="login-code-cells" aria-hidden="true">${'<span></span>'.repeat(6)}</span>
     </span>`;
   return `<div class="login-stack">
@@ -205,21 +202,19 @@ export function loginScreen(club, name, numberStep, otherCredential) {
           </button>
         </div>
         ${input}
-        ${autoSubmit ? '<p class="login-pending help" role="status" hidden>로그인 중…</p>' : ''}
+        ${numberStep ? '<p class="login-pending help" role="status" hidden>로그인 중…</p>' : ''}
         <p id="login-error" class="inline-error" role="alert" hidden></p>
       </div>
-      <button type="submit"${autoSubmit ? ' hidden' : ''}>${numberStep ? 'login' : '다음'}</button>
+      <button type="submit"${numberStep ? ' hidden' : ''}>${numberStep ? 'login' : '다음'}</button>
     </form>
   </div>`;
 }
 
-export function loginHelp(numberStep, otherCredential) {
+export function loginHelp() {
   return `<div class="login-guide">
-    <p><strong>회원</strong> 생년월일 6자리 또는 내 PIN</p>
-    <p><strong>운영진</strong> 등록한 기기는 6자리, 새 기기는 등록용 비밀번호</p>
-    ${otherCredential ? '<p class="help">8자리 생년월일이나 임시 번호도 입력할 수 있어요.</p>' : ''}
-  </div>
-    ${numberStep ? button(otherCredential ? '숫자 6자리 입력' : '다른 번호 입력', 'login-credential-mode') : ''}`;
+    <p><strong>회원</strong> 생년월일 뒤 6자리, 내 PIN 또는 임시 번호</p>
+    <p><strong>운영진</strong> 운영 번호 6자리</p>
+  </div>`;
 }
 
 export function eventForm(event, id = '') {
