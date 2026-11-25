@@ -145,5 +145,48 @@ function activateShuttlecock(label) {
   update();
 }
 
+// Loading marks reuse the final outline and gap rounding; each call needs its own filter id.
+export function shuttlecockMark(className = 'shuttle-spin', id = `shuttle-gap-${Math.random().toString(36).slice(2, 8)}`) {
+  return `<svg class="${className}" viewBox="0 0 120 112" aria-hidden="true" focusable="false"><defs>
+    <filter id="${id}" x="0" y="0" width="120" height="112" filterUnits="userSpaceOnUse">
+      <feGaussianBlur in="SourceAlpha" stdDeviation=".75"/>
+      <feComponentTransfer result="rounded-gaps"><feFuncA type="linear" slope="12" intercept="-6.18"/></feComponentTransfer>
+      <feFlood flood-color="currentColor"/><feComposite in2="rounded-gaps" operator="in" result="fillets"/>
+      <feMerge><feMergeNode in="fillets"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter></defs><path fill="currentColor" filter="url(#${id})" d="${shuttlecockPath()}"/></svg>`;
+}
+
+const spinning = new Map();
+let spinFrame = 0;
+let spinTime = 0;
+
+function spin(time) {
+  const elapsed = Math.max(0, Math.min(50, time - spinTime));
+  spinTime = time;
+  const ease = 1 - Math.exp(-elapsed / 100);
+  for (const [outline, pose] of spinning) {
+    if (!outline.isConnected) {
+      spinning.delete(outline);
+      continue;
+    }
+    pose.pitch += (openPitch - pose.pitch) * ease;
+    pose.yaw = (pose.yaw + elapsed * turn / 3000) % turn;
+    outline.setAttribute('d', shuttlecockPath(pose.yaw, pose.pitch));
+  }
+  spinFrame = spinning.size ? requestAnimationFrame(spin) : 0;
+}
+
+// Marks open their feathers and keep turning until they leave the page; reduced motion keeps the resting pose.
+export function spinShuttlecocks(root = document) {
+  if (typeof document === 'undefined' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const outline of root.querySelectorAll('svg.shuttle-spin path')) {
+    if (!spinning.has(outline)) spinning.set(outline, { yaw: 0, pitch: restPitch });
+  }
+  if (!spinFrame && spinning.size) {
+    spinTime = performance.now();
+    spinFrame = requestAnimationFrame(spin);
+  }
+}
+
 const mark = typeof document === 'undefined' ? null : document.querySelector('.shuttlecock');
 if (mark) activateShuttlecock(mark);

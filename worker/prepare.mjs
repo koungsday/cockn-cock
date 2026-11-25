@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { CLUBS } from '../platform/clubs.mjs';
+import { shuttlecockMark } from '../platform/shuttlecock.mjs';
 import { verifyDatabaseBindings } from './bindings.mjs';
 
 const config = JSON.parse(await readFile(new URL('./wrangler.jsonc', import.meta.url), 'utf8'));
@@ -22,9 +23,15 @@ for (const file of [
   await copyFile(new URL('../assets/' + file, import.meta.url), new URL('./assets/' + file, site));
 }
 
-const entries = await Promise.all(['live.css', 'app.mjs', 'views.mjs'].map(async file => [
-  file, (file === 'live.css' ? theme + '\n' : '') + await readFile(new URL(file, site), 'utf8')
-]));
+// The demo's stylesheets are the shared design layer (DESIGN.md); live.css only adds live-only screens.
+const shared = (await Promise.all(['../styles.css', '../share.css'].map(file => readFile(new URL(file, import.meta.url), 'utf8'))))
+  .join('\n').replaceAll("url('assets/", "url('/assets/");
+const entries = [
+  ['live.css', `${theme}\n${shared}\n${await readFile(new URL('live.css', site), 'utf8')}`],
+  ['app.mjs', await readFile(new URL('app.mjs', site), 'utf8')],
+  ['views.mjs', await readFile(new URL('views.mjs', site), 'utf8')],
+  ['shuttlecock.mjs', await readFile(new URL('../platform/shuttlecock.mjs', import.meta.url), 'utf8')],
+];
 const hash = createHash('sha256');
 for (const [file, source] of entries) hash.update(file).update(source);
 const prefix = `club-ui/${hash.digest('hex').slice(0, 20)}/`;
@@ -33,6 +40,7 @@ for (const [file, source] of entries) await writeFile(new URL(prefix + file, sit
 const template = await readFile(new URL('index.html', site), 'utf8');
 const shell = template
   .replace('href="/live.css"', `href="/${prefix}live.css"`)
-  .replace('src="/app.mjs"', `src="/${prefix}app.mjs"`);
+  .replace('src="/app.mjs"', `src="/${prefix}app.mjs"`)
+  .replace('<!-- shuttle-mark -->', shuttlecockMark('shuttle-spin', 'shuttle-gap-static'));
 await writeFile(new URL('index.html', site), shell);
 await writeFile(new URL('admin-shell.html', site), shell);
