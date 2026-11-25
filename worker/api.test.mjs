@@ -446,6 +446,9 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
     }
   }
   const [, , afterBoundary, lastPath] = events;
+  const settled = async path => (await admin.request('/api/admin')).events.find(item => '/api/admin/events/' + item.id === path).settled;
+  assert.equal(await settled(afterBoundary), true);
+  assert.equal(await settled(lastPath), false);
   const endpoint = '/api/admin/progress?year=' + year + '&half=2';
   const progress = (await admin.request(endpoint)).members[0];
   assert.deepEqual(progress, {id:member.id, name:member.name, first:1, second:1, rewarded:false});
@@ -455,6 +458,8 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   });
   const saved = await admin.request(lastPath + '/settlement', {method:'PUT', body:patchSettlement});
   assert.deepEqual(saved.settlement, patchSettlement);
+  assert.equal(await settled(lastPath), true);
+  assert.equal('settled' in (await admin.request(lastPath)).event, false, 'the shared event shape stays without settled');
   await admin.request(lastPath + '/attendance/' + member.id, {
     method:'PUT', body:{present:false, recognition:null}, expect:409
   });
@@ -471,6 +476,7 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   assert.equal((await admin.request(endpoint)).members[0].rewarded, true);
   await admin.request(afterBoundary + '/settlement', {method:'PUT', body:{...patchSettlement, confirmed:false}});
   assert.equal((await admin.request(endpoint)).members[0].second, 1);
+  assert.equal(await settled(afterBoundary), false);
 });
 
 test('published notices and KST deadlines are respected without exposing drafts', async t => {

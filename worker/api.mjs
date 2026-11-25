@@ -294,12 +294,14 @@ async function memberVote(db, method, id, user, body = {}) {
 async function listAdmin(db) {
   const [members, events, notices] = await db.batch([
     sql(db, 'SELECT id, name, active FROM members ORDER BY active DESC, name, id'),
-    sql(db, `SELECT ${eventFields} FROM events ORDER BY date DESC, time DESC, id`),
+    // settled is for the organiser's session picker only; serializeEvent stays shared with the member screens.
+    sql(db, `SELECT ${eventFields}, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled
+      FROM events ORDER BY date DESC, time DESC, id`),
     sql(db, `SELECT ${noticeFields} FROM notices ORDER BY date DESC, rowid DESC`)
   ]);
   return {
     members: members.results.map(serializeMember),
-    events: events.results.map(serializeEvent),
+    events: events.results.map(row => ({ ...serializeEvent(row), settled: Boolean(row.settled) })),
     notices: notices.results.map(serializeNotice)
   };
 }

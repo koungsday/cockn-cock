@@ -582,6 +582,16 @@ export function eventForm(event, id = '') {
 
 const sessionTabs = [['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']];
 
+// One word per session in the picker, from GET /api/admin (settled is only on that listing).
+function sessionStatus(item) {
+  const day = today();
+  if (item.settled) return '마무리 완료';
+  if (!item.published) return '비공개';
+  if (item.date < day) return '마무리 전';
+  if (item.date === day) return '오늘';
+  return item.canVote ? '투표 중' : item.open ? '투표 마감' : '투표 닫힘';
+}
+
 export function eventScreen(events, detail, club, tab = null) {
   const event = detail?.event;
   const actions = button(`${icon('plus', 18)} 새 회차`, 'new-event') + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
@@ -590,7 +600,7 @@ export function eventScreen(events, detail, club, tab = null) {
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
   const picker = `<label class="form-field event-picker"><span>확인할 회차</span><select name="event-id" data-action="switch-event">
-    ${events.map(item => option(item.id, `${dateLabel(item.date)} ${item.title}`, event.id)).join('')}</select></label>`;
+    ${events.map(item => option(item.id, `${dateLabel(item.date)} ${item.title} · ${sessionStatus(item)}`, event.id)).join('')}</select></label>`;
   const overview = `<section class="panel event-overview" aria-labelledby="admin-event-title"><div class="panel-body">
     ${picker}
     <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}</div>
