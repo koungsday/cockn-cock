@@ -125,7 +125,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>
   </dl>${notes}</div>`;
   const head = memberDetailHeader(event.title, '참석 투표', club, brief);
-  let panel = '<p>투표가 마감됐습니다.</p>';
+  let panel = '<p class="vote-closed">투표가 마감됐습니다.</p>';
   if (event.canVote && eligible) {
     panel = form('vote', voteFields(event, vote) + '<p class="inline-error" role="alert" hidden></p>', vote ? '응답 변경' : '응답 저장', event.id);
   } else if (event.canVote) {
@@ -180,6 +180,7 @@ export function homeScreen({ events, notices }, club) {
 }
 
 export function loginScreen(club, name, numberStep, otherCredential) {
+  const autoSubmit = numberStep && !otherCredential;
   const label = !numberStep ? '성함' : otherCredential ? '생년월일 또는 비밀번호' : '생년월일';
   const input = !numberStep
     ? `<input id="login-value" name="name" type="text" value="${esc(name)}" autocomplete="off" autocapitalize="off"
@@ -194,27 +195,29 @@ export function loginScreen(club, name, numberStep, otherCredential) {
   return `<div class="login-stack">
     ${hero(club.name, '로그인', club.subtitle ? [club.subtitle] : [])}
     <form class="form login-form login-card" aria-label="로그인" data-form="${numberStep ? 'login' : 'login-name'}">
+      ${numberStep ? `<div class="login-greeting"><button type="button" class="quiet login-back" data-action="login-back" aria-label="성함 입력으로 돌아가기">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+      </button><p id="login-greeting">안녕하세요. ${esc(name)}님!</p></div>` : ''}
       <div class="login-field">
         <div class="login-label-row"><label for="login-value">${label}</label>
           <button type="button" class="quiet login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog"><span aria-hidden="true">ⓘ</span></button>
         </div>
         ${input}
+        ${autoSubmit ? '<p class="login-pending help" role="status" hidden>로그인 중…</p>' : ''}
         <p id="login-error" class="inline-error" role="alert" hidden></p>
       </div>
-      <div class="login-actions">${numberStep ? button('이전', 'login-back', { css: 'secondary' }) : ''}
-        <button type="submit">${numberStep ? '로그인' : '다음'}</button>
-      </div>
+      <button type="submit"${autoSubmit ? ' hidden' : ''}>${numberStep ? '로그인' : '다음'}</button>
     </form>
   </div>`;
 }
 
 export function loginHelp(numberStep, otherCredential) {
   return `<div class="login-guide">
-    <p><strong>회원</strong> 처음에는 생년월일 6자리(연·월·일 각 두 자리)를 입력해 주세요. 기존 8자리 생년월일, PIN, 임시 번호도 사용할 수 있어요.</p>
-    <p><strong>운영진</strong> 성함을 입력한 뒤 등록한 기기에서는 6자리 번호를 사용해 주세요. 새 기기에서는 기존 비밀번호를 한 번 입력해 주세요.</p>
+    <p><strong>회원</strong> 생년월일 6자리 또는 내 PIN</p>
+    <p><strong>운영진</strong> 등록한 기기는 6자리, 새 기기는 등록용 비밀번호</p>
+    ${otherCredential ? '<p class="help">8자리 생년월일이나 임시 번호도 입력할 수 있어요.</p>' : ''}
   </div>
-    ${numberStep ? button(otherCredential ? '숫자 6자리 입력' : '다른 번호 입력', 'login-credential-mode')
-      : '<p class="help">6자리 숫자가 아니면 다음 화면의 도움말에서 ‘다른 번호 입력’을 선택해 주세요.</p>'}`;
+    ${numberStep ? button(otherCredential ? '숫자 6자리 입력' : '다른 번호 입력', 'login-credential-mode') : ''}`;
 }
 
 export function eventForm(event, id = '') {
@@ -285,7 +288,7 @@ export function eventScreen(events, detail, club) {
     </div></div>
     <div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">공유 화면 보기</a>` : ''}
-    ${event.open && !event.canVote ? '<p class="help">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}
+    ${event.open && !event.canVote ? '<p class="help vote-closed">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}
     </section>`,
     attendancePanel(event, roster, counts, settlement?.confirmed),
     `<div class="stack">${guestsPanel(guests, settlement?.confirmed)}${settlementPanel(settlement, counts)}</div>`,

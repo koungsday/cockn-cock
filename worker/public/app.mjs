@@ -384,10 +384,17 @@ function shareLink(kind, itemId) {
   return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
 }
 
-function showLoginStep() {
+function showLoginStep(error = '') {
   hideMessage();
   render();
-  main.querySelector('.login-form input').focus();
+  const input = main.querySelector('.login-form input');
+  if (error) {
+    const inline = main.querySelector('#login-error');
+    inline.textContent = error;
+    inline.hidden = false;
+    input.setAttribute('aria-describedby', inline.id);
+  }
+  input.focus();
 }
 
 function updateLoginCode(input) {
@@ -396,6 +403,11 @@ function updateLoginCode(input) {
     cells[index].toggleAttribute('data-filled', index < input.value.length);
     cells[index].toggleAttribute('data-position', index === Math.min(input.selectionStart, cells.length - 1));
   }
+}
+
+function submitCompleteCode(input) {
+  updateLoginCode(input);
+  if (input.value.length === 6 && !busy) input.form.requestSubmit();
 }
 
 async function doAction(action, itemId) {
@@ -565,9 +577,18 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'login': {
-      const { user } = await request('/api/login', 'POST', {
-        name: signIn.name, credential: raw(data, 'credential'),
-      });
+      let result;
+      try {
+        result = await request('/api/login', 'POST', {
+          name: signIn.name, credential: raw(data, 'credential'),
+        });
+      } catch (error) {
+        if (error.status !== 401) throw error;
+        Object.assign(signIn, { name: '', numberStep: false, otherCredential: false });
+        showLoginStep(error.message);
+        break;
+      }
+      const { user } = result;
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);
       if (user.role !== authRole) {
@@ -670,10 +691,17 @@ async function run(work, control) {
   const form = control.matches('button[type="submit"]') ? control.form : null;
   const inline = form?.querySelector('.inline-error') ?? (dialog.open ? dialog.querySelector('.inline-error') : null);
   const field = form?.querySelector('#login-value');
+  const code = form?.querySelector('[data-login-code]');
+  const pendingStatus = form?.querySelector('.login-pending');
+  if (code) {
+    code.readOnly = true;
+    control.hidden = true;
+  }
   const label = control.textContent;
   const pending = form ? setTimeout(() => {
     form.setAttribute('aria-busy', 'true');
-    control.textContent = form.dataset.form === 'login' ? '로그인 중…' : '처리 중…';
+    if (pendingStatus) pendingStatus.hidden = false;
+    else control.textContent = form.dataset.form === 'login' ? '로그인 중…' : '처리 중…';
   }, 180) : null;
   if (inline) inline.hidden = true;
   field?.removeAttribute('aria-invalid');
@@ -686,6 +714,10 @@ async function run(work, control) {
     if (inline?.isConnected && (form?.contains(inline) || dialog.open)) {
       inline.textContent = error.message;
       inline.hidden = false;
+      if (code && (error.status === 0 || error.status >= 500)) {
+        control.textContent = '다시 시도';
+        control.hidden = false;
+      }
       if (field && (error.status === 400 || error.status === 401 || error.status === 403)) {
         field.setAttribute('aria-invalid', 'true');
         field.setAttribute('aria-describedby', inline.id);
@@ -696,9 +728,11 @@ async function run(work, control) {
     }
   } finally {
     clearTimeout(pending);
+    if (code) code.readOnly = false;
+    if (pendingStatus) pendingStatus.hidden = true;
     if (form?.hasAttribute('aria-busy')) {
       form.removeAttribute('aria-busy');
-      control.textContent = label;
+      if (!pendingStatus) control.textContent = label;
     }
     if (control.isConnected) control.disabled = saved;
     else if (!dialog.open && version === navigationVersion &&
@@ -760,7 +794,7 @@ main.addEventListener('input', event => {
   if (input.hasAttribute('data-login-code')) {
     const digits = input.value.replace(/[^0-9]/g, '');
     if (input.value !== digits) input.value = digits;
-    updateLoginCode(input);
+    submitCompleteCode(input);
   } else if (input.dataset.filter) applyFilter(input);
 });
 
@@ -772,7 +806,7 @@ for (const type of ['focusin', 'click', 'keyup', 'select']) {
 
 main.addEventListener('paste', event => {
   const input = event.target;
-  if (!input.hasAttribute('data-login-code') || !event.clipboardData) return;
+  if (!input.hasAttribute('data-login-code') || input.readOnly || !event.clipboardData) return;
   const digits = event.clipboardData.getData('text').replace(/[\s.-]/g, '');
   event.preventDefault();
   if (!/^[0-9]{1,6}$/.test(digits)) return;
@@ -782,7 +816,7 @@ main.addEventListener('paste', event => {
     const available = 6 - input.value.length + selectionEnd - selectionStart;
     input.setRangeText(digits.slice(0, available), selectionStart, selectionEnd, 'end');
   }
-  updateLoginCode(input);
+  submitCompleteCode(input);
 });
 
 function onDialogBackdrop(event) {

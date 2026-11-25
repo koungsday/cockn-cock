@@ -26,7 +26,7 @@ export function renderDemoClub({ club, basePath, vote, notice }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f3f5ec">
+  <meta name="theme-color" content="#f2f3f1">
   <meta name="description" content="${name} 회원 화면에서 일정, 투표, 공지를 체험하세요.">
   <title>${name} · ${brand}</title>
   <link rel="stylesheet" href="${root}platform.css">

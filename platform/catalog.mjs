@@ -35,7 +35,7 @@ export function renderCatalog({ clubs, basePath, mode }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f3f5ec">
+  <meta name="theme-color" content="#f2f3f1">
   <meta name="description" content="등록된 배드민턴 모임의 일정과 공지, 참석 투표를 확인하세요.">
   <title>${brand} · 배드민턴 모임 관리</title>
   <link rel="stylesheet" href="${root}platform.css">

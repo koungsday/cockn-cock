@@ -87,14 +87,15 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   padding: clamp(1.4rem, 6vw, 4.4rem);
   border-radius: clamp(1rem, 3vw, 1.6rem);
   background-color: var(--court);
-  background-image: linear-gradient(90deg, #14372a 2%, #14372afa 25%, #14372ac2 51%, #14372a18 81%), url("assets/court.webp");
+  background-image: linear-gradient(90deg, var(--court) 2%, #10483afa 25%, #10483ac2 51%, #10483a18 81%), url("assets/court.webp");
   background-position: center, right 53%;
   background-size: cover;
   color: #f7fae9;
 }
 
 .hero-copy { max-width: 29rem; }
-.hero-label { font-size: .94rem; font-weight: 750; color: var(--leaf); }
+.hero-label { display: flex; align-items: center; gap: .5rem; font-size: .94rem; font-weight: 750; color: var(--lime); }
+.hero-label::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
 
 .hero h1 {
   margin-block: .08em .2em;
@@ -322,7 +323,7 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 
 @media (max-width: 44rem) {
   .hero {
-    background-image: linear-gradient(90deg, #14372af5 0%, #14372ad4 45%, #14372a80 100%), url("assets/court.webp");
+    background-image: linear-gradient(90deg, #10483af5 0%, #10483ad4 45%, #10483a80 100%), url("assets/court.webp");
     background-position: center, 68% center;
   }
 

@@ -8,7 +8,6 @@
   --green: var(--action);
   --dark: var(--court);
   --soft: var(--hint);
-  --lime: var(--leaf);
   --sidebar-width: 224px;
 }
 * { box-sizing: border-box; }
@@ -84,7 +83,7 @@ p { line-height: 1.58; }
 .featured::after { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg,#183f2e 4%,#183f2e 23%,#183f2ef6 34%,#183f2e66 59%,#09251e0a 90%); }
 .featured-content { padding: 25px 28px 24px; margin: auto 0; min-width: 0; }
 .featured-kicker { display: inline-flex; align-items: center; gap: 7px; color: #dbf4bb; font-size: .86rem; font-weight: 800; }
-.featured-kicker i { background: #d1f67b; }
+.featured-kicker i { background: var(--accent-red); }
 .featured h2 { font-size: clamp(1.8rem,3.3vw,3.14rem); margin: 10px 0 15px; font-weight: 850; letter-spacing: -.055em; overflow-wrap: anywhere; }
 .featured-meta { display: grid; gap: 8px; }
 .featured-meta span { color: #f0f8ed; font-size: .94rem; font-weight: 650; display: flex; align-items: center; gap: 7px; }
@@ -94,8 +93,8 @@ p { line-height: 1.58; }
 .dashboard-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 7px; }
 .dashboard-panel-head h2 { font-size: 1.16rem; font-weight: 850; }
 .poll-status { display: inline-flex; gap: 6px; align-items: center; padding: 5px 8px; border-radius: 6px; color: #2c6243; background: #ebf5e9; font-size: .76rem; white-space: nowrap; font-weight: 800; }
-.poll-status.closed { color: #5c635f; background: #eef1ed; }
-.poll-status.closed i { background: #78847c; }
+.poll-status.closed { color: var(--muted); background: var(--hint); }
+.poll-status.closed i { background: var(--muted); }
 .progress-meta { display: flex; align-items: baseline; justify-content: space-between; margin-top: 19px; color: #4c6153; font-size: .87rem; font-weight: 700; }
 .progress-meta strong { font-size: 1.8rem; color: #1c3d2c; line-height: 1; font-weight: 850; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
 .progress-meta small { font-size: .92rem; }
@@ -169,7 +168,6 @@ p { line-height: 1.58; }
 .pill-green, .pill-good { background: #e8f3e7; color: #28583e; }
 .pill-warm, .pill-amber { background: #f6efdf; color: #785228; }
 .pill-muted { background: #edf1ed; color: #4d5d52; }
-.pill-red { background: #f9ece7; color: #854336; }
 .event-facts { display: flex; flex-wrap: wrap; gap: 7px 16px; }
 .event-facts>span { display: inline-flex; align-items: center; gap: 6px; }
 .event-facts svg { color: #50745c; }

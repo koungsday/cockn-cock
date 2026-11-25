@@ -1,15 +1,17 @@
 :root {
   color-scheme: light;
-  --paper: #f3f5ec;
-  --surface: #fffefa;
-  --ink: #1f332a;
-  --muted: #526559;
-  --court: #19443a;
-  --action: #22553f;
-  --leaf: #dfeec1;
-  --line: #d6ded0;
-  --hint: #eef1e7;
-  --focus: #447553;
+  --paper: #f2f3f1;
+  --surface: #fcfdfb;
+  --ink: #252c29;
+  --muted: #56605a;
+  --court: #10483a;
+  --action: #126047;
+  --lime: #d0f988;
+  --leaf: #def49f;
+  --line: #d8ddd9;
+  --hint: #edf0ee;
+  --focus: var(--action);
+  --accent-red: #ff5b45;
   --font-text: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
