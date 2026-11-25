@@ -101,8 +101,7 @@ test('catalog, canonical club links and legacy shares do not expose unscoped API
   assert.match(catalog.headers.get('Cache-Control'), /^public, max-age=60, s-maxage=60$/);
   const catalogHtml = await catalog.text();
   assert.match(catalogHtml, /콕콕콕!/);
-  assert.match(catalogHtml, /clubs\/first-club/);
-  assert.doesNotMatch(catalogHtml, /FIRST_DB|FIRST_ADMIN|FIRST_PEPPER/);
+  assert.doesNotMatch(catalogHtml, /clubs\/(first|second)-club|FIRST_DB|FIRST_ADMIN|FIRST_PEPPER/);
 
   const page = await receive('/clubs/first-club/');
   assert.equal(page.status, 200);
@@ -289,7 +288,8 @@ test('administration shell contains no private data and scoped admin API still r
     assert.match(html, /<meta name="club-base" content="\/clubs\/first-club">/);
     assert.doesNotMatch(html, /가상 운영진 전용 회원|19890124/);
     assert.match(html, /rel="manifest" href="\/clubs\/first-club\/admin\/manifest\.webmanifest"/);
-    assert.equal(page.headers.get('Set-Cookie'), null);
+    // The page never touches login cookies; it only remembers the club for the intro home (PLATFORM.md).
+    assert.equal(recentClub(page), 's=first-club&n=가상 첫 모임&v=admin');
   }
   const anonymous = await request(first, '/admin');
   assert.equal(anonymous.status, 401);
@@ -308,15 +308,33 @@ test('administration shell contains no private data and scoped admin API still r
 
 });
 
-test('the root is the intro home even with a single registered club', async t => {
-  const {env} = setup(t);
+function recentClub(response) {
+  const cookie = response.headers.get('Set-Cookie') ?? '';
+  assert.match(cookie, /^cockcockcock-recent=[^;]+; Path=\/; Max-Age=15552000; SameSite=Lax; Secure$/);
+  assert.doesNotMatch(cookie, /__Host-|admin=|member=/);
+  return decodeURIComponent(cookie.slice('cockcockcock-recent='.length, cookie.indexOf(';')))
+    .split('&').map(part => decodeURIComponent(part.replace(/\+/g, ' '))).join('&');
+}
+
+test('the root is the intro home and lists no clubs; a club page remembers itself for this device', async t => {
+  const {env, receive} = setup(t);
   const worker = createWorker([first]);
   const response = await worker.fetch(new Request(origin + '/?from=homescreen'), env);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'public, max-age=60, s-maxage=60');
+  assert.equal(response.headers.get('Set-Cookie'), null);
   const html = await response.text();
   assert.match(html, /콕콕콕!/);
-  assert.match(html, /href="\/clubs\/first-club\/"/);
+  assert.doesNotMatch(html, /first-club|second-club|가상 첫 모임|가상 둘째 모임/);
+  assert.match(html, /<p id="recent-club" class="recent-club" data-base="\/" hidden>/);
+  assert.match(html, /<script src="\/recent-club\.js" defer><\/script>/);
+  const memberPage = await receive('/clubs/first-club/');
+  assert.equal(memberPage.status, 200);
+  assert.equal(recentClub(memberPage), 's=first-club&n=가상 첫 모임&v=member');
+  const sharePage = await receive('/clubs/second-club/vote/00000000-0000-4000-8000-000000000000');
+  assert.equal(recentClub(sharePage), 's=second-club&n=가상 둘째 모임&v=member');
+  const api = await receive('/clubs/first-club/api/session');
+  assert.equal(api.headers.get('Set-Cookie'), null);
   assert.match(html, /한 회차가 이렇게 이어져요/);
   assert.doesNotMatch(html, /FIRST_DB|FIRST_ADMIN|FIRST_PEPPER|id="try"/);
 });

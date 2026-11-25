@@ -2,7 +2,7 @@
 
 [콕콕콕! 소개 홈](https://cockcockcock.pages.dev/) · [썬콕19 모임 주소](https://cockcockcock.pages.dev/clubs/suncok19/) · [홈 화면에 추가할 운영 주소](https://cockcockcock.pages.dev/clubs/suncok19/admin/)
 
-[모임 목록](https://koungsday.github.io/cockn-cock/) · [운영 홈 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#home) · [회원 투표 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#public-vote/e-nov28) · [카톡 투표 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/vote/e-nov28/) · [카톡 공지 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/notice/n-schedule/) · [실사용 운영 환경](OPERATIONS.md)
+[소개 홈](https://koungsday.github.io/cockn-cock/) · [운영 홈 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#home) · [회원 투표 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#public-vote/e-nov28) · [카톡 투표 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/vote/e-nov28/) · [카톡 공지 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/notice/n-schedule/) · [실사용 운영 환경](OPERATIONS.md)
 
 콕콕콕!은 배드민턴 모임을 운영하는 서비스입니다. 첫 등록 모임인 썬콕19의 일요 운동을 준비하고, 웹 참석 응답을 당일 출석과 모임 마무리에 활용할 수 있습니다. 공개 데모는 가상 데이터를 사용합니다. `index.html`을 브라우저에서 열어도 체험할 수 있습니다.
 
