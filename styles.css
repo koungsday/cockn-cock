@@ -74,6 +74,8 @@ p { line-height: 1.58; }
 .btn-small { min-height: 34px; font-size: .80rem; padding: 5px 9px; }
 .icon-button, .icon-btn { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 0; background: transparent; border-radius: 8px; color: #43654f; flex: none; padding: 0; }
 .tab-bar { display: none; }
+.topbar-actions { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.topbar-menu { display: none; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0,1.78fr) minmax(308px,1fr); gap: 17px; }
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
 .featured {
@@ -280,20 +282,23 @@ textarea { min-height: 100px; resize: vertical; }
     padding: env(safe-area-inset-top) max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
     min-height: calc(56px + env(safe-area-inset-top)); position: sticky; top: 0; z-index: 5;
   }
+  /* A floating dark bar of four icons follows the screen; the full menu opens from the top bar's menu button. */
   .tab-bar {
-    position: fixed; inset: auto 0 0; z-index: 5; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
-    padding: 4px max(6px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
-    background: var(--surface); border-top: 1px solid var(--line);
+    position: fixed; z-index: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+    inset: auto max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    max-width: 420px; margin-inline: auto; padding: 6px; border-radius: 16px;
+    background: var(--ink); box-shadow: 0 12px 30px #1b2a2138, 0 2px 8px #1b2a211f;
   }
   .tab-bar-link {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0; min-height: 54px;
-    padding: 4px 2px; border: 0; border-radius: 10px; background: transparent; color: var(--muted);
-    font-size: .75rem; font-weight: 650; line-height: 1.2; text-align: center; white-space: nowrap;
+    display: grid; place-items: center; min-width: 0; min-height: 48px; border: 0; border-radius: 11px;
+    background: transparent; color: var(--menu-text-2); transition: background-color var(--dur-quick), color var(--dur-quick);
   }
-  .tab-bar-link:hover { color: var(--ink); }
-  .tab-bar-link[aria-current="page"], .tab-bar-link.active { color: var(--ink); font-weight: 800; }
-  .tab-bar-link[aria-current="page"] svg, .tab-bar-link.active svg { stroke-width: 2.1; }
-  :root:has(.tab-bar) .toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .tab-bar-link:hover { background: var(--menu-hover); color: var(--menu-text); }
+  .tab-bar-link[aria-current="page"] { background: var(--lime); color: var(--ink); }
+  .tab-bar-link[aria-current="page"] svg { stroke-width: 2.1; }
+  .topbar-menu { display: inline-grid; width: var(--touch-target); height: var(--touch-target); margin-right: -6px; color: var(--ink); }
+  .topbar-logout { display: none; }
+  :root:has(.tab-bar) .toast { bottom: calc(86px + env(safe-area-inset-bottom)); }
   .main-content { padding: 22px 14px calc(96px + env(safe-area-inset-bottom)); }
   .dashboard-grid { grid-template-columns: minmax(0,1fr); gap: 12px; }
   .dashboard-heading, .page-head { gap: 9px; margin-bottom: 17px; align-items: flex-start; }
@@ -394,10 +399,18 @@ html.menu-locked body {
 .mobile-nav-links .platform-link { display: inline-block; margin: 8px 11px 0; }
 .mobile-nav-links .navigation { margin-top: 14px; }
 /* Dark menu on --ink (sidebar and mobile menu): text 6.6–12.5:1; the focus ring turns lime (12:1) because --focus is 1.9:1 here. */
-:is(.sidebar, .mobile-navigation) { color-scheme: dark; }
+:is(.sidebar, .mobile-navigation, .tab-bar) { color-scheme: dark; }
 :is(.sidebar, .mobile-navigation) :is(.brand small, .sidebar-footer small) { color: var(--menu-muted); }
-:is(.sidebar, .mobile-navigation) :focus-visible { outline-color: var(--lime); }
+:is(.sidebar, .mobile-navigation, .tab-bar) :focus-visible { outline-color: var(--lime); }
 .mobile-navigation :is(.icon-button, .btn-text) { color: var(--menu-text-2); }
 .mobile-navigation :is(.icon-button:hover, .btn-text:not(:disabled):hover) { background: var(--menu-hover); }
+/* The full-screen menu unfolds down from the top bar (DESIGN.md 6): the panel opens like a blind, then the links settle in.
+   Closing stays instant so a tapped section appears at once. */
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-navigation[open] { animation: menu-unfold var(--dur-arrive) var(--ease-settle); }
+  .mobile-navigation[open] .mobile-nav-links { animation: menu-links-arrive var(--dur-arrive) var(--ease-settle) 60ms both; }
+}
+@keyframes menu-unfold { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes menu-links-arrive { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
 /* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. */
 html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); }

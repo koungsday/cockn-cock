@@ -121,12 +121,10 @@
     return currentRoute.page === 'event' ? 'events' : currentRoute.page;
   }
   // Phones: the first four sections stay one tap away; 더보기 opens the full menu (DESIGN.md 4).
+  // Same markup as the live app (worker/public/views.mjs adminTabBar): four icons; the menu opens from the top bar.
   function tabBar(active) {
-    const tabs = pages.slice(0, 4);
-    const inMore = !tabs.some(([key]) => key === active);
     return `<nav class="tab-bar" aria-label="모임 관리 바로가기">
-      ${tabs.map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,22)}<span>${label}</span></a>`).join('')}
-      <button type="button" class="tab-bar-link${inMore ? ' active' : ''}" data-action="open-menu" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${icon('menu',22)}<span>더보기</span></button>
+      ${pages.slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
     </nav>`;
   }
   function openMobileMenu(trigger) {
@@ -178,7 +176,8 @@
           <div class="breadcrumb">
             <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
-          <span class="demo-label"><i></i> 가상 데이터 체험</span>
+          <div class="topbar-actions"><span class="demo-label"><i></i> 가상 데이터 체험</span>
+            <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${icon('menu',24)}</button></div>
         </header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
         ${tabBar(menuPage())}

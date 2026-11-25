@@ -1,10 +1,5 @@
 /* Live-only screens. Shared components come first in the bundle from styles.css and share.css (DESIGN.md). */
 :root {
-  --ease-settle: cubic-bezier(.22, 1, .36, 1);
-  --dur-quick: 160ms;
-  --dur-arrive: 220ms;
-  --dur-nudge: 520ms;
-  --shuttle-turn: 3s;
   --site-header-row: 64px;
   --site-header-block: calc(var(--site-header-row) + var(--safe-top) + 1px);
 }
@@ -31,8 +26,47 @@ body:has(.admin-app) .site-header { display: none; }
 #account:empty { display: none; }
 .account-name { max-width: 14ch; margin-right: 4px; color: var(--muted); font-size: .88rem; }
 
-/* Shuttlecock loading (DESIGN.md 6). */
-.loading-page { min-height: calc(100vh - var(--site-header-block)); min-height: calc(100dvh - var(--site-header-block)); display: grid; place-items: center; padding: 24px; }
+/* Loading (DESIGN.md 6): a still skeleton of the coming screen; only the shuttlecock in the middle of the viewport moves. */
+.loading-center { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+.loading-center .shuttle-spin { width: 72px; height: 67px; }
+.loading-center .shuttle-loader { padding: 18px 22px 14px; border-radius: 16px; background: #fffffff2; box-shadow: 0 10px 30px #1b2a2124, 0 2px 8px #1b2a2114; }
+.sk { display: block; border-radius: 6px; background: var(--line); }
+.sk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sk-head > div { display: grid; gap: 10px; flex: 1; min-width: 0; }
+.sk-h1 { width: 150px; height: 30px; }
+.sk-text { width: min(320px, 80%); height: 14px; }
+.sk-button { flex: none; width: 96px; height: 41px; border-radius: 8px; }
+.sk-panel { display: grid; align-content: start; gap: 12px; padding: 18px 19px; }
+.sk-h2 { width: 110px; height: 18px; }
+.sk-number { width: 72px; height: 30px; }
+.sk-meter { height: 10px; border-radius: 99px; }
+.sk-line { height: 14px; }
+.sk-featured { min-height: 279px; border-radius: 16px; background: #173c2c; }
+.sk-field { height: 44px; border-radius: 8px; }
+.sk-tabs { display: flex; gap: 19px; padding: 10px 6px 11px; border-bottom: 1px solid #dce5db; }
+.sk-tab { width: 64px; height: 18px; }
+.sk-rows { display: grid; }
+.sk-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 56px; align-items: center; gap: 10px; min-height: 52px; border-top: 1px solid var(--line); }
+.sk-row:first-child { border-top: 0; }
+.sk-dot { width: 28px; height: 28px; border-radius: 50%; }
+.sk-chip { height: 22px; }
+.admin-skeleton :is(.sidebar, .tab-bar) .sk { background: var(--menu-hover); }
+.sk-brand { width: 92px; height: 18px; }
+.sk-nav { display: grid; gap: 10px; margin-top: 37px; }
+.sk-nav-item { height: 36px; border-radius: 8px; }
+.sk-crumb { width: 120px; height: 16px; }
+.sk-icon { width: 24px; height: 24px; border-radius: 7px; }
+.admin-skeleton .topbar .sk-icon { display: none; }
+.sk-card-head { display: grid; gap: 12px; padding: clamp(21px, 6vw, 38px); background: #174331; }
+.sk-card-head .sk { background: #ffffff24; }
+.sk-card-head--notice { background: #f4e5b8; }
+.sk-card-head--notice .sk { background: #362d1b14; }
+.sk-kicker { width: 64px; height: 14px; }
+.sk-card-title { width: 62%; height: 30px; }
+.sk-card-date { width: 150px; height: 16px; }
+.sk-card .public-share-content { display: grid; gap: 12px; }
+.sk-fact { width: 70%; height: 18px; }
+.sk-cta { height: 46px; border-radius: 11px; }
 .shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: .94rem; font-weight: 650; text-align: center; }
 .shuttle-loader .shuttle-spin { width: 64px; height: 60px; color: var(--court); }
 .shuttle-inline { width: 1.2em; height: 1.12em; margin-right: .35em; vertical-align: -.22em; flex: none; }
@@ -43,7 +77,8 @@ body:has(.admin-app) .site-header { display: none; }
 .section-loader span { padding: 5px 12px; border-radius: 99px; background: #ffffffeb; box-shadow: 0 2px 10px #233b2912; }
 @media (max-width: 700px) {
   .section-loader { inset: 0; }
-  :root:has(.tab-bar) .message { bottom: calc(76px + var(--safe-bottom)); }
+  .admin-skeleton .topbar .sk-icon { display: block; }
+  :root:has(.tab-bar) .message { bottom: calc(86px + var(--safe-bottom)); }
 }
 
 /* Buttons that carry demo link styles. */
@@ -149,7 +184,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 @media (prefers-reduced-motion: no-preference) {
   #main[data-motion="section"] .admin-content > *,
   #main:is([data-motion="login-next"], [data-motion="login-back"]) .login-card,
-  .loading-page .shuttle-loader,
+  .loading-center .shuttle-loader,
   dialog[open] :is(.dialog-head, .dialog-body),
   #message:not([hidden], .visually-hidden) { animation: view-arrive var(--dur-arrive) var(--ease-settle); }
   #main[data-motion="login-next"] .login-card { --view-entry: 6px 0; }

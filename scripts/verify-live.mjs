@@ -42,8 +42,9 @@ assert.equal(privateApi.headers.get('cache-control'), 'private, no-store');
 assert.equal(manifest.status, 200);
 assert.equal((await manifest.json()).start_url, admin);
 
-const views = adminPage.script.replace('app.mjs', 'views.mjs');
-await Promise.all([adminPage.style, adminPage.script, views].map(async path => {
+// Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
+const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs'].map(file => adminPage.script.replace('app.mjs', file));
+await Promise.all([adminPage.style, adminPage.script, ...modules].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable', path);

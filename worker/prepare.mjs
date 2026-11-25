@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { CLUBS } from '../platform/clubs.mjs';
 import { shuttlecockMark } from '../platform/shuttlecock.mjs';
+import { adminSkeleton, loadingCenter, memberSkeleton } from './public/skeleton.mjs';
 import { verifyDatabaseBindings } from './bindings.mjs';
 
 const config = JSON.parse(await readFile(new URL('./wrangler.jsonc', import.meta.url), 'utf8'));
@@ -30,6 +31,7 @@ const entries = [
   ['live.css', `${theme}\n${shared}\n${await readFile(new URL('live.css', site), 'utf8')}`],
   ['app.mjs', await readFile(new URL('app.mjs', site), 'utf8')],
   ['views.mjs', await readFile(new URL('views.mjs', site), 'utf8')],
+  ['skeleton.mjs', await readFile(new URL('skeleton.mjs', site), 'utf8')],
   ['shuttlecock.mjs', await readFile(new URL('../platform/shuttlecock.mjs', import.meta.url), 'utf8')],
 ];
 const hash = createHash('sha256');
@@ -40,7 +42,8 @@ for (const [file, source] of entries) await writeFile(new URL(prefix + file, sit
 const template = await readFile(new URL('index.html', site), 'utf8');
 const shell = template
   .replace('href="/live.css"', `href="/${prefix}live.css"`)
-  .replace('src="/app.mjs"', `src="/${prefix}app.mjs"`)
-  .replace('<!-- shuttle-mark -->', shuttlecockMark('shuttle-spin', 'shuttle-gap-static'));
-await writeFile(new URL('index.html', site), shell);
-await writeFile(new URL('admin-shell.html', site), shell);
+  .replace('src="/app.mjs"', `src="/${prefix}app.mjs"`);
+// The first paint already has the shape of the screen (DESIGN.md 6); app.mjs then draws the one for the exact route.
+const loading = loadingCenter(shuttlecockMark('shuttle-spin', 'shuttle-gap-static'));
+await writeFile(new URL('index.html', site), shell.replace('<!-- loading -->', () => memberSkeleton('home') + loading));
+await writeFile(new URL('admin-shell.html', site), shell.replace('<!-- loading -->', () => adminSkeleton('home') + loading));

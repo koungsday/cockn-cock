@@ -24,6 +24,12 @@
 
 :root {
   color-scheme: light;
+  /* Motion (DESIGN.md 6): the only five tokens, shared by the demo and the live app. */
+  --ease-settle: cubic-bezier(.22, 1, .36, 1);
+  --dur-quick: 160ms;
+  --dur-arrive: 220ms;
+  --dur-nudge: 520ms;
+  --shuttle-turn: 3s;
   --paper: #f3f2ec;
   --surface: #ffffff;
   --ink: #252c29;
