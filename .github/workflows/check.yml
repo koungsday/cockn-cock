@@ -1,0 +1,31 @@
+name: Check pull request
+
+# AGENTS.md 동시 작업: every PR is built and tested before it is merged (pages.yml only runs after the merge).
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build, verify and test the demo and the live app
+        run: |
+          npm run build
+          npm run verify
+          npm run live:test
+          npm run live:build

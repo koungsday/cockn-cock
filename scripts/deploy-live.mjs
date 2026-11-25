@@ -1,8 +1,8 @@
 // One-step live release (AGENTS.md): only the merged main is checked, built, deployed and verified.
 // Usage: npm run deploy
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { CLUBS } from '../platform/clubs.mjs';
 
 const config = 'worker/wrangler.production.local.json';
@@ -26,17 +26,52 @@ function step(label, command, args) {
   }
 }
 
-// Anything other than the merged main could roll the live site back to older code.
-read('git', ['fetch', '--quiet', '--force', '--tags', 'origin', 'main']);
+// One release at a time on this computer. Every worktree (Codex, Claude Code) shares the git common directory,
+// so they all see this lock. A lock left by a stopped run is reported with the command to clear it, never removed silently.
+const commonDir = read('git', ['rev-parse', '--git-common-dir']);
+const lock = join(isAbsolute(commonDir) ? commonDir : join(process.cwd(), commonDir), 'cockcockcock-deploy.lock');
+try {
+  mkdirSync(lock);
+} catch {
+  let owner = '알 수 없음';
+  let minutes = 0;
+  try {
+    owner = readFileSync(join(lock, 'owner'), 'utf8').trim();
+    minutes = Math.round((Date.now() - statSync(lock).mtimeMs) / 60000);
+  } catch { /* the other run is still writing its owner line */ }
+  stop(`다른 배포가 진행 중입니다 (${owner}, ${minutes}분 전 시작).`, minutes >= 30
+    ? `멈춘 배포가 남긴 잠금으로 보입니다. 진행 중인 배포가 없는지 확인한 뒤 rm -r '${lock}' 를 실행하고 다시 배포하세요.`
+    : '그 배포가 끝난 뒤 최신 origin/main으로 다시 실행하세요.');
+}
+writeFileSync(join(lock, 'owner'), `${process.pid} ${new Date().toISOString()} ${process.cwd()}`);
+process.on('exit', () => rmSync(lock, { recursive: true, force: true }));
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(130));
+
 if (read('git', ['status', '--porcelain', '--untracked-files=no'])) {
   stop('커밋하지 않은 변경이 있습니다.', '변경을 PR로 머지하거나 되돌린 뒤 다시 실행하세요.');
 }
 const head = read('git', ['rev-parse', 'HEAD']);
-const main = read('git', ['rev-parse', 'origin/main']);
-if (head !== main) {
-  stop(`지금 코드(${head.slice(0, 7)})가 GitHub main(${main.slice(0, 7)})과 다릅니다.`,
-    '원래 폴더는 git pull, 작업 폴더는 git switch --detach origin/main 으로 맞춘 뒤 다시 실행하세요.');
+
+// Never goes backwards: origin/main must still be this commit, and what is live now must be in its history.
+// Checked before the build and again right before the Worker upload, because another merge can land in between.
+function checkReleaseOrder(when) {
+  read('git', ['fetch', '--quiet', '--force', '--tags', 'origin', 'main']);
+  const main = read('git', ['rev-parse', 'origin/main']);
+  if (head !== main) {
+    stop(`${when} GitHub main이 ${main.slice(0, 7)}입니다. 지금 코드(${head.slice(0, 7)})는 최신 main이 아닙니다.`,
+      '원래 폴더는 git pull --ff-only origin main, 작업 폴더는 git switch --detach origin/main 으로 맞춘 뒤 다시 실행하세요.');
+  }
+  let live = '';
+  try { live = read('git', ['rev-parse', 'refs/tags/live']); } catch { return ''; /* first one-step release */ }
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', live, head], { stdio: 'ignore' });
+  } catch {
+    stop(`실사용에 있는 ${live.slice(0, 7)}이(가) 지금 코드(${head.slice(0, 7)})의 이전 기록에 없습니다. 이대로 올리면 화면이 되돌아갈 수 있습니다.`,
+      'origin/main을 다시 받아 확인하세요. 되돌리려는 것이면 GitHub Revert PR을 머지한 뒤 배포하세요.');
+  }
+  return live;
 }
+const previous = checkReleaseOrder('배포 전 확인:');
 
 // The production config is local-only (.gitignore); a worktree borrows it from the main checkout.
 if (!existsSync(config)) {
@@ -54,8 +89,6 @@ try {
   stop('Cloudflare에 로그인돼 있지 않습니다.', '터미널에서 npx wrangler login 을 실행하세요.');
 }
 
-let previous = '';
-try { previous = read('git', ['rev-parse', 'refs/tags/live']); } catch { /* first one-step release */ }
 const changes = previous
   ? read('git', ['log', '--format=  %h %s', `${previous}..${head}`])
   : read('git', ['log', '-1', '--format=  %h %s', head]);
@@ -65,6 +98,7 @@ step('가상 체험 빌드', 'npm', ['run', 'build']);
 step('가상 체험 검증', 'npm', ['run', 'verify']);
 step('실사용 테스트', 'npm', ['run', 'live:test']);
 step('실사용 빌드', 'npm', ['run', 'live:build']);
+checkReleaseOrder('빌드하는 동안 바뀐 것 확인:');
 step('Worker 배포', 'npx', ['wrangler', 'deploy', '--config', config]);
 deployed = true;
 
