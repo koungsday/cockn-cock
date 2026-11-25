@@ -16,8 +16,14 @@ const message = document.querySelector('#message');
 // Matches the width where styles.css shows the sidebar instead of the menu button.
 const desktopNavigation = window.matchMedia('(min-width: 701px)');
 
-function showLoading() {
-  main.innerHTML = loadingPage();
+// The skeleton of the screen being loaded (skeleton.mjs); role picks the side when a sign-in moves to the other one.
+function showLoading(role = authRole) {
+  let kind = `member:${route?.kind === 'vote' || route?.kind === 'notice' ? route.kind : 'home'}`;
+  if (role === 'admin') {
+    const { section } = role === authRole ? readAdminHash() : { section: 'home' };
+    kind = `admin:${section === 'home' || section === 'event' ? section : 'list'}`;
+  }
+  main.innerHTML = loadingPage(kind);
   spinShuttlecocks(main);
 }
 
@@ -733,7 +739,7 @@ async function doSubmit(kind, itemId, data) {
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);
       if (user.role !== authRole) {
-        showLoading();
+        showLoading(user.role);
         location.replace(user.role === 'admin' ? club.admin : club.home);
         break;
       }
@@ -1103,7 +1109,7 @@ desktopNavigation.addEventListener('change', event => {
 });
 
 if (route && club.name) {
-  spinShuttlecocks(main);
+  showLoading();
   document.title = clubTitle;
   clubLink.href = club.home;
   document.querySelector('#club-name').textContent = club.name;

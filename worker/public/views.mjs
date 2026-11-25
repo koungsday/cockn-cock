@@ -1,4 +1,5 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
+import { adminSkeleton, loadingCenter, memberSkeleton } from './skeleton.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -101,8 +102,10 @@ export function loader(text, css = '') {
   return `<div class="shuttle-loader${css ? ` ${css}` : ''}" role="status">${shuttlecockMark()}<span>${esc(text)}</span></div>`;
 }
 
-export function loadingPage(text = '모임을 불러오는 중이에요.') {
-  return `<main id="main-content" class="loading-page" tabindex="-1">${loader(text)}</main>`;
+// kind: 'admin:home' | 'admin:event' | 'admin:list' | 'member:home' | 'member:vote' | 'member:notice' (skeleton.mjs).
+export function loadingPage(kind = 'member:home', text = undefined) {
+  const [area, screen] = kind.split(':');
+  return (area === 'admin' ? adminSkeleton(screen) : memberSkeleton(screen)) + loadingCenter(shuttlecockMark(), text);
 }
 
 const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
@@ -359,13 +362,10 @@ export function adminMenu(section) {
   </nav>`;
 }
 
-// Phones: the first four sections stay one tap away; 더보기 opens the full menu (DESIGN.md 4).
+// Phones: a floating bar of four icons follows the screen; the full menu opens from the top bar (DESIGN.md 4).
 function adminTabBar(section) {
-  const tabs = adminSections.slice(0, 4);
-  const inMore = !tabs.some(([name]) => name === section);
   return `<nav class="tab-bar" aria-label="운영 바로가기">
-    ${tabs.map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 22)}<span>${title}</span></button>`).join('')}
-    <button type="button" class="tab-bar-link${inMore ? ' active' : ''}" data-action="admin-menu" aria-haspopup="dialog" aria-controls="dialog">${icon('menu', 22)}<span>더보기</span></button>
+    ${adminSections.slice(0, 4).map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}" title="${title}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 23)}<span class="sr-only">${title}</span></button>`).join('')}
   </nav>`;
 }
 
@@ -380,7 +380,8 @@ export function adminShell(section, contents, club) {
         <div class="breadcrumb">
           <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
-        ${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}
+        <div class="topbar-actions">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small topbar-logout' })}
+          <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${icon('menu', 24)}</button></div>
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
       ${adminTabBar(section)}
