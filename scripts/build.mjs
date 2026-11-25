@@ -149,7 +149,10 @@ const clubIndex = index
   .replace(/(href|src)="([a-z.-]+\.(?:js|css))"/g, (_, attribute, file) => `${attribute}="${escape(site.pathname)}${file}"`)
   .replace('</head>', `  <meta name="platform-home" content="${escape(site.pathname)}">\n</head>`);
 await mkdir(join(dist, adminPath), { recursive: true });
-await writeFile(join(dist, clubPath, 'index.html'), renderDemoClub({ club: demoClub, basePath: site.pathname, vote: event, notice }));
+await writeFile(join(dist, clubPath, 'index.html'), renderDemoClub({
+  club: demoClub, basePath: site.pathname, vote: event, dateLabel,
+  notices: [...seed.notices].sort((a, b) => b.date.localeCompare(a.date)),
+}));
 await writeFile(join(dist, adminPath, 'index.html'), clubIndex);
 const publishedShares = Object.fromEntries(entries.map(({ kind, item, publicFields }) => [
   kind,

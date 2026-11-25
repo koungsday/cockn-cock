@@ -232,17 +232,22 @@ async function fetchPublic(db, kind, id) {
   return { notice: serializeNotice(row) };
 }
 
-async function listPublic(db) {
+// The member home: published upcoming events with this member's own place on the roster and answer
+// (never anyone else's), so the home can show 투표하기 / 응답 완료 without one request per event.
+async function listPublic(db, memberId) {
   const now = kstNow();
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
   const [events, notices] = await db.batch([
     sql(db, `
-      SELECT id, title, date, time, end_time, place, deadline, deadline_at, open
-      FROM events
-      WHERE date >= ? AND published = 1 AND (date > ? OR end_time > ?)
-      ORDER BY date, time, id LIMIT 12
-    `, date, date, time),
+      SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open,
+        r.member_id IS NOT NULL AS eligible, v.slot AS my_slot
+      FROM events e
+      LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
+      LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
+      WHERE e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)
+      ORDER BY e.date, e.time, e.id LIMIT 12
+    `, memberId, memberId, date, date, time),
     sql(db, `
       SELECT id, title, date FROM notices
       WHERE date <= ? AND published = 1
@@ -253,7 +258,8 @@ async function listPublic(db) {
   return {
     events: events.results.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
-      place: row.place, deadline: row.deadline, canVote: Boolean(row.open) && row.deadline_at > seconds
+      place: row.place, deadline: row.deadline, canVote: Boolean(row.open) && row.deadline_at > seconds,
+      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null
     })),
     notices: notices.results
   };
@@ -677,8 +683,8 @@ async function route(request, env) {
   const exposed = publicPath.exec(path);
   if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
-    requireUser(await readSession(request, env, 'member'), 'member');
-    const publicData = exposed ? await fetchPublic(env.DB, exposed[1], exposed[2]) : await listPublic(env.DB);
+    const member = requireUser(await readSession(request, env, 'member'), 'member');
+    const publicData = exposed ? await fetchPublic(env.DB, exposed[1], exposed[2]) : await listPublic(env.DB, member.id);
     return json(publicData);
   }
 

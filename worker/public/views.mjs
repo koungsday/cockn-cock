@@ -226,7 +226,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
-  let response = `<div class="public-form">${current}<p class="public-status">투표가 마감됐습니다.</p></div>`;
+  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요. 운영진이 열면 이 화면에서 응답할 수 있어요.'}</p></div>`;
   if (event.canVote && eligible) {
     response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요')}
       <p class="inline-error" role="alert" hidden></p>
@@ -242,19 +242,56 @@ export function noticeScreen(notice, club) {
   return memberPage(club, memberCard('notice', '모임 공지', notice.title, date, `<p class="public-share-body">${esc(notice.body)}</p>`));
 }
 
-export function homeScreen({ events, notices }, club) {
-  const eventRows = events.map(event => `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
-    <span><strong>${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time><span>${esc(event.place)}</span></span></span>
-    <span class="member-record-action${event.canVote ? ' member-record-open' : ''}">${event.canVote ? '투표하기' : '일정 확인'}</span></a></li>`);
+const slotWords = { early: '선발', late: '후발', no: '불참' };
+
+// What the member can do with one event: 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it.
+function memberEventState(event) {
+  if (event.canVote && event.eligible) {
+    return event.mySlot
+      ? { action: '응답 변경', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong> · 마감 전까지 바꿀 수 있어요.` }
+      : { action: '투표하기', primary: true, row: '투표하기', note: '아직 응답하지 않았어요.' };
+  }
+  if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
+  if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 회차에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
+  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '아직 투표를 열지 않았어요.' };
+}
+
+function nextEventCard(event, club) {
+  const state = memberEventState(event);
+  const kind = event.canVote ? '참석 투표' : event.date === today() ? '오늘 운동' : '다음 운동';
+  const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
+  return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
+    <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}</span>
+      <h2 id="member-next-title" class="public-title">${esc(event.title)}</h2><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time></header>
+    <div class="public-share-content">
+      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}</dl>
+      <p class="member-answer">${state.note}</p>
+      <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">${state.action}</a>
+    </div></article>`;
+}
+
+export function homeScreen({ events, notices }, club, user = null) {
+  const [next, ...later] = events;
+  const eventRows = later.map(event => {
+    const state = memberEventState(event);
+    const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
+    return `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
+    <span><strong>${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
+    <span class="member-record-action${tone}">${state.row}</span></a></li>`;
+  });
   const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">
     <span><strong>${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
     <span class="member-record-arrow" aria-hidden="true">${icon('chevron-right', 18)}</span></a></li>`);
-  const section = (id, title, rows, empty) => `<section class="member-section" aria-labelledby="${id}"><h2 id="${id}">${title}</h2>
-    ${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</section>`;
-  const subtitle = club.subtitle ? `<p class="public-story-sub">${esc(club.subtitle)}</p>` : '';
-  return memberPage(club, memberCard('vote', '모임 홈', club.name, subtitle,
-    section('member-events', '운동 일정', eventRows, '게시된 운동 일정이 없습니다.')
-    + section('member-notices', '공지', noticeRows, '게시된 공지가 없습니다.')), { back: false });
+  const listCard = (id, title, rows, empty) => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
+    <h2 id="${id}">${title}</h2>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
+  const first = next ? nextEventCard(next, club)
+    : listCard('member-events', '운동 일정', [], '게시된 운동 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.');
+  const pin = user?.mustChange ? `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 로그인</h2>
+    <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
+    <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
+  return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
+    ${later.length ? listCard('member-events', '이후 운동 일정', eventRows, '') : ''}
+    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${pin}`, { back: false });
 }
 
 export function loginScreen(club, name, numberStep) {

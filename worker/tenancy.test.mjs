@@ -256,8 +256,9 @@ test('member overview requires login and limits records to published upcoming ev
   assert.equal(list.headers.get('Set-Cookie'), null);
   const result = await list.json();
   assert.deepEqual(result.events, published.slice(0, 12).map(({ id, title, date, time, endTime, place, deadline }) =>
-    ({ id, title, date, time, endTime, place, deadline, canVote: true })
+    ({ id, title, date, time, endTime, place, deadline, canVote: true, open: true, eligible: true, mySlot: null })
   ));
+  assert.doesNotMatch(JSON.stringify(result.events), /lunch|roster|가상 첫 모임 회원/);
   assert.deepEqual(result.notices, notices.slice(1, 9).reverse().map(({ id, title, date }) => ({ id, title, date })));
   assert.ok(result.events.every(event => event.id !== draft.id && event.id !== previous.id));
   assert.equal((await request(second, '/public', {cookie:memberCookie})).status, 401);

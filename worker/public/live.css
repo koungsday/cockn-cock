@@ -89,25 +89,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .menu-actions { display: grid; gap: 8px; }
 .login-menu-dialog[open] { inset: calc(var(--site-header-block) + .5rem) 0 auto; width: min(25rem, calc(100% - 32px)); margin-block: 0; }
 
-/* Member screens. The card itself is share.css .public-share-card. */
-.member-page { display: grid; gap: 12px; padding-top: clamp(14px, 4vw, 36px); }
-.member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: #23523b; font-size: .9rem; font-weight: 700; }
-.member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
-.public-story-sub { margin-top: 8px; color: #dbe9d3; font-size: .95rem; }
-.public-receipt strong { margin-left: 4px; }
-.member-confirmed { margin-left: 6px; color: #1f5a36; font-weight: 800; }
-.public-status strong { display: block; }
-.member-section + .member-section { margin-top: 22px; }
-.member-section h2 { font-size: 1.12rem; margin-bottom: 4px; }
-.member-records { list-style: none; margin: 0; padding: 0; }
-.member-record + .member-record { border-top: 1px solid var(--line); }
-.member-record-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 10px 0; overflow-wrap: anywhere; }
-.member-record-link strong { display: block; }
-.member-record-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.member-record-meta { display: grid; color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
-.member-record-action { padding: 6px 10px; border: 1px solid #cfdcd2; border-radius: 8px; color: #23523b; font-size: .86rem; font-weight: 750; white-space: nowrap; }
-.member-record-open { border-color: transparent; background: #e2efdc; }
-.member-record-arrow { display: grid; color: var(--muted); }
+/* Member screens live in share.css (member home, records, back link) so the demo uses the same components. */
 .message-actions { margin-top: 16px; }
 .member-back, .member-record-link, .public-choice, .public-lunch, .public-form button { touch-action: manipulation; }
 

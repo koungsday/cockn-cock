@@ -216,7 +216,7 @@ function render({ voteSaved = false, motion = '' } = {}) {
   } else if (route.kind === 'notice') {
     main.innerHTML = noticeScreen(state.notice, club);
   } else if (route.kind === 'home') {
-    main.innerHTML = homeScreen(state.listing, club);
+    main.innerHTML = homeScreen(state.listing, club, state.user);
   } else if (isAdmin) {
     let body;
     if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club);

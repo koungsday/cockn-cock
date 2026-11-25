@@ -138,6 +138,9 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   assert.doesNotMatch(JSON.stringify(publicEvent), /가상 회원|19880517|memberCode|roster|lunch/);
   assert.equal((await visitor.request('/api/votes/' + event.id)).vote, null);
   await visitor.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'late', lunch:true}});
+  const listed = (await visitor.request('/api/public')).events.find(item => item.id === event.id);
+  assert.deepEqual([listed.open, listed.eligible, listed.mySlot], [true, true, 'late']);
+  assert.doesNotMatch(JSON.stringify(listed), /가상 회원|lunch|roster/);
   await visitor.request('/api/pin', {method:'POST', body:{currentPin:'19880517', newPin:'19880517'}, expect:400});
   await visitor.request('/api/pin', {method:'POST', body:{currentPin:'000537', newPin:'684270'}, expect:400});
   const previousCookie = visitor.cookie;
