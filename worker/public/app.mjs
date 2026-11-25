@@ -1,5 +1,6 @@
 import {
-  adminHome, adminMenu, adminShell, attendanceForm, brand, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  adminHome, adminMenu, adminShell, attendanceForm, attendanceRow, attendanceSubtitle, brand, button, countEvent, deadlinePassed,
+  esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
   homeVoteCounts, icon, loader, loadingPage, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
@@ -277,6 +278,13 @@ function render({ voteSaved = false, motion = '' } = {}) {
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
     else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
     main.innerHTML = adminShell(state.section, body, club);
+    for (const memberId of checking) {
+      const pendingButton = checkButton(memberId);
+      if (pendingButton) {
+        pendingButton.disabled = true;
+        pendingButton.setAttribute('data-pending', '');
+      }
+    }
     const newSearch = main.querySelector('input[data-filter]');
     if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
       newSearch.value = search.value;
@@ -452,6 +460,19 @@ async function showSaved(notice, motion = '') {
   }
 }
 
+// Focus stays on the same control inside the redrawn part (the vote panel has its own 카톡 링크 복사 with the same id).
+function replaceKeepingFocus(selector, html) {
+  const current = main.querySelector(selector);
+  if (!current) return;
+  const focused = current.contains(document.activeElement) ? document.activeElement : null;
+  current.outerHTML = html;
+  if (!focused) return;
+  const fresh = main.querySelector(selector);
+  const same = [...(fresh?.querySelectorAll('button[data-action]') ?? [])]
+    .find(control => control.dataset.action === focused.dataset.action && control.dataset.id === focused.dataset.id);
+  (same ?? main.querySelector('#main-content'))?.focus({ preventScroll: true });
+}
+
 async function refreshVoteCounts() {
   if (document.hidden || busy || dialog.open || state.user?.role !== 'admin') return;
   const onHome = state.section === 'home';
@@ -462,6 +483,10 @@ async function refreshVoteCounts() {
     if (target.isConnected && !busy) {
       target.innerHTML = onHome ? homeVoteCounts(detail) : voteMetrics(countEvent(detail.roster, detail.guests));
       if (onHome) {
+        // The step band and 챙길 일 read the same session, so they change with the counts (미응답 n명 stays true).
+        state.upcoming = detail;
+        replaceKeepingFocus('.featured .session-steps', homeSteps(detail));
+        replaceKeepingFocus('.todo-panel', homeTodo(state.admin.events, detail, state.last));
         for (const action of main.querySelectorAll('[data-home-published]')) {
           if (!detail.event.published && action.contains(document.activeElement)) {
             main.querySelector('[data-action=open-event]')?.focus({ preventScroll: true });
@@ -610,7 +635,13 @@ async function doAction(action, itemId, tab) {
     }
     case 'toggle-vote': {
       const open = !state.detail.event.open;
+      if (open && deadlinePassed(state.detail.event)) {
+        render();
+        showMessage('투표 마감 시각이 지났어요. 회차 수정에서 마감 시각을 먼저 바꿔 주세요.', true);
+        break;
+      }
       await update(adminEventPath(), 'PATCH', { open }, open ? '투표를 열었어요.' : '투표를 닫았어요.');
+      if (open && !state.detail.event.canVote) showMessage('투표를 열었지만 회원은 아직 응답할 수 없어요. 마감 시각을 확인해 주세요.', true);
       break;
     }
     case 'copy-vote':
@@ -619,17 +650,6 @@ async function doAction(action, itemId, tab) {
     case 'copy-notice':
       await copy(shareLink('notice', itemId));
       break;
-    case 'mark-present': {
-      const member = findRoster(itemId);
-      const present = member.present === true ? null : true;
-      const recognition = present === null && member.recognition !== 'approved' ? null : member.recognition;
-      // One request per tap: the saved answer updates this row in place instead of reloading the whole screen.
-      const { attendance } = await request(`${adminEventPath()}/attendance/${id(itemId)}`, 'PUT', { present, recognition });
-      Object.assign(member, attendance);
-      render();
-      showMessage(present ? '출석을 기록했어요.' : '출석 표시를 취소했어요.');
-      break;
-    }
     case 'attendance':
       openDialog('출석 상세 기록', attendanceForm(findRoster(itemId)));
       break;
@@ -898,10 +918,59 @@ async function run(work, control) {
   }
 }
 
+// 당일 출석: each row saves on its own, so the next name can be tapped while the previous one is still saving.
+// Only that row and the panel's counts are redrawn; a whole-screen redraw could swallow a tap that is landing.
+const checking = new Set();
+const checkButton = memberId => main.querySelector(`#attendance button[data-action="mark-present"][data-id="${CSS.escape(memberId)}"]`);
+
+function refreshAttendanceRow(person) {
+  const row = main.querySelector(`#attendance tr[data-member="${CSS.escape(person.id)}"]`);
+  if (!row) return;
+  const { event, roster, guests, settlement } = state.detail;
+  const focusHere = document.activeElement === document.body || row.contains(document.activeElement);
+  const holder = document.createElement('tbody');
+  holder.innerHTML = attendanceRow(event, person, settlement?.confirmed);
+  const fresh = holder.firstElementChild;
+  fresh.hidden = row.hidden;
+  row.replaceWith(fresh);
+  const subtitle = main.querySelector('#attendance .panel-head p');
+  if (subtitle) subtitle.textContent = attendanceSubtitle(countEvent(roster, guests), settlement?.confirmed);
+  if (focusHere) fresh.querySelector('[data-action="mark-present"]')?.focus({ preventScroll: true });
+}
+
+async function markPresent(control, memberId) {
+  const detail = state.detail;
+  const member = detail?.roster.find(person => person.id === memberId);
+  if (!member || checking.has(memberId)) return;
+  const present = member.present === true ? null : true;
+  const recognition = present === null && member.recognition !== 'approved' ? null : member.recognition;
+  checking.add(memberId);
+  control.disabled = true;
+  // DESIGN.md 6: a button outside a form shows a thin progress line after 180ms.
+  const pending = setTimeout(() => checkButton(memberId)?.setAttribute('data-pending', ''), 180);
+  try {
+    const { attendance } = await request(`${adminEventPath(detail.event.id)}/attendance/${id(memberId)}`, 'PUT', { present, recognition });
+    Object.assign(member, attendance);
+    showMessage(`${member.name} ${present ? '출석을 기록했어요.' : '출석 표시를 취소했어요.'}`);
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    if (error.status === 401 && state.user) return loginExpired();
+    showMessage(error.message, true);
+  } finally {
+    clearTimeout(pending);
+    checking.delete(memberId);
+    if (state.detail === detail) refreshAttendanceRow(member);
+  }
+}
+
 document.addEventListener('click', event => {
   const control = event.target.closest('button[data-action]');
   if (!control) return;
   const { action, id: itemId, tab } = control.dataset;
+  if (action === 'mark-present') {
+    void markPresent(control, itemId);
+    return;
+  }
   void run(() => {
     if (!dialog.open) dialogOpener = control;
     return doAction(action, itemId, tab);

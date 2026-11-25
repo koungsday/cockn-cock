@@ -14,6 +14,12 @@ export function today() {
   return dateFormatter.format(new Date());
 }
 
+// event.deadline is 'YYYY-MM-DDTHH:MM' in 한국 시간. A closed vote has canVote=false whatever its deadline, so the screen
+// needs this to tell "열면 받을 수 있음" from "마감 시각이 지나 열어도 못 받음". For an open vote the server's canVote decides.
+export function deadlinePassed(event) {
+  return event.deadline <= new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+}
+
 function weekday(date) {
   return days[new Date(`${date}T00:00:00Z`).getUTCDay()];
 }
@@ -411,13 +417,6 @@ function featured(detail, club) {
       <div class="featured-actions">${button(`${icon('plus', 17)} 새 회차`, 'new-event', { css: 'lime' })}</div></div></section>`;
   }
   const stage = sessionStage(detail);
-  const present = detail.roster.filter(row => row.present === true).length;
-  const steps = [
-    ['회차 준비', event.published ? '링크 공개함' : '비공개 준비'],
-    ['참석 투표', event.canVote ? `${deadlineLabel(event.deadline)} 마감` : !event.published ? '공개 후 시작' : event.open ? '마감됨' : '투표 닫힘'],
-    ['당일 출석', stage >= 2 ? `${present}명 출석` : dateLabel(event.date)],
-    ['마무리', stage === 4 ? '확정' : '콕·찬조금 기록'],
-  ];
   const go = stage === 2 ? '당일 출석 체크' : stage >= 3 ? '마무리하기' : '회차 관리';
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
@@ -427,7 +426,20 @@ function featured(detail, club) {
       <span>${icon('pin', 18)} ${esc(event.place)}</span></div>
     <div class="featured-actions">${button(`${go} ${icon('chevron-right', 17)}`, 'open-event', { id: event.id, css: 'lime', tab: stageTabs[stage] })}
       <span ${hidden}><a class="btn btn-glass" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 17)} 회원 투표 화면</a></span></div>
-  </div>${sessionSteps(steps, stage)}</section>`;
+  </div>${homeSteps(detail)}</section>`;
+}
+
+// The step band alone, so the 15-second refresh can redraw it with the vote counts.
+export function homeSteps(detail) {
+  const { event } = detail;
+  const stage = sessionStage(detail);
+  const present = detail.roster.filter(row => row.present === true).length;
+  return sessionSteps([
+    ['회차 준비', event.published ? '링크 공개함' : '비공개 준비'],
+    ['참석 투표', event.canVote ? `${deadlineLabel(event.deadline)} 마감` : !event.published ? '공개 후 시작' : event.open || deadlinePassed(event) ? '마감됨' : '투표 닫힘'],
+    ['당일 출석', stage >= 2 ? `${present}명 출석` : dateLabel(event.date)],
+    ['마무리', stage === 4 ? '확정' : '콕·찬조금 기록'],
+  ], stage);
 }
 
 export function homeVoteCounts({ event, roster }) {
@@ -467,8 +479,34 @@ function todoRow(glyph, tone, title, detail, action) {
   return `<li class="todo-row"><span class="metric-icon ${tone}">${icon(glyph, 19)}</span><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
 }
 
-// 챙길 일: only what the data shows to be true now, one action each (DESIGN.md 5).
-function todoPanel(items) {
+// 챙길 일: only what the data shows to be true now, one action each (DESIGN.md 5). Redrawn with the vote counts.
+export function homeTodo(events, upcoming, last) {
+  const items = [];
+  if (upcoming) {
+    const { event } = upcoming;
+    const when = dateLabel(event.date);
+    const waiting = upcoming.roster.filter(row => row.active && !row.slot).length;
+    const closedForGood = deadlinePassed(event);
+    if (!event.published) {
+      items.push(todoRow('calendar', 'sand', `${esc(when)} 회차가 아직 비공개예요`,
+        closedForGood ? '링크를 공개해야 회원이 일정을 볼 수 있어요. 투표 마감 시각은 이미 지났어요.' : '링크를 공개해야 회원이 일정을 보고 투표할 수 있어요.',
+        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
+    } else if (!event.open && !closedForGood && sessionStage(upcoming) < 2) {
+      items.push(todoRow('clipboard', 'sand', '참석 투표가 닫혀 있어요', `${esc(when)} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
+        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
+    } else if (event.canVote && waiting) {
+      items.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
+        button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { id: event.id, css: 'secondary small' })));
+    }
+  }
+  if (last && !last.failed && !last.settlement?.confirmed) {
+    items.push(todoRow('clipboard', 'mint', `${esc(dateLabel(last.event.date))} 회차 마무리 전이에요`, '출석과 콕·찬조금을 기록하고 마무리 글을 올려 주세요.',
+      button('마무리하기', 'open-event', { id: last.event.id, css: 'secondary small', tab: 'settlement' })));
+  }
+  if (!upcoming && events.length) {
+    items.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
+      button('다음 주 회차 만들기', 'clone-event', { id: events[0].id, css: 'secondary small' })));
+  }
   return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">챙길 일</h2></header>
     ${items.length ? `<ul class="todo-list">${items.join('')}</ul>` : '<p class="muted todo-empty">지금 챙길 일이 없어요.</p>'}</section>`;
 }
@@ -497,37 +535,13 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
     ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 링크 복사" title="카톡 링크 복사">${icon('link', 17)}</button>` : ''}
   </div>`);
-  const todos = [];
-  if (upcoming) {
-    const { event } = upcoming;
-    const when = dateLabel(event.date);
-    const waiting = upcoming.roster.filter(row => row.active && !row.slot).length;
-    if (!event.published) {
-      todos.push(todoRow('calendar', 'sand', `${esc(when)} 회차가 아직 비공개예요`, '링크를 공개해야 회원이 일정을 보고 투표할 수 있어요.',
-        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
-    } else if (!event.open && sessionStage(upcoming) < 2) {
-      todos.push(todoRow('clipboard', 'sand', '참석 투표가 닫혀 있어요', `${esc(when)} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
-        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
-    } else if (event.canVote && waiting) {
-      todos.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
-        button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { id: event.id, css: 'secondary small' })));
-    }
-  }
-  if (last && !last.failed && !last.settlement?.confirmed) {
-    todos.push(todoRow('clipboard', 'mint', `${esc(dateLabel(last.event.date))} 회차 마무리 전이에요`, '출석과 콕·찬조금을 기록하고 마무리 글을 올려 주세요.',
-      button('마무리하기', 'open-event', { id: last.event.id, css: 'secondary small', tab: 'settlement' })));
-  }
-  if (!upcoming && events.length) {
-    todos.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
-      button('다음 주 회차 만들기', 'clone-event', { id: events[0].id, css: 'secondary small' })));
-  }
   return `<div class="dashboard">
     <header class="dashboard-heading">
       <div><h1 tabindex="-1">운영 홈</h1><p>이번 회차의 진행 단계와 챙길 일을 확인하세요.</p></div>
       <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(`${icon('plus', 18)} 새 회차`, 'new-event')}</div>
     </header>
     <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
-    <div class="dashboard-grid dashboard-bottom">${todoPanel(todos)}${lastPanel(last)}</div>
+    <div class="dashboard-grid dashboard-bottom">${homeTodo(events, upcoming, last)}${lastPanel(last)}</div>
     <div class="dashboard-metrics" aria-label="모임 현황">
       ${metric('members', 'users', 'mint', '활동 회원', members.filter(member => member.active).length, '명')}
       ${metric('event', 'calendar', 'sand', `${Number(month.slice(5))}월 회차`, events.filter(event => event.date.startsWith(month)).length, '회')}
@@ -609,11 +623,12 @@ export function eventScreen(events, detail, club, tab = null) {
   </div></section>`;
   const voteActions = button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary small' })
     + button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary small' })
-    + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published })
+    // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
+    + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || (!event.open && deadlinePassed(event)) })
     + button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
-    ${event.open && !event.canVote ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
+    ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
   { subtitle: `${esc(deadlineLabel(event.deadline))} 마감`, actions: voteActions });
   // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
   const current = tab ?? defaultTab(event);
@@ -626,22 +641,29 @@ export function eventScreen(events, detail, club, tab = null) {
 
 const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정', approved: '별도 승인' };
 
-function attendancePanel(event, roster, counts, confirmed) {
-  const favor = row => row.slot === 'early' ? 0 : row.slot === 'late' ? 1 : 2;
-  const rows = [...roster].sort((a, b) => favor(a) - favor(b) || a.name.localeCompare(b.name, 'ko')).map(person => {
-    const present = person.present === true;
-    const stand = present ? '출석' : person.present === false ? '불참 확인' : '미확인';
-    return `<tr data-search="${esc(person.name)}" data-selected="${present}">
+// One row of 당일 출석. The live app redraws only this row after a check-in (app.mjs markPresent).
+export function attendanceRow(event, person, confirmed) {
+  const present = person.present === true;
+  const stand = present ? '출석' : person.present === false ? '불참 확인' : '미확인';
+  return `<tr data-member="${esc(person.id)}" data-search="${esc(person.name)}" data-selected="${present}">
       <td><div class="member-name">${avatar(person.name)}<strong>${esc(person.name)}</strong></div></td>
       <td>${esc(voteLabel(person.slot, event))}${person.lunch ? ' · 점심' : ''}${person.recognition ? `<small>${recognitionLabel[person.recognition] ?? ''}</small>` : ''}</td>
       <td>${pill(stand, present ? 'green' : 'muted')}</td>
       <td class="table-actions">${button(present ? '출석 취소' : '출석 체크', 'mark-present', { id: person.id, css: present ? 'secondary small' : 'small', disabled: confirmed, label: `${person.name} ${present ? '출석 취소' : '출석 체크'}` })}
         ${button('상세', 'attendance', { id: person.id, css: 'text small', disabled: confirmed, label: `${person.name} 출석 상세` })}${button('응답 변경', 'vote-override', { id: person.id, css: 'text small', label: `${person.name} 응답 변경` })}</td>
     </tr>`;
-  });
+}
+
+export function attendanceSubtitle(counts, confirmed) {
+  return `${counts.members}명 출석 · ${counts.unmarked}명 미확인 · ${confirmed ? '마무리한 회차입니다. 출석을 고치려면 마무리 확인을 먼저 해제해 주세요.' : '실제 출석과 줄서기 인정은 따로 기록합니다.'}`;
+}
+
+function attendancePanel(event, roster, counts, confirmed) {
+  const favor = row => row.slot === 'early' ? 0 : row.slot === 'late' ? 1 : 2;
+  const rows = [...roster].sort((a, b) => favor(a) - favor(b) || a.name.localeCompare(b.name, 'ko')).map(person => attendanceRow(event, person, confirmed));
   return panel('당일 출석', table(['회원', '투표 응답', '출석', '<span class="sr-only">기록</span>'], rows, '이 회차에 등록된 회원이 없습니다.'), {
     id: 'attendance',
-    subtitle: `${counts.members}명 출석 · ${counts.unmarked}명 미확인 · ${confirmed ? '마무리한 회차입니다. 출석을 고치려면 마무리 확인을 먼저 해제해 주세요.' : '실제 출석과 줄서기 인정은 따로 기록합니다.'}`,
+    subtitle: attendanceSubtitle(counts, confirmed),
     actions: search('attendance') + button(`${icon('refresh', 16)} 새로고침`, 'refresh', { css: 'text small' }),
   });
 }

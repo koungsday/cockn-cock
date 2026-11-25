@@ -255,7 +255,7 @@
   function renderSteps(event, stage) {
     const steps = [
       ['회차 준비', '일정 등록함'],
-      ['참석 투표', pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 마감` : event.pollOpen ? '마감됨' : '투표 닫힘'],
+      ['참석 투표', pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 마감` : event.pollOpen || deadlinePassed(event) ? '마감됨' : '투표 닫힘'],
       ['당일 출석', stage >= 2 ? `${attendanceCounts(event).present}명 출석` : dateLabel(event.date)],
       ['마무리', stage === 4 ? '확정' : '콕·찬조금 기록']
     ];
@@ -269,7 +269,7 @@
   }
   function renderTodo(upcoming, last) {
     const items = [];
-    if (upcoming && !upcoming.pollOpen && sessionStage(upcoming) < 2) {
+    if (upcoming && !upcoming.pollOpen && !deadlinePassed(upcoming) && sessionStage(upcoming) < 2) {
       items.push(todoRow('clipboard','sand','참석 투표가 닫혀 있어요',`${escape(dateLabel(upcoming.date))} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
         routeButton('회차 열기', `event/${upcoming.id}/poll`)));
     } else if (upcoming && pollIsOpen(upcoming) && counts(upcoming).pending) {
