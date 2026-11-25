@@ -382,7 +382,7 @@
 }
 
 .public-return {
-  min-height: 42px;
+  min-height: var(--touch-target, 44px);
   margin-bottom: 14px;
   padding: 8px 12px;
   border: 1px solid #cfdcd2;

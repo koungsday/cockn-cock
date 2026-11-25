@@ -148,6 +148,29 @@ button.login-menu-toggle { width: var(--touch-target); padding: 0; }
 .admin-section-head { display: grid; gap: .75rem; }
 .admin-section-head h1 { font-size: clamp(1.5rem, 1.1rem + 1.3vw, 2rem); overflow-wrap: anywhere; }
 .admin-section-head h1:focus { outline: none; }
+.admin-home-grid { display: grid; gap: 1rem; }
+.admin-home-grid > * { min-width: 0; }
+.admin-home-hero { min-height: 208px; overflow-wrap: anywhere; }
+.admin-home-hero h2 { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem); }
+.admin-home-hero .hero-meta { font-variant-numeric: tabular-nums; }
+.admin-home-hero .actions { margin-top: .25rem; }
+.home-hero-primary { color: var(--court); background: var(--lime); border-color: var(--lime); }
+.home-hero-secondary { color: white; background: #10483ac9; border-color: #c1d9c9; }
+.admin-home-hero :focus-visible { outline-color: var(--lime); }
+.admin-home-vote { gap: .65rem; }
+#home-vote-counts { display: grid; gap: .65rem; }
+.home-vote-progress { width: 100%; height: .52rem; accent-color: var(--action); }
+.home-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 0; }
+.home-overview > div { display: grid; gap: .2rem; border: 1px solid var(--line); border-radius: 12px; padding: .75rem 1rem; background: var(--surface); }
+.home-overview dt { color: var(--muted); font-size: .875rem; }
+.home-overview dd { margin: 0; font-size: 1.4rem; font-variant-numeric: tabular-nums; font-weight: 780; }
+.home-overview dd small { margin-inline-start: .15rem; color: var(--muted); font-size: .85rem; font-weight: 600; }
+.home-notice-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 1rem; border-top: 1px solid var(--line); padding-block: .25rem; }
+.home-notice-row button.home-notice-link { max-width: 100%; padding-inline: 0; text-align: start; overflow-wrap: anywhere; }
+.home-notice-meta { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .85rem; }
+@media (min-width: 1000px) {
+  .admin-home-grid { grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr); }
+}
 .admin-event-summary { display: grid; gap: .5rem; min-width: 0; padding: .75rem 1rem; border-block: 1px solid var(--line); }
 .admin-event-summary .heading-line { gap: .25rem .75rem; }
 .admin-event-summary h2 { font-size: clamp(1.15rem, 1rem + .45vw, 1.375rem); overflow-wrap: anywhere; }

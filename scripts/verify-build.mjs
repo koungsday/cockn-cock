@@ -72,6 +72,33 @@ for (const file of ['state.js', 'share.js']) {
 const seed = window.clubModel.load();
 const { linkFor } = window.clubShare;
 
+function openDemo(suffix) {
+  const address = new URL(basePath + adminPath, remote ?? 'http://localhost:4173/');
+  const location = new URL(suffix(address.href), address);
+  const content = { innerHTML: '' };
+  const app = {
+    innerHTML: '', dataset: {}, addEventListener() {},
+    querySelector: selector => selector === '#main-content' ? content : null,
+  };
+  const document = {
+    addEventListener() {},
+    querySelector: selector => selector === '#app' ? app : { addEventListener() {} },
+  };
+  const history = { replaceState: (_, __, hash) => { location.hash = hash; } };
+  runInNewContext(runtime.get('app.js'), {
+    location, history, document,
+    window: { ...window, location, addEventListener() {}, matchMedia: () => ({ addEventListener() {} }) },
+  }, { filename: 'app.js' });
+  return { html: app.innerHTML + content.innerHTML, hash: location.hash };
+}
+
+const joinedVote = openDemo(address => `${oldHash}${address}#home`);
+assert.equal(joinedVote.hash, oldHash, 'recover the vote from two pasted demo URLs');
+assert.match(joinedVote.html, /<h1>일요 정기 운동<\/h1>/);
+assert.match(joinedVote.html, /data-route="home">운영 화면으로/);
+assert.match(openDemo(() => '#home').html, /<h1>운영 홈<\/h1>/);
+assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);
+
 for (const [kind, id, title] of [
   ['vote', 'e-nov28', '일요 정기 운동'],
   ['notice', 'n-schedule', '일요모임 이용 안내'],

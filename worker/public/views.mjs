@@ -24,12 +24,14 @@ function addDays(date, daysToAdd) {
   return value.toISOString().slice(0, 10);
 }
 
-export function eventDefaults(previous = null, defaultPlace = '') {
+export function eventDefaults(previous = null, defaultPlace = '', { keepFuture = false } = {}) {
   if (previous) {
+    const weeks = keepFuture ? Math.max(1, Math.floor((Date.parse(today()) - Date.parse(previous.date)) / 604800000) + 1) : 1;
+    const daysToAdd = weeks * 7;
     return {
       ...previous,
-      date: addDays(previous.date, 7),
-      deadline: `${addDays(previous.deadline.slice(0, 10), 7)}${previous.deadline.slice(10)}`,
+      date: addDays(previous.date, daysToAdd),
+      deadline: `${addDays(previous.deadline.slice(0, 10), daysToAdd)}${previous.deadline.slice(10)}`,
       open: false,
       published: false,
     };
@@ -146,7 +148,7 @@ function voteFields(event, vote) {
   return `<fieldset class="choice-group"><legend>운동 선택</legend>${choices.map(([slot, label]) => `<label class="choice"><input type="radio" name="slot" value="${slot}"${vote?.slot === slot ? ' checked' : ''} required><strong>${esc(label)}</strong></label>`).join('')}</fieldset>` + check('점심 식사에도 참여해요', 'lunch', vote?.lunch);
 }
 
-const adminSections = [['event', '운동 운영'], ['members', '회원 관리'], ['progress', '반기 집계'], ['notices', '공지']];
+const adminSections = [['home', '운영 홈'], ['event', '운동 운영'], ['members', '회원 관리'], ['progress', '반기 집계'], ['notices', '공지']];
 
 export function adminMenu(section) {
   return `<nav class="admin-menu" aria-label="운영 메뉴"><ul>
@@ -162,6 +164,54 @@ export function adminShell(section, contents) {
 function adminSectionHead(title, actions = '', extra = '') {
   return `<header class="admin-section-head"><div class="heading-line"><h1 tabindex="-1">${title}</h1>
     ${actions ? `<div class="actions">${actions}</div>` : ''}</div>${extra}</header>`;
+}
+
+export function adminHome({ events, members, notices }, detail, club) {
+  const event = detail?.event;
+  const activeMembers = members.filter(member => member.active).length;
+  const month = today().slice(0, 7);
+  const monthEvents = events.filter(event => event.date.startsWith(month)).length;
+  const last = events[0];
+  const actions = button('새 회차', 'new-event')
+    + (last ? button('다음 주 복제', 'clone-event', { id: last.id, css: 'secondary' }) : '');
+  const publishedOnly = event?.published ? 'data-home-published' : 'data-home-published hidden';
+  const upcoming = event
+    ? `<h2 id="next-event-title">${esc(event.title)}</h2><div class="hero-meta"><time datetime="${esc(event.date + 'T' + event.time)}">${esc(dateLine(event))}</time><span>${esc(event.place)}</span></div>
+      <div class="actions">${button('회차 관리', 'open-event', { id: event.id, css: 'home-hero-primary' })}
+      <span ${publishedOnly}><a class="button home-hero-secondary" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">회원 투표 화면</a></span></div>`
+    : '<h2 id="next-event-title">예정된 회차가 없어요.</h2>';
+  const recent = notices.slice(0, 3).map(notice => `<li class="home-notice-row">
+    ${button(esc(notice.title), 'edit-notice', { id: notice.id, css: 'quiet home-notice-link' })}
+    <div class="home-notice-meta"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time><span class="badge">${notice.published ? '공개' : '비공개'}</span></div></li>`);
+  return adminSectionHead('운영 홈', actions) + `
+    <div class="admin-home-grid">
+      <section class="hero admin-home-hero" aria-labelledby="next-event-title"><p class="tagline">다음 모임</p>${upcoming}</section>
+      <section class="panel admin-home-vote" aria-labelledby="home-vote-title">
+        <h2 id="home-vote-title">참석 투표</h2>
+        ${event ? `<div id="home-vote-counts">${homeVoteCounts(detail)}</div>
+          <div class="heading-line"><p class="help">마감 ${esc(deadlineLabel(event.deadline))}</p>
+          <span ${publishedOnly}>${button('카톡 링크 복사', 'copy-vote', { id: event.id, css: 'secondary compact' })}</span></div>`
+          : '<p class="help">회차를 만들고 투표를 열면 여기서 응답을 볼 수 있어요.</p>'}
+      </section>
+    </div>
+    <dl class="home-overview" aria-label="모임 현황"><div><dt>활동 회원</dt><dd>${activeMembers}<small>명</small></dd></div>
+      <div><dt>이번 달 등록 회차</dt><dd>${monthEvents}<small>회</small></dd></div></dl>
+    <section class="panel" aria-labelledby="home-notices-title"><div class="heading-line"><h2 id="home-notices-title">최근 공지</h2>
+      ${button('공지 전체 보기', 'tab', { id: 'notices', css: 'secondary compact' })}</div>
+      ${list(recent, '등록된 공지가 없습니다.')}</section>`;
+}
+
+export function homeVoteCounts({ event, roster }) {
+  const eligible = roster.filter(member => member.active);
+  const counts = countEvent(eligible, []);
+  const responded = counts.early + counts.late + counts.no;
+  const total = eligible.length;
+  const percent = total ? Math.round(responded / total * 100) : 0;
+  const status = !event.published ? '비공개' : event.canVote ? '투표 진행 중' : event.open ? '투표 마감' : '투표 닫힘';
+  return `<div class="heading-line"><span class="badge">${status}</span>
+    ${total ? `<span class="sub">응답 ${responded}/${total}명 <strong>${percent}%</strong></span>` : '<span class="sub">투표 대상 회원 없음</span>'}</div>
+    ${total ? `<progress class="home-vote-progress" value="${responded}" max="${total}" aria-label="투표 응답률">${percent}%</progress>` : ''}
+    ${voteMetrics(counts, { includeAttendance: false })}`;
 }
 
 export function homeScreen({ events, notices }, club) {
@@ -249,11 +299,12 @@ export function countEvent(roster, guests) {
   };
 }
 
-export function voteMetrics(counts) {
+export function voteMetrics(counts, { includeAttendance = true } = {}) {
   const items = [
     ['선발', counts.early], ['후발', counts.late], ['불참', counts.no],
-    ['점심', counts.lunch], ['실제 운동', counts.members + counts.guests],
+    ['점심', counts.lunch],
   ];
+  if (includeAttendance) items.push(['실제 운동', counts.members + counts.guests]);
   return `<dl class="metrics">${items.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`;
 }
 

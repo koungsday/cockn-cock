@@ -1,5 +1,6 @@
 import {
-  adminMenu, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  adminHome, adminMenu, adminShell, attendanceForm, button, countEvent, esc, eventDefaults, eventForm, eventScreen,
+  homeVoteCounts,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
   noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
@@ -33,9 +34,10 @@ const route = path ? { kind: path[1], id: path[2] }
 const date = today();
 const state = {
   user: null,
-  section: 'event',
+  section: 'home',
   selectedEvent: null,
   admin: null,
+  upcoming: null,
   listing: { events: [], notices: [] },
   detail: null,
   event: null,
@@ -110,7 +112,7 @@ async function request(url, method = 'GET', body = undefined) {
 }
 
 const id = value => encodeURIComponent(value);
-const adminEventPath = () => `/api/admin/events/${id(state.selectedEvent)}`;
+const adminEventPath = (eventId = state.selectedEvent) => `/api/admin/events/${id(eventId)}`;
 const votePath = () => `/api/votes/${id(route.id)}`;
 
 function hideMessage() {
@@ -140,6 +142,7 @@ function renderAccount() {
     return;
   }
   const user = state.user;
+  clubLink.href = user.role === 'admin' ? club.admin : club.home;
   account.innerHTML = `${user.role === 'admin' ? `<button class="quiet admin-menu-toggle" type="button" data-action="admin-menu" aria-label="운영 메뉴 열기" aria-haspopup="dialog" aria-controls="dialog"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>` : ''}
     <span class="account-name">${user.role === 'admin' ? '이 모임 운영진' : esc(user.name)}</span>
     ${user.role === 'member' ? button('PIN 관리', 'pin', { css: 'quiet compact' }) : ''}
@@ -184,10 +187,12 @@ async function load() {
   } else if (state.user?.role === 'admin') {
     state.admin = await request('/api/admin');
     const events = state.admin.events.sort((a, b) => b.date.localeCompare(a.date));
+    const kstMinute = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+    const soonest = [...events].reverse().find(event => `${event.date}T${event.endTime}` > kstMinute);
     if (!events.some(event => event.id === state.selectedEvent)) {
-      const soonest = [...events].reverse().find(event => event.date >= today());
       state.selectedEvent = soonest?.id ?? events[0]?.id ?? null;
     }
+    if (state.section === 'home') state.upcoming = soonest ? await request(adminEventPath(soonest.id)) : null;
     if (state.section === 'event') await loadEvent();
     if (state.section === 'progress') await loadProgress();
   }
@@ -209,7 +214,8 @@ function render({ voteSaved = false, motion = '' } = {}) {
     main.innerHTML = homeScreen(state.listing, club);
   } else if (isAdmin) {
     let body;
-    if (state.section === 'members') body = membersScreen(state.admin.members);
+    if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club);
+    else if (state.section === 'members') body = membersScreen(state.admin.members);
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
     else body = eventScreen(state.admin.events, state.detail, club);
@@ -226,7 +232,7 @@ function clearProtectedView() {
   navigationVersion++;
   busy = false;
   Object.assign(state, {
-    user: null, section: 'event', selectedEvent: null, admin: null, listing: { events: [], notices: [] },
+    user: null, section: 'home', selectedEvent: null, admin: null, upcoming: null, listing: { events: [], notices: [] },
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
@@ -357,10 +363,10 @@ async function update(url, method, data, notice) {
   await showSaved(notice);
 }
 
-async function showSaved(notice) {
+async function showSaved(notice, motion = '') {
   try {
     await load();
-    render();
+    render({ motion });
     showMessage(notice);
   } catch (error) {
     if (error.status === 401 || error.name === 'AbortError') throw error;
@@ -372,11 +378,22 @@ async function showSaved(notice) {
 
 async function refreshVoteCounts() {
   if (document.hidden || busy || dialog.open || state.user?.role !== 'admin') return;
-  const target = main.querySelector('#vote-counts');
+  const onHome = state.section === 'home';
+  const target = main.querySelector(onHome ? '#home-vote-counts' : '#vote-counts');
   if (!target) return;
   try {
-    const { roster, guests } = await request(adminEventPath());
-    if (target.isConnected && !busy) target.innerHTML = voteMetrics(countEvent(roster, guests));
+    const detail = await request(adminEventPath(onHome ? state.upcoming.event.id : state.selectedEvent));
+    if (target.isConnected && !busy) {
+      target.innerHTML = onHome ? homeVoteCounts(detail) : voteMetrics(countEvent(detail.roster, detail.guests));
+      if (onHome) {
+        for (const action of main.querySelectorAll('[data-home-published]')) {
+          if (!detail.event.published && action.contains(document.activeElement)) {
+            main.querySelector('[data-action=open-event]')?.focus({ preventScroll: true });
+          }
+          action.hidden = !detail.event.published;
+        }
+      }
+    }
   } catch (error) {
     if (error.status === 401 && target.isConnected) loginExpired();
     // The existing counts remain visible when a background refresh cannot reach the server.
@@ -452,16 +469,23 @@ async function doAction(action, itemId) {
     case 'admin-menu':
       openDialog('운영 메뉴', adminMenu(state.section), 'admin-menu-dialog');
       break;
+    case 'open-event':
     case 'tab': {
-      if (state.section !== itemId) dialogOpener = null;
+      const section = action === 'open-event' ? 'event' : itemId;
+      if (state.section !== section) dialogOpener = null;
       closeDialog();
-      if (state.section === itemId) break;
+      if (state.section === section) break;
       const previous = state.section;
-      state.section = itemId;
+      const previousEvent = state.selectedEvent;
+      state.section = section;
+      if (action === 'open-event') state.selectedEvent = itemId;
       try {
         await load();
       } catch (error) {
-        if (state.section === itemId) state.section = previous;
+        if (state.section === section) {
+          state.section = previous;
+          state.selectedEvent = previousEvent;
+        }
         throw error;
       }
       render({ motion: 'section' });
@@ -478,9 +502,11 @@ async function doAction(action, itemId) {
     case 'new-event':
       openDialog('새 회차', eventForm(eventDefaults(null, club.defaultPlace)));
       break;
-    case 'clone-event':
-      openDialog('다음 주 회차', eventForm(eventDefaults(state.detail.event)));
+    case 'clone-event': {
+      const event = itemId ? state.admin.events.find(event => event.id === itemId) : state.detail.event;
+      openDialog('다음 주 회차', eventForm(eventDefaults(event, club.defaultPlace, { keepFuture: Boolean(itemId) })));
       break;
+    }
     case 'edit-event':
       eventSnapshot = { ...state.detail.event };
       openDialog('회차 수정', eventForm(eventSnapshot, state.selectedEvent));
@@ -497,7 +523,7 @@ async function doAction(action, itemId) {
       break;
     }
     case 'copy-vote':
-      await copy(shareLink('vote', state.selectedEvent));
+      await copy(shareLink('vote', itemId || state.selectedEvent));
       break;
     case 'copy-notice':
       await copy(shareLink('notice', itemId));
@@ -623,8 +649,14 @@ async function doSubmit(kind, itemId, data) {
       }
       const result = await request(itemId ? `/api/admin/events/${id(itemId)}` : '/api/admin/events',
         itemId ? 'PATCH' : 'POST', changed);
+      const fromHome = state.section === 'home';
+      if (fromHome) {
+        state.section = 'event';
+        dialogOpener = null;
+      }
       state.selectedEvent = result.event.id;
-      await showSaved('회차를 저장했어요.');
+      await showSaved('회차를 저장했어요.', fromHome ? 'section' : '');
+      if (fromHome) (main.querySelector('.admin-section-head h1') ?? main).focus({ preventScroll: true });
       break;
     }
     case 'attendance': {
@@ -691,7 +723,7 @@ async function run(work, control) {
   const field = form?.querySelector('#login-value');
   const code = form?.querySelector('[data-login-code]');
   const pendingStatus = form?.querySelector('.login-pending');
-  const section = control.dataset.action === 'tab' ? main.querySelector('.admin-content') : null;
+  const section = ['tab', 'open-event'].includes(control.dataset.action) ? main.querySelector('.admin-content') : null;
   const sectionPendingMessage = '화면을 불러오는 중이에요.';
   if (code) {
     code.readOnly = true;

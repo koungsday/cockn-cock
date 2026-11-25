@@ -62,7 +62,13 @@
   let returnFromPublic = null;
 
   function routeFromHash() {
-    const [page, id, tab] = location.hash.slice(1).split('/');
+    let hash = location.hash;
+    const pastedLink = hash.indexOf(`${location.origin}${location.pathname}#`);
+    if (pastedLink > 1) {
+      hash = hash.slice(0, pastedLink);
+      history.replaceState(history.state, '', hash);
+    }
+    const [page, id, tab] = hash.slice(1).split('/');
     if (page === 'event' || page === 'public-notice' || page === 'public-vote') return {page, id, tab:['attendance','settlement'].includes(tab) ? tab : 'poll'};
     return {page:pages.some(([key]) => key === page) ? page : 'home'};
   }
