@@ -282,24 +282,25 @@
       return `<li data-step="${step}"${step === 'now' ? ' aria-current="step"' : ''}><span class="session-step-state">${word}</span><strong>${label}</strong><small>${escape(detail)}</small></li>`;
     }).join('')}</ol>`;
   }
-  function todoRow(glyph, tone, title, detail, action) {
-    return `<li class="todo-row"><span class="metric-icon ${tone}">${icon(glyph,19)}</span><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
+  // The same row as the live 운영 홈 (worker/public/views.mjs todoRow): text and one action, no icon tile.
+  function todoRow(title, detail, action) {
+    return `<li class="todo-row"><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
   }
   function renderTodo(upcoming, last) {
     const items = [];
     if (upcoming && !upcoming.pollOpen && !deadlinePassed(upcoming) && sessionStage(upcoming) < 2) {
-      items.push(todoRow('clipboard','sand','참석 투표가 닫혀 있어요',`${escape(dateLabel(upcoming.date))} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
+      items.push(todoRow('참석 투표가 닫혀 있어요',`${escape(dateLabel(upcoming.date))} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
         routeButton('회차 열기', `event/${upcoming.id}/poll`)));
     } else if (upcoming && pollIsOpen(upcoming) && counts(upcoming).pending) {
-      items.push(todoRow('users','mint',`미응답 ${counts(upcoming).pending}명`,`${escape(dateLabel(upcoming.deadline))} ${escape(upcoming.deadlineTime)} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
+      items.push(todoRow(`미응답 ${counts(upcoming).pending}명`,`${escape(dateLabel(upcoming.deadline))} ${escape(upcoming.deadlineTime)} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
         `<button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(upcoming.id)}">${icon('share',16)} 카톡 공유</button>`));
     }
     if (last && !last.finalized) {
-      items.push(todoRow('clipboard','mint',`${escape(dateLabel(last.date))} 회차 출석 확정 전이에요`,'출석과 게스트를 확정해야 통계와 마무리 글에 반영돼요.',
+      items.push(todoRow(`${escape(dateLabel(last.date))} 회차 출석 확정 전이에요`,'출석과 게스트를 확정해야 통계와 마무리 글에 반영돼요.',
         routeButton('출석 확정하기', `event/${last.id}/attendance`)));
     }
     if (!upcoming) {
-      items.push(todoRow('repeat','mint','예정된 회차가 없어요', state.repeat.enabled ? '반복 일정으로 다음 회차를 만들 수 있어요.' : '새 회차를 만들어 투표를 시작하세요.',
+      items.push(todoRow('예정된 회차가 없어요', state.repeat.enabled ? '반복 일정으로 다음 회차를 만들 수 있어요.' : '새 회차를 만들어 투표를 시작하세요.',
         `<button class="btn btn-secondary btn-small" type="button" data-action="${state.repeat.enabled ? 'generate-next' : 'open-event'}">${state.repeat.enabled ? '다음 회차 만들기' : '새 회차'}</button>`));
     }
     return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">챙길 일</h2></header>

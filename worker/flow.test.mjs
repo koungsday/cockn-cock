@@ -50,6 +50,18 @@ test('every draft shows, not only the earliest (6)', () => {
   assert.deepEqual(order, ['draft-1', 'draft-2']);
 });
 
+test('pinned events come first in the order they were pinned, then the rest by urgency (3)', () => {
+  const order = flowOrder([
+    event('vote', '2026-11-29'),
+    event('today', '2026-11-26'),
+    event('year-end', '2026-12-13', { published: false, pinnedAt: 200 }),
+    event('trip', '2026-12-20', { pinnedAt: 100 }),
+    // A confirmed 마무리 leaves the list even if a pin was left on it.
+    event('done', '2026-11-08', { settled: true, pinnedAt: 50 }),
+  ], now).map(item => item.id);
+  assert.deepEqual(order, ['trip', 'year-end', 'today', 'vote']);
+});
+
 test('Korean time is nine hours ahead of UTC', () => {
   assert.deepEqual(koreanNow(Date.parse('2026-11-25T15:30:00Z')), { day: '2026-11-26', minute: '2026-11-26T00:30' });
 });

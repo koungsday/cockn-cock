@@ -719,6 +719,34 @@ async function doAction(action, itemId, tab) {
     case 'copy-share-link':
       await copy(itemId);
       break;
+    // 상단 고정 (FLOW.md 5): three events and three notices at most; a fourth asks before letting go of the oldest.
+    case 'pin-event':
+    case 'pin-notice': {
+      const notice = action === 'pin-notice';
+      const list = notice ? state.admin.notices : state.admin.events;
+      const item = list.find(entry => entry.id === itemId);
+      if (!item) return showSaved('목록이 바뀌어 새로 불러왔어요.');
+      const path = notice ? `/api/admin/notices/${id(itemId)}` : `/api/admin/events/${id(itemId)}`;
+      if (item.pinnedAt) {
+        await update(path, 'PATCH', { pinned: false }, '상단 고정을 풀었어요.');
+        break;
+      }
+      const pinned = list.filter(entry => entry.pinnedAt && !entry.settled).sort((a, b) => a.pinnedAt - b.pinnedAt);
+      if (pinned.length >= 3) {
+        openDialog('상단 고정', `<p>상단 고정은 ${notice ? '공지' : '일정'} 3개까지예요. 가장 오래 고정한 "${esc(pinned[0].title)}"의 고정을 풀고 이 ${notice ? '공지를' : '일정을'} 고정할까요?</p>`
+          + button('바꿔서 고정하기', notice ? 'confirm-pin-notice' : 'confirm-pin-event', { id: itemId }));
+        break;
+      }
+      await update(path, 'PATCH', { pinned: true }, '맨 위에 고정했어요.');
+      break;
+    }
+    case 'confirm-pin-event':
+    case 'confirm-pin-notice': {
+      const path = action === 'confirm-pin-notice' ? `/api/admin/notices/${id(itemId)}` : `/api/admin/events/${id(itemId)}`;
+      const { released } = await request(path, 'PATCH', { pinned: true, replaceOldest: true });
+      await showSaved(released ? `"${released.title}"의 고정을 풀고 맨 위에 고정했어요.` : '맨 위에 고정했어요.');
+      break;
+    }
     case 'attendance':
       openDialog('출석 상세 기록', attendanceForm(findRoster(itemId), state.admin.rules.kinds));
       break;
@@ -815,7 +843,7 @@ const raw = (data, key) => String(data.get(key) ?? '');
 const read = (data, key) => raw(data, key).trim();
 
 function buildEvent(data) {
-  const fields = ['title', 'date', 'time', 'endTime', 'place', 'deadline', 'earlyTime', 'lateTime', 'notes'];
+  const fields = ['title', 'kind', 'date', 'time', 'endTime', 'place', 'deadline', 'earlyTime', 'lateTime', 'notes'];
   const event = Object.fromEntries(fields.map(key => [key, read(data, key)]));
   event.open = data.has('open');
   event.published = data.has('published');
@@ -951,6 +979,7 @@ async function doSubmit(kind, itemId, data) {
     case 'rules':
       await update('/api/admin/rules', 'PUT', {
         periods: Number(read(data, 'periods')), goal: Number(read(data, 'goal')), kinds: data.getAll('kinds'), reward: read(data, 'reward'),
+        eventKinds: data.getAll('eventKinds'),
       }, '모임 규칙을 저장했어요. 반기 집계와 회원 내 기록에 바로 반영돼요.');
       break;
   }

@@ -14,9 +14,15 @@ export function eventStage(event, now) {
   return event.open ? 'voting' : 'waiting';
 }
 
-// FLOW.md 4장: 오늘 → 마감 24시간 안의 투표 → 마무리 전(오래된 것부터) → 열린 투표 → 비공개 준비 → 그 외 예정.
-// Votes within a rank go by deadline, the rest by date and time. 상단 고정 comes first once events can be pinned.
+// FLOW.md 4장: 상단 고정(고정한 순서) → 오늘 → 마감 24시간 안의 투표 → 마무리 전(오래된 것부터) → 열린 투표 →
+// 비공개 준비 → 그 외 예정. Votes within a rank go by deadline, the rest by date and time.
 export function flowOrder(events, now) {
+  const pinned = events.filter(event => event.pinnedAt && eventStage(event, now) !== 'done')
+    .sort((a, b) => a.pinnedAt - b.pinnedAt || a.id.localeCompare(b.id));
+  return [...pinned, ...urgencyOrder(events.filter(event => !pinned.includes(event)), now)];
+}
+
+function urgencyOrder(events, now) {
   const soon = new Date(Date.parse(now.minute + ':00Z') + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
   const rank = event => {
     const stage = eventStage(event, now);

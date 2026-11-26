@@ -11,6 +11,7 @@ const votePath = new RegExp(`^/api/votes/(${identifier})$`);
 const memberPath = new RegExp(`^/api/admin/members/(${identifier})(/reset)?$`);
 const organizerPath = new RegExp(`^/api/admin/organizers/(${identifier})(/reset)?$`);
 const eventPath = new RegExp(`^/api/admin/events/(${identifier})(?:/(attendance|votes|guests|settlement)(?:/(${identifier}))?)?$`);
+const noticePath = new RegExp(`^/api/admin/notices/(${identifier})$`);
 const recordId = new RegExp(`^${identifier}$`);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
@@ -18,10 +19,15 @@ const slots = ['early', 'late', 'no'];
 // Members answer 선발 or 후발 only, as in the club's 카카오톡 투표; 불참 stays for organisers' own records.
 const memberSlots = ['early', 'late'];
 const markKinds = ['direct', 'substitute', 'approved'];
+// 일정 종류 (worker/migrations/0008_pins_kinds.sql): 정기, 번개, 대회, 모임.
+const eventKinds = ['regular', 'flash', 'match', 'social'];
+// 상단 고정: at most this many events and this many notices per club (FLOW.md 9).
+const pinLimit = 3;
 const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
-const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published';
+const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published, kind';
 const noticeFields = 'id, title, body, date, published';
+// pinned_at is set only by pinning (pin), never by the event or notice forms, so it stays out of the field lists above.
 // 참석 현황 on the member screens: how many on the event's roster chose each slot and lunch, counted as the
 // organisers count them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
 const countColumns = table => [...slots.map(slot => [slot, `cv.slot = '${slot}'`]), ['lunch', 'cv.lunch = 1']]
@@ -171,12 +177,13 @@ function serializeEvent(row) {
   return {
     id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
     place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
-    notes: row.notes, open, published, canVote: open && published && row.deadline_at > currentSeconds()
+    notes: row.notes, open, published, canVote: open && published && row.deadline_at > currentSeconds(),
+    kind: row.kind, pinnedAt: row.pinned_at ?? null
   };
 }
 
 function serializeNotice(row) {
-  return { id: row.id, title: row.title, body: row.body, date: row.date, published: Boolean(row.published) };
+  return { id: row.id, title: row.title, body: row.body, date: row.date, published: Boolean(row.published), pinnedAt: row.pinned_at ?? null };
 }
 
 function serializeMember(row) {
@@ -217,8 +224,10 @@ function validateEvent(input) {
     lateTime: timeOrThrow(input.lateTime, '후발 집합 시간'),
     notes: text(input.notes ?? '', '공개 안내', 3000, true),
     open: boolean(input.open ?? false, '투표 열림 상태'),
-    published: boolean(input.published ?? false, '공개 상태')
+    published: boolean(input.published ?? false, '공개 상태'),
+    kind: input.kind ?? 'regular'
   };
+  if (!eventKinds.includes(fields.kind)) bad('일정 종류를 확인해 주세요.');
   if (fields.endTime <= fields.time || fields.lateTime <= fields.earlyTime) {
     bad('시간과 선발·후발 순서를 확인해 주세요.');
   }
@@ -228,11 +237,11 @@ function validateEvent(input) {
 
 function eventParams(event) {
   return [event.title, event.date, event.time, event.endTime, event.place, event.deadline, toEpoch(event.deadline),
-    event.earlyTime, event.lateTime, event.notes, +event.open, +event.published];
+    event.earlyTime, event.lateTime, event.notes, +event.open, +event.published, event.kind];
 }
 
 async function fetchEvent(db, club, id) {
-  const row = await sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ?`, id, club).first();
+  const row = await sql(db, `SELECT ${eventFields}, pinned_at FROM events WHERE id = ? AND club_id = ?`, id, club).first();
   if (!row) missing();
   return serializeEvent(row);
 }
@@ -257,7 +266,7 @@ async function listPublic(db, club, memberId) {
   const time = now.slice(11, 16);
   const [events, notices] = await db.batch([
     sql(db, `
-      SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open,
+      SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind,
         e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}
       FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
@@ -276,7 +285,7 @@ async function listPublic(db, club, memberId) {
     events: events.results.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
       place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
-      canVote: Boolean(row.open) && row.deadline_at > seconds,
+      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind,
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
     notices: notices.results,
@@ -284,11 +293,12 @@ async function listPublic(db, club, memberId) {
   };
 }
 
-// 출석 in 내 기록: present at an event of this club whose 마무리 is confirmed, as the organisers' 출석 체크 recorded
-// it, the same closing rule as 줄서기 인정 (recognisedMarks). Binds club, member.
-const attendedMarks = `FROM attendance a JOIN events e ON a.event_id = e.id
+// 출석 in 내 기록: present at an event of this club whose 마무리 is confirmed and whose 일정 종류 the club counts (모임
+// 규칙), as the organisers' 출석 체크 recorded it, the same closing rule as 줄서기 인정 (recognisedMarks).
+// Binds club, member, each counted 일정 종류.
+const attendedMarks = eventKinds => `FROM attendance a JOIN events e ON a.event_id = e.id
       JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
-      WHERE e.club_id = ? AND a.member_id = ? AND a.present = 1`;
+      WHERE e.club_id = ? AND a.member_id = ? AND a.present = 1 AND e.kind IN (${eventKinds.map(() => '?').join(', ')})`;
 
 // 내 기록: this member's 줄서기 인정 in this half by 구간, each with its date and kind like the club's 출석완료자 명단
 // sheet, counted exactly as the organisers' 반기 집계 (progress) counts them under the 모임 규칙; and their 출석, by
@@ -299,12 +309,12 @@ async function memberRecord(db, club, memberId, date) {
   const rules = await readRules(db, club);
   const { start, end } = halfRange(year, half);
   const [marks, reward, months, total] = await db.batch([
-    sql(db, `SELECT e.date, a.recognition ${recognisedMarks(rules.kinds)} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
-      club, ...rules.kinds, start, end, memberId),
+    sql(db, `SELECT e.date, a.recognition ${recognisedMarks(rules)} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
+      club, ...rules.kinds, ...rules.eventKinds, start, end, memberId),
     sql(db, 'SELECT 1 FROM rewards WHERE year = ? AND half = ? AND member_id = ?', year, half, memberId),
-    sql(db, `SELECT CAST(substr(e.date, 6, 2) AS INTEGER) AS month, COUNT(*) AS count ${attendedMarks}
-      AND e.date >= ? AND e.date < ? GROUP BY month`, club, memberId, year + '-01-01', (year + 1) + '-01-01'),
-    sql(db, `SELECT COUNT(*) AS total ${attendedMarks}`, club, memberId)
+    sql(db, `SELECT CAST(substr(e.date, 6, 2) AS INTEGER) AS month, COUNT(*) AS count ${attendedMarks(rules.eventKinds)}
+      AND e.date >= ? AND e.date < ? GROUP BY month`, club, memberId, ...rules.eventKinds, year + '-01-01', (year + 1) + '-01-01'),
+    sql(db, `SELECT COUNT(*) AS total ${attendedMarks(rules.eventKinds)}`, club, memberId, ...rules.eventKinds)
   ]);
   const periods = Array.from({ length: rules.periods }, () => []);
   for (const row of marks.results) periods[periodOf(row.date, half, rules)].push({ date: row.date, kind: row.recognition });
@@ -360,12 +370,14 @@ async function listAdmin(db, club) {
     // settled and waiting are for the organisers' screens only (the session picker, the 운영 홈 일정 흐름 of FLOW.md):
     // waiting counts active members on the roster without an answer, as the 운영 홈 counts 미응답. serializeEvent
     // stays shared with the member screens.
-    sql(db, `SELECT ${eventFields}, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
+    sql(db, `SELECT ${eventFields}, pinned_at, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
       (SELECT COUNT(*) FROM roster r JOIN members m ON m.id = r.member_id
         LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
         WHERE r.event_id = events.id AND m.active = 1 AND v.member_id IS NULL) AS waiting
       FROM events WHERE club_id = ? ORDER BY date DESC, time DESC, id`, club),
-    sql(db, `SELECT ${noticeFields} FROM notices WHERE club_id = ? ORDER BY date DESC, rowid DESC`, club)
+    // Pinned notices first, in the order they were pinned (상단 고정), then the newest.
+    sql(db, `SELECT ${noticeFields}, pinned_at FROM notices WHERE club_id = ?
+      ORDER BY pinned_at IS NULL, pinned_at, date DESC, rowid DESC`, club)
   ]);
   return {
     members: members.results.map(serializeMember),
@@ -480,7 +492,7 @@ async function addEvent(db, club, body) {
   await db.batch([
     sql(db, `
       INSERT INTO events (club_id, ${eventFields})
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, club, id, ...eventParams(data)),
     sql(db, 'INSERT INTO roster (event_id, member_id) SELECT ?, id FROM members WHERE club_id = ? AND active = 1', id, club)
   ]);
@@ -492,10 +504,10 @@ async function updateEvent(db, club, id, body) {
   const data = validateEvent({ ...previous, ...body });
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
-      early_time=?, late_time=?, notes=?, open=?, published=?
+      early_time=?, late_time=?, notes=?, open=?, published=?, kind=?
     WHERE id=? AND club_id=?
       AND title=? AND date=? AND time=? AND end_time=? AND place=? AND deadline=? AND deadline_at=?
-      AND early_time=? AND late_time=? AND notes=? AND open=? AND published=?
+      AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=?
       AND (
         (date=? AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
@@ -508,7 +520,7 @@ async function updateEvent(db, club, id, body) {
 
 async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement] = await db.batch([
-    sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ?`, id, club),
+    sql(db, `SELECT ${eventFields}, pinned_at FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
       SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition
       FROM roster r JOIN members m ON r.member_id = m.id
@@ -623,8 +635,9 @@ async function setSettlement(db, club, id, body) {
       remaining_singles=excluded.remaining_singles, court_donation=excluded.court_donation, confirmed=excluded.confirmed
   `, ...values, id, club, +body.confirmed, today)];
   if (body.confirmed) {
+    // A confirmed 마무리 ends the event's flow (FLOW.md): its vote closes and it lets go of its 상단 고정 place.
     statements.push(sql(db, `
-      UPDATE events SET open=0 WHERE id=? AND club_id=? AND EXISTS (
+      UPDATE events SET open=0, pinned_at=NULL WHERE id=? AND club_id=? AND EXISTS (
         SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1
       )
     `, id, club, id));
@@ -648,7 +661,7 @@ async function saveNotice(db, club, body) {
     ? sql(db, 'UPDATE notices SET title=?, body=?, published=? WHERE id=? AND club_id=?', title, content, published, id, club)
     : sql(db, `INSERT INTO notices (club_id, ${noticeFields}) VALUES (?, ?, ?, ?, ?, ?)`, club, id, title, content, kstToday(), published);
   if (!(await statement.run()).meta.changes) missing();
-  return { notice: serializeNotice(await sql(db, `SELECT ${noticeFields} FROM notices WHERE id=? AND club_id=?`, id, club).first()) };
+  return { notice: serializeNotice(await sql(db, `SELECT ${noticeFields}, pinned_at FROM notices WHERE id=? AND club_id=?`, id, club).first()) };
 }
 
 function parsePeriod(year, half) {
@@ -674,11 +687,12 @@ function periodOf(date, half, rules) {
 }
 
 // What counts as 줄서기 인정, shared by the 반기 집계 and the member's 내 기록: a recognition of a kind this club counts
-// (모임 규칙) recorded at an event of this club whose 마무리 is confirmed, dated within [start, end).
-// Binds club, each kind, start, end.
-const recognisedMarks = kinds => `FROM attendance a JOIN events e ON a.event_id = e.id
+// (모임 규칙) recorded at an event of an 일정 종류 it counts, of this club, whose 마무리 is confirmed, dated within
+// [start, end). Binds club, each 인정 방식, each 일정 종류, start, end.
+const recognisedMarks = ({ kinds, eventKinds }) => `FROM attendance a JOIN events e ON a.event_id = e.id
       JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
-      WHERE e.club_id = ? AND a.recognition IN (${kinds.map(() => '?').join(', ')}) AND e.date >= ? AND e.date < ?`;
+      WHERE e.club_id = ? AND a.recognition IN (${kinds.map(() => '?').join(', ')})
+        AND e.kind IN (${eventKinds.map(() => '?').join(', ')}) AND e.date >= ? AND e.date < ?`;
 
 async function progress(db, club, year, half) {
   const rules = await readRules(db, club);
@@ -688,10 +702,10 @@ async function progress(db, club, year, half) {
       SELECT m.id, m.name, (r.member_id IS NOT NULL) AS rewarded
       FROM members m LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
       WHERE m.club_id = ? AND (m.active = 1 OR r.member_id IS NOT NULL
-        OR EXISTS (SELECT 1 ${recognisedMarks(rules.kinds)} AND a.member_id = m.id))
+        OR EXISTS (SELECT 1 ${recognisedMarks(rules)} AND a.member_id = m.id))
       ORDER BY m.name, m.id
-    `, year, half, club, club, ...rules.kinds, start, end),
-    sql(db, `SELECT a.member_id, e.date ${recognisedMarks(rules.kinds)}`, club, ...rules.kinds, start, end)
+    `, year, half, club, club, ...rules.kinds, ...rules.eventKinds, start, end),
+    sql(db, `SELECT a.member_id, e.date ${recognisedMarks(rules)}`, club, ...rules.kinds, ...rules.eventKinds, start, end)
   ]);
   const counts = new Map();
   for (const row of marks.results) {
@@ -716,10 +730,11 @@ const rulePeriods = [1, 2, 3, 6];
 const rewardRules = ['manual', 'goal'];
 
 async function readRules(db, club) {
-  const row = await sql(db, 'SELECT rule_periods, rule_goal, rule_kinds, rule_reward FROM clubs WHERE id = ?', club).first();
+  const row = await sql(db, 'SELECT rule_periods, rule_goal, rule_kinds, rule_reward, rule_event_kinds FROM clubs WHERE id = ?', club).first();
   return {
     periods: row.rule_periods, goal: row.rule_goal,
-    kinds: markKinds.filter(kind => row.rule_kinds.split(',').includes(kind)), reward: row.rule_reward
+    kinds: markKinds.filter(kind => row.rule_kinds.split(',').includes(kind)), reward: row.rule_reward,
+    eventKinds: eventKinds.filter(kind => row.rule_event_kinds.split(',').includes(kind))
   };
 }
 
@@ -732,10 +747,55 @@ async function saveRules(db, club, body) {
     bad('인정 방식을 하나 이상 골라 주세요.');
   }
   if (!rewardRules.includes(body.reward)) bad('콕 수령 방식을 확인해 주세요.');
+  if (!Array.isArray(body.eventKinds) || !body.eventKinds.length || body.eventKinds.some(kind => !eventKinds.includes(kind))) {
+    bad('세는 일정 종류를 하나 이상 골라 주세요.');
+  }
   const kinds = markKinds.filter(kind => body.kinds.includes(kind));
-  await sql(db, 'UPDATE clubs SET rule_periods = ?, rule_goal = ?, rule_kinds = ?, rule_reward = ? WHERE id = ?',
-    periods, goal, kinds.join(','), body.reward, club).run();
-  return { rules: { periods, goal, kinds, reward: body.reward } };
+  const counted = eventKinds.filter(kind => body.eventKinds.includes(kind));
+  await sql(db, 'UPDATE clubs SET rule_periods = ?, rule_goal = ?, rule_kinds = ?, rule_reward = ?, rule_event_kinds = ? WHERE id = ?',
+    periods, goal, kinds.join(','), body.reward, counted.join(','), club).run();
+  return { rules: { periods, goal, kinds, reward: body.reward, eventKinds: counted } };
+}
+
+// 상단 고정 (FLOW.md 4·5): pinned events and notices come first, in the order they were pinned. A club keeps at most
+// pinLimit of each; pinning one more asks first (the screens do) and then, with replaceOldest, lets go of the
+// longest-pinned one in the same batch. An event whose 마무리 is confirmed has left the 진행 중인 일정, so it cannot be
+// pinned and does not take a place.
+async function setPinned(db, club, table, id, body) {
+  const pinned = boolean(body.pinned, '상단 고정');
+  const replaceOldest = boolean(body.replaceOldest ?? false, '고정 교체');
+  const live = table === 'events' ? 'AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1)' : '';
+  const row = await sql(db, `SELECT id, title, pinned_at FROM ${table} WHERE id = ? AND club_id = ? ${live}`, id, club).first();
+  if (!row) {
+    if (table === 'events' && pinned && await sql(db, 'SELECT 1 FROM events WHERE id = ? AND club_id = ?', id, club).first()) {
+      throw new ApiError(409, '마무리를 확정한 일정은 고정할 수 없어요.');
+    }
+    missing();
+  }
+  if (!pinned) {
+    await sql(db, `UPDATE ${table} SET pinned_at = NULL WHERE id = ? AND club_id = ?`, id, club).run();
+    return { pinnedAt: null, released: null };
+  }
+  if (row.pinned_at !== null) return { pinnedAt: row.pinned_at, released: null };
+  const others = (await sql(db, `SELECT id, title FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live}
+    ORDER BY pinned_at, rowid`, club).all()).results;
+  const release = others.slice(0, Math.max(0, others.length - pinLimit + 1));
+  if (release.length && !replaceOldest) {
+    throw new ApiError(409, `상단 고정은 ${pinLimit}개까지예요. 가장 오래 고정한 "${release[0].title}"의 고정을 풀고 다시 시도해 주세요.`);
+  }
+  // Strictly after every other pin, so two pins in the same second keep the order they were made in.
+  const results = await db.batch([
+    ...release.map(other => sql(db, `UPDATE ${table} SET pinned_at = NULL WHERE id = ? AND club_id = ?`, other.id, club)),
+    sql(db, `UPDATE ${table} SET pinned_at = MAX(?, COALESCE((SELECT MAX(pinned_at) FROM ${table} WHERE club_id = ?), 0) + 1)
+      WHERE id = ? AND club_id = ? AND pinned_at IS NULL
+        AND (SELECT COUNT(*) FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live}) < ?`,
+    currentSeconds(), club, id, club, club, pinLimit)
+  ]);
+  if (!results.at(-1).meta.changes) {
+    throw new ApiError(409, '다른 곳에서 고정이 바뀌었어요. 새로고침한 뒤 다시 시도해 주세요.');
+  }
+  const saved = await sql(db, `SELECT pinned_at FROM ${table} WHERE id = ? AND club_id = ?`, id, club).first();
+  return { pinnedAt: saved.pinned_at, released: release[0] ? { id: release[0].id, title: release[0].title } : null };
 }
 
 async function setReward(db, club, body) {
@@ -758,8 +818,9 @@ const markWords = { direct: '직접', substitute: '대타', approved: '별도 �
 const guestWords = { pending: '신청', confirmed: '확정', arrived: '도착', cancelled: '취소' };
 const eventWords = {
   title: '제목', date: '날짜', time: '시간', endTime: '시간', place: '장소', deadline: '투표 마감',
-  earlyTime: '집합 시간', lateTime: '집합 시간', notes: '안내'
+  earlyTime: '집합 시간', lateTime: '집합 시간', notes: '안내', kind: '종류'
 };
+const eventKindWords = { regular: '정기', flash: '번개', match: '대회', social: '모임' };
 
 function eventLine(event) {
   return `${Number(event.date.slice(5, 7))}월 ${Number(event.date.slice(8, 10))}일 ${event.title}`;
@@ -824,13 +885,24 @@ async function routeAdmin(db, env, url, method, body, user) {
       () => `${result.notice.title} · ${result.notice.published ? '공개' : '비공개'}`);
     return json(result, body.id ? 200 : 201);
   }
+  const notice = noticePath.exec(path);
+  if (notice) {
+    if (method !== 'PATCH') methodNotAllowed();
+    if (Object.keys(body).some(key => key !== 'pinned' && key !== 'replaceOldest')) bad('공지 수정은 공지 저장으로 해 주세요.');
+    const result = await setPinned(db, club, 'notices', notice[1], body);
+    await record('notice.pin', notice[1], async () => `${
+      (await sql(db, 'SELECT title FROM notices WHERE id = ? AND club_id = ?', notice[1], club).first())?.title ?? ''} · ${
+      result.pinnedAt ? '고정' : '고정 해제'}${result.released ? ` (${result.released.title} 고정 해제)` : ''}`);
+    return json(result);
+  }
   if (path === '/api/admin/rules') {
     if (method === 'GET') return json({ rules: await readRules(db, club) });
     if (method === 'PUT') {
       const result = await saveRules(db, club, body);
-      const { periods, goal, kinds, reward } = result.rules;
+      const { periods, goal, kinds, reward, eventKinds: counted } = result.rules;
       await record('rules.update', club, () => `${periods === 1 ? '반기 통째로' : periods === 6 ? '매달' : `반기 ${periods}구간`} · 구간 ${goal}회 · ${
-        kinds.map(kind => markWords[kind]).join('·')} · 콕 수령 ${reward === 'goal' ? '목표 채우면 대상 표시' : '운영진이 직접'}`);
+        kinds.map(kind => markWords[kind]).join('·')} · ${counted.map(kind => eventKindWords[kind]).join('·')} 일정 · 콕 수령 ${
+        reward === 'goal' ? '목표 채우면 대상 표시' : '운영진이 직접'}`);
       return json(result);
     }
     methodNotAllowed();
@@ -866,6 +938,13 @@ async function routeAdmin(db, env, url, method, body, user) {
   if (!event) missing();
   const [, id, resource, memberId] = event;
   if (!resource && method === 'GET') return json(await eventDetails(db, club, id));
+  if (!resource && method === 'PATCH' && body.pinned !== undefined) {
+    if (Object.keys(body).some(key => key !== 'pinned' && key !== 'replaceOldest')) bad('상단 고정은 따로 저장해 주세요.');
+    const result = await setPinned(db, club, 'events', id, body);
+    await record('event.pin', id, async () => `${await eventLabel(db, club, id)} · ${result.pinnedAt ? '고정' : '고정 해제'}${
+      result.released ? ` (${result.released.title} 고정 해제)` : ''}`);
+    return json(result);
+  }
   if (!resource && method === 'PATCH') {
     const result = await updateEvent(db, club, id, body);
     await record('event.update', id, () => `${eventLine(result.event)} · ${eventChanges(body)}`);
