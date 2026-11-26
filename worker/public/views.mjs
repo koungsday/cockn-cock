@@ -1,5 +1,6 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { adminSkeleton, loadingCenter, memberSkeleton } from './skeleton.mjs';
+import { eventStage, flowOrder, koreanNow } from './flow.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -511,14 +512,16 @@ function featured(detail, club) {
   const event = detail?.event;
   if (!event) {
     return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
-      <div class="featured-kicker"><i></i> 다음 모임</div><h2 id="next-event-title">예정된 회차가 없어요.</h2>
+      <div class="featured-kicker"><i></i> 다음 일정</div><h2 id="next-event-title">예정된 회차가 없어요.</h2>
       <div class="featured-actions">${button(`${icon('plus', 17)} 새 회차`, 'new-event', { css: 'lime' })}</div></div></section>`;
   }
   const stage = sessionStage(detail);
   const go = stage === 2 ? '당일 출석 체크' : stage >= 3 ? '마무리하기' : '회차 관리';
+  // The big card holds the first of the 진행 중인 일정 (FLOW.md), so it says which it is.
+  const kicker = stage === 2 ? '오늘 일정' : stage === 3 ? '마무리할 일정' : '다음 일정';
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
-    <div class="featured-kicker"><i></i> 다음 모임</div>
+    <div class="featured-kicker"><i></i> ${kicker}</div>
     <h2 id="next-event-title">${esc(event.title)}</h2>
     <div class="featured-meta"><span>${icon('calendar', 18)} <time datetime="${esc(`${event.date}T${event.time}`)}">${esc(fullDate(event.date))} · ${esc(event.time)}–${esc(event.endTime)}</time></span>
       <span>${icon('pin', 18)} ${esc(event.place)}</span></div>
@@ -577,36 +580,40 @@ function todoRow(glyph, tone, title, detail, action) {
   return `<li class="todo-row"><span class="metric-icon ${tone}">${icon(glyph, 19)}</span><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
 }
 
-// 챙길 일: only what the data shows to be true now, one action each (DESIGN.md 5). Redrawn with the vote counts.
-export function homeTodo(events, upcoming, last) {
-  const items = [];
-  if (upcoming) {
-    const { event } = upcoming;
-    const when = dateLabel(event.date);
-    const waiting = upcoming.roster.filter(row => row.active && !row.slot).length;
-    const closedForGood = deadlinePassed(event);
-    if (!event.published) {
-      items.push(todoRow('calendar', 'sand', `${esc(when)} 회차가 아직 비공개예요`,
-        closedForGood ? '링크를 공개해야 회원이 일정을 볼 수 있어요. 투표 마감 시각은 이미 지났어요.' : '링크를 공개해야 회원이 일정을 보고 투표할 수 있어요.',
-        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
-    } else if (!event.open && !closedForGood && sessionStage(upcoming) < 2) {
-      items.push(todoRow('clipboard', 'sand', '참석 투표가 닫혀 있어요', `${esc(when)} 회차 투표를 열어야 회원이 응답할 수 있어요.`,
-        button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
-    } else if (event.canVote && waiting) {
-      items.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
-        button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })));
-    }
+// 진행 중인 일정 (FLOW.md): every unfinished event but the one in the big card, in the 운영 홈 order (flow.mjs), each
+// with its stage and the one thing to do now. Redrawn with the vote counts.
+const flowStages = {
+  draft: ['준비', 'muted', 'calendar', 'sand'], waiting: ['투표 대기', 'muted', 'clipboard', 'sand'],
+  voting: ['투표 중', 'green', 'users', 'mint'], closed: ['투표 마감', 'muted', 'clock', 'sand'],
+  today: ['오늘', 'warm', 'calendar', 'mint'], wrapup: ['마무리 전', 'warm', 'clipboard', 'mint'],
+};
+
+function flowRow(event, now) {
+  const stage = eventStage(event, now);
+  const [word, tone, glyph, iconTone] = flowStages[stage];
+  const when = `${dateLabel(event.date)} ${event.time}`;
+  const open = (label, tab) => button(label, 'open-event', { id: event.id, css: 'secondary small', tab, label: `${event.title} ${label}` });
+  const [detail, action] = {
+    draft: [`${when} · 비공개예요. 공개해야 회원이 보고 투표할 수 있어요.`, open('회차 열기', 'poll')],
+    waiting: [`${when} · 투표가 닫혀 있어요. 열어야 회원이 응답할 수 있어요.`, open('회차 열기', 'poll')],
+    voting: [`${deadlineLabel(event.deadline)} 마감 · 미응답 ${event.waiting}명`,
+      button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small', label: `${event.title} 카톡 공유` })],
+    closed: [`${when} · 투표 마감, 미응답 ${event.waiting}명`, open('회차 열기', 'poll')],
+    today: [`${when} · 출석과 게스트 도착을 체크해 주세요.`, open('출석 체크', 'attendance')],
+    wrapup: [`${when} · 출석과 콕·찬조금을 기록하고 마무리해 주세요.`, open('마무리하기', 'settlement')],
+  }[stage];
+  return todoRow(glyph, iconTone, `${pill(word, tone)} ${esc(event.title)}`, esc(detail), action);
+}
+
+export function homeFlows(events, featuredId, now = koreanNow()) {
+  const rows = flowOrder(events, now).filter(event => event.id !== featuredId).map(event => flowRow(event, now));
+  if (events.length && !events.some(event => event.date >= now.day)) {
+    const latest = [...events].sort((a, b) => b.date.localeCompare(a.date))[0];
+    rows.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
+      button('다음 주 회차 만들기', 'clone-event', { id: latest.id, css: 'secondary small' })));
   }
-  if (last && !last.failed && !last.settlement?.confirmed) {
-    items.push(todoRow('clipboard', 'mint', `${esc(dateLabel(last.event.date))} 회차 마무리 전이에요`, '출석과 콕·찬조금을 기록하고 마무리 글을 올려 주세요.',
-      button('마무리하기', 'open-event', { id: last.event.id, css: 'secondary small', tab: 'settlement' })));
-  }
-  if (!upcoming && events.length) {
-    items.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
-      button('다음 주 회차 만들기', 'clone-event', { id: events[0].id, css: 'secondary small' })));
-  }
-  return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">챙길 일</h2></header>
-    ${items.length ? `<ul class="todo-list">${items.join('')}</ul>` : '<p class="muted todo-empty">지금 챙길 일이 없어요.</p>'}</section>`;
+  return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">진행 중인 일정</h2></header>
+    ${rows.length ? `<ul class="todo-list">${rows.join('')}</ul>` : `<p class="muted todo-empty">${featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.'}</p>`}</section>`;
 }
 
 function lastPanel(last) {
@@ -635,11 +642,11 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
   </div>`);
   return `<div class="dashboard">
     <header class="dashboard-heading">
-      <div><h1 tabindex="-1">운영 홈</h1><p>이번 회차의 진행 단계와 챙길 일을 확인하세요.</p></div>
+      <div><h1 tabindex="-1">운영 홈</h1><p>진행 중인 일정과 지금 할 일을 확인하세요.</p></div>
       <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' })}</div>
     </header>
     <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
-    <div class="dashboard-grid dashboard-bottom">${homeTodo(events, upcoming, last)}${lastPanel(last)}</div>
+    <div class="dashboard-grid dashboard-bottom">${homeFlows(events, upcoming?.event.id)}${lastPanel(last)}</div>
     <div class="dashboard-metrics" aria-label="모임 현황">
       ${metric('members', 'users', 'mint', '활동 회원', members.filter(member => member.active).length, '명')}
       ${metric('event', 'calendar', 'sand', `${Number(month.slice(5))}월 회차`, events.filter(event => event.date.startsWith(month)).length, '회')}

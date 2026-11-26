@@ -537,10 +537,14 @@ test('members see vote counts without names and their own half-year record', asy
   await first.login(profiles[0].name, '800101');
   await second.login(profiles[1].name, '800202');
   const votePath = '/api/votes/' + event.id;
+  // 진행 중인 일정 (FLOW.md) reads 미응답 from the organisers' list: active members on the roster without an answer.
+  const waiting = async () => (await admin.request('/api/admin')).events.find(item => item.id === event.id).waiting;
+  assert.equal(await waiting(), 2);
   assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:true}})).counts, {early:1, late:0, no:0, lunch:1});
   // Members answer 선발 or 후발 only; 불참 is the organisers' record.
   await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}, expect:400});
   assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'late', lunch:false}})).counts, {early:1, late:1, no:0, lunch:1});
+  assert.equal(await waiting(), 0);
 
   const home = await first.request('/api/public');
   const listed = home.events.find(item => item.id === event.id);
@@ -552,6 +556,7 @@ test('members see vote counts without names and their own half-year record', asy
   // 응답 취소 removes the answer; cancelling again is harmless, and after the deadline the answer stays.
   assert.deepEqual(await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}}), {vote:null, counts:{early:1, late:0, no:0, lunch:1}});
   assert.equal((await second.request(votePath)).vote, null);
+  assert.equal(await waiting(), 1);
   assert.equal((await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}})).vote, null);
   await second.request(votePath, {method:'PUT', body:{slot:null, lunch:true}, expect:400});
   await admin.request('/api/admin/events/' + event.id, {method:'PATCH', body:{open:false}});

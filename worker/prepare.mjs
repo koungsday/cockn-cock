@@ -28,6 +28,7 @@ const entries = [
   ['app.mjs', await readFile(new URL('app.mjs', site), 'utf8')],
   ['views.mjs', await readFile(new URL('views.mjs', site), 'utf8')],
   ['skeleton.mjs', await readFile(new URL('skeleton.mjs', site), 'utf8')],
+  ['flow.mjs', await readFile(new URL('flow.mjs', site), 'utf8')],
   ['shuttlecock.mjs', await readFile(new URL('../platform/shuttlecock.mjs', import.meta.url), 'utf8')],
 ];
 const hash = createHash('sha256');
