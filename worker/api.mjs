@@ -357,14 +357,19 @@ async function memberVote(db, club, method, id, user, body = {}) {
 async function listAdmin(db, club) {
   const [members, events, notices] = await db.batch([
     sql(db, 'SELECT id, name, active FROM members WHERE club_id = ? ORDER BY active DESC, name, id', club),
-    // settled is for the organiser's session picker only; serializeEvent stays shared with the member screens.
-    sql(db, `SELECT ${eventFields}, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled
+    // settled and waiting are for the organisers' screens only (the session picker, the 운영 홈 일정 흐름 of FLOW.md):
+    // waiting counts active members on the roster without an answer, as the 운영 홈 counts 미응답. serializeEvent
+    // stays shared with the member screens.
+    sql(db, `SELECT ${eventFields}, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
+      (SELECT COUNT(*) FROM roster r JOIN members m ON m.id = r.member_id
+        LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
+        WHERE r.event_id = events.id AND m.active = 1 AND v.member_id IS NULL) AS waiting
       FROM events WHERE club_id = ? ORDER BY date DESC, time DESC, id`, club),
     sql(db, `SELECT ${noticeFields} FROM notices WHERE club_id = ? ORDER BY date DESC, rowid DESC`, club)
   ]);
   return {
     members: members.results.map(serializeMember),
-    events: events.results.map(row => ({ ...serializeEvent(row), settled: Boolean(row.settled) })),
+    events: events.results.map(row => ({ ...serializeEvent(row), settled: Boolean(row.settled), waiting: row.waiting })),
     notices: notices.results.map(serializeNotice),
     rules: await readRules(db, club)
   };

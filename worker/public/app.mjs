@@ -1,11 +1,12 @@
 import {
   adminHome, adminMenu, adminShell, attendanceForm, attendanceRow, attendanceSubtitle, brand, button, countEvent, deadlinePassed,
-  esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
+  esc, eventDefaults, eventForm, eventScreen, homeFlows, homeSteps,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen, organizerForm,
   noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, rulesScreen, sharePreview, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
+import { flowOrder, koreanNow } from './flow.mjs';
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
@@ -256,9 +257,12 @@ async function load() {
       state.selectedEvent = soonest?.id ?? events[0]?.id ?? null;
     }
     if (state.section === 'home') {
-      state.upcoming = soonest ? await request(adminEventPath(soonest.id)) : null;
-      // 지난 회차 is a side panel: if it cannot load, the rest of the home still shows (only that panel says so).
-      const latest = events.find(event => `${event.date}T${event.endTime}` <= kstMinute);
+      // The big card is the first of the 진행 중인 일정 (FLOW.md, flow.mjs); the rest are listed under it.
+      const [first] = flowOrder(events, koreanNow());
+      state.upcoming = first ? await request(adminEventPath(first.id)) : null;
+      // 지난 회차 is the latest event whose 마무리 is confirmed; unfinished ones are among the 진행 중인 일정.
+      // A side panel: if it cannot load, the rest of the home still shows (only that panel says so).
+      const latest = events.find(event => event.settled);
       state.last = latest ? await request(adminEventPath(latest.id)).catch(error => {
         if (error.status === 401 || error.name === 'AbortError') throw error;
         return { failed: true };
@@ -519,14 +523,18 @@ async function refreshVoteCounts() {
   const target = main.querySelector(onHome ? '#home-vote-counts' : '#vote-counts');
   if (!target) return;
   try {
-    const detail = await request(adminEventPath(onHome ? state.upcoming.event.id : state.selectedEvent));
+    const [detail, admin] = await Promise.all([
+      request(adminEventPath(onHome ? state.upcoming.event.id : state.selectedEvent)),
+      onHome ? request('/api/admin') : null,
+    ]);
     if (target.isConnected && !busy) {
       target.innerHTML = onHome ? homeVoteCounts(detail) : voteMetrics(countEvent(detail.roster, detail.guests));
       if (onHome) {
-        // The step band and 챙길 일 read the same session, so they change with the counts (미응답 n명 stays true).
+        // The step band and 진행 중인 일정 change with the counts (미응답 n명 stays true for every event listed).
         state.upcoming = detail;
+        state.admin = admin;
         replaceKeepingFocus('.featured .session-steps', homeSteps(detail));
-        replaceKeepingFocus('.todo-panel', homeTodo(state.admin.events, detail, state.last));
+        replaceKeepingFocus('.todo-panel', homeFlows(state.admin.events, detail.event.id));
         for (const action of main.querySelectorAll('[data-home-published]')) {
           if (!detail.event.published && action.contains(document.activeElement)) {
             main.querySelector('[data-action=open-event]')?.focus({ preventScroll: true });

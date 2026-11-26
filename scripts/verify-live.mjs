@@ -64,7 +64,7 @@ assert.equal(manifest.status, 200);
 assert.equal((await manifest.json()).start_url, admin);
 
 // Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
-const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs'].map(file => adminPage.script.replace('app.mjs', file));
+const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs'].map(file => adminPage.script.replace('app.mjs', file));
 await Promise.all([adminPage.style, adminPage.script, ...modules].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);
