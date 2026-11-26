@@ -291,7 +291,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false,
       <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
       ${vote ? '<button class="share-button share-button--secondary" type="button" data-action="cancel-vote">응답 취소</button>' : ''}</form>`;
   } else if (event.canVote) {
-    response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong> 운영진에게 참석 명단을 확인해 주세요.</p></div>';
+    response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong>운영진에게 참석 명단을 확인해 주세요.</p></div>';
   }
   return memberPage(club, memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes + response));
 }
