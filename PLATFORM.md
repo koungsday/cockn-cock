@@ -15,7 +15,7 @@
 | 모임 등록 | `platform/clubs.mjs` 배열(썬콕19 하나) + 모임별 비밀값 3개(운영진 ID·번호, 인증 pepper) + D1 `clubs` 행 + 배포. 데이터는 모든 모임이 D1 하나를 함께 쓴다(2단계) | `platform/clubs.mjs`, `worker/index.mjs` `scopeEnv`, `worker/migrations/0003_one_database.sql` |
 | 운영진 | 모임마다 환경 변수 계정 1개. 세션 이름은 '운영진' 고정 | `worker/auth.mjs` `adminSettings` |
 | 총괄 화면 | `/console/` 로그인 + 모임별 숫자(활동 회원·운영진 계정·최근/다음 회차)와 설정 상태. 모임 만들기·초대는 아직 없다(5단계). 변경 기록은 4단계 | `worker/console.mjs` |
-| 운영 D1 | `cockcockcock`(2026-11-26 전환). 옛 `suncok19`(표 12개, 160kB)는 2026-12-26까지 보관한 뒤 백업 파일과 함께 지운다 | `wrangler d1 info`, 아래 이전 기록 |
+| 운영 D1 | `cockcockcock`(2026-11-26 전환). 옛 `suncok19`는 회원 1·세션 3행뿐이었고 모두 새 DB에 있어, 같은 날 사용자 결정으로 백업 파일과 함께 지웠다 | `wrangler d1 list`, 아래 이전 기록 |
 | 쿠키 | 모임 슬러그 + 역할(`__Host-suncok19-member` 등), `Path=/` | `worker/auth.mjs` `cookieName` |
 
 ## 역할
@@ -103,7 +103,7 @@ EV 앱에서 가져오지 않는 것:
   - 진행 순서: 배포 잠금 → 내보내기(`~/cockcockcock-backup`, 권한 700) → `cockcockcock` 생성 → 넣기 → 0003 적용.
   - 결과: 표 11개 행 수 같음, `club_id` 모두 `suncok19`, 외래키 위반 0. 이어서 #17 머지와 `npm run deploy`를 했다.
   - 운영 주소 확인: 가상 이름 로그인이 401이었고, 새 DB의 시도 기록이 늘었다.
-  - 원래 폴더와 작업 폴더들의 `worker/wrangler.production.local.json`을 모두 새 DB로 바꿨다. 옛 설정은 백업 폴더에 있다.
+  - 원래 폴더와 작업 폴더들의 `worker/wrangler.production.local.json`을 모두 새 DB로 바꿨다. 옛 DB·백업 파일·옛 설정은 같은 날 지웠다.
 - 겪은 함정: 운영 설정의 `migrations_dir`는 그 설정 파일이 있는 체크아웃 기준이다. 0003이 없는 원래 폴더(`main`)의 설정으로 확인하면 "No migrations to apply"로 보였다. 0003이 있는 작업 폴더의 설정으로 적용했다.
 
 1. 쓰기가 적은 시간을 정해 단체방에 알린다. 내보내는 동안 옛 DB 요청이 막히고, 내보낸 뒤 이전이 끝날 때까지 들어온 저장은 새 DB에 없다.
@@ -127,11 +127,7 @@ npx wrangler d1 execute DB --remote --config $P --json --command "$COUNTS"      
 
 D1은 `UNION ALL`을 길게 잇는 질의를 거절한다("too many terms in compound SELECT"). 그래서 행 수는 한 줄 질의로 센다.
 
-되돌리기는 두 가지를 함께 한다.
-- `npx wrangler rollback --config worker/wrangler.production.local.json`: 이전 Worker 버전과 옛 DB 연결로 돌아간다.
-- 운영 설정의 `database_name`·`database_id`도 `suncok19`로 되돌린다. 그대로 두면 다음 배포가 옛 코드를 새 구조에 올린다.
-
-전환 뒤 새로 쓴 기록은 옛 DB에 없으니, 되돌리면 그 기록은 사라진다.
+옛 DB를 지웠으므로(2026-11-26) 전환 이전으로는 되돌릴 수 없다. #17 배포 이전 Worker 버전은 지운 `suncok19`를 가리키니 `wrangler rollback`에서 고르지 않는다. 문제가 생기면 고쳐서 다시 배포한다.
 
 ## 정할 것
 
