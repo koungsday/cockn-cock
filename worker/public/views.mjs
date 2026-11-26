@@ -247,21 +247,24 @@ export function organizerPinScreen(club, user) {
   </div></main>`;
 }
 
-// 참석 현황: how many answered each way, never who (worker/api.mjs countColumns). Each count stays on one line.
-function countsFact(counts) {
+// 응답 현황: how many answered each way, never who (worker/api.mjs countColumns), drawn like the club's 카카오톡 투표:
+// a bar per choice as a share of everyone who answered. The live CSP blocks style attributes, so each bar is an SVG
+// sized by its viewBox, as the organisers' .poll-track is. share.js and platform/demo-club.mjs draw the same markup.
+function countsBlock(counts, event) {
   if (!counts) return '';
   const total = counts.early + counts.late + counts.no;
-  const line = total
-    ? [['선발', counts.early], ['후발', counts.late], ['불참', counts.no]].map(([word, n]) => `<span class="nowrap">${word} ${n}명</span>`).join(' · ')
-    : '아직 응답이 없어요';
-  return `<div><dt>응답 현황</dt><dd>${line}</dd></div>`;
+  if (!total) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+  const rows = [[voteLabel('early', event), counts.early, 'slot'], [voteLabel('late', event), counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
+  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>응답 ${total}명</span></p>
+    <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${total} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
+    <p class="member-counts-note">불참 ${counts.no}명 · 누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
 export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
   const facts = `<dl class="public-event-facts">
     <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
     <div><dt>장소</dt><dd>${esc(event.place)}</dd></div>
-    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>${countsFact(event.counts)}</dl>`;
+    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>${countsBlock(event.counts, event)}`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
@@ -302,10 +305,19 @@ function nextEventCard(event, club) {
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}</span>
       <h2 id="member-next-title" class="public-title">${esc(event.title)}</h2><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time></header>
     <div class="public-share-content">
-      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}${countsFact(event.counts)}</dl>
+      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}</dl>${countsBlock(event.counts, event)}
       <p class="member-answer">${state.note}</p>
       <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">${state.action}</a>
     </div></article>`;
+}
+
+// One 구간 of 내 기록 as the club's 출석완료자 명단 sheet keeps it: three date slots (more if earned), a filled slot per
+// 줄서기 인정 with its kind when it was not direct. Empty slots are only drawn; the count says how many are filled.
+function markSlots(label, months, marks) {
+  const filled = marks.map(mark => `<li class="member-mark"><span>${Number(mark.date.slice(5, 7))}/${Number(mark.date.slice(8, 10))}</span>${mark.kind === 'direct' ? '' : `<small>${recognitionLabel[mark.kind]}</small>`}</li>`);
+  const empty = Array.from({ length: Math.max(0, 3 - marks.length) }, () => '<li class="member-mark member-mark-empty" aria-hidden="true"></li>');
+  return `<div class="member-marks"><p class="member-marks-head"><strong>${label}</strong><span>${months}</span><span class="member-marks-count">${marks.length} / 3회</span></p>
+    <ol class="member-mark-slots">${filled.join('')}${empty.join('')}</ol></div>`;
 }
 
 // 내 기록: this member's row of this half's 반기 집계 (progressScreen), so they need not ask an organiser.
@@ -315,10 +327,9 @@ function recordCard(record) {
   return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
     <h2 id="member-record">내 기록</h2>
     <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
-    <dl class="public-event-facts"><div><dt>1차 구간</dt><dd>${record.first} / 3회</dd></div>
-      <div><dt>2차 구간</dt><dd>${record.second} / 3회</dd></div>
-      <div><dt>콕 수령</dt><dd>${record.rewarded ? '받았어요' : '아직이에요'}</dd></div></dl>
-    <p class="public-form-note">1차는 ${first}, 2차는 ${second}이에요. 마무리한 회차에서 운영진이 기록한 인정만 세요.</p></div></section>`;
+    ${markSlots('1차 구간', first, record.first)}${markSlots('2차 구간', second, record.second)}
+    <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${record.rewarded ? '받았어요' : '아직이에요'}</dd></div></dl>
+    <p class="public-form-note">마무리한 회차에서 운영진이 기록한 인정만 세요.</p></div></section>`;
 }
 
 export function homeScreen({ events, notices, record }, club, user = null) {

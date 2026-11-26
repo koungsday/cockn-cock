@@ -20,12 +20,13 @@ const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
 const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published';
 const noticeFields = 'id, title, body, date, published';
-// 참석 현황 on the member screens: how many on the event's roster chose each slot, counted as the organisers count
-// them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
-const countColumns = table => ['early', 'late', 'no'].map(slot => `(SELECT COUNT(*) FROM roster cr
+// 참석 현황 on the member screens: how many on the event's roster chose each slot and lunch, counted as the
+// organisers count them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
+const countColumns = table => [...slots.map(slot => [slot, `cv.slot = '${slot}'`]), ['lunch', 'cv.lunch = 1']]
+  .map(([name, where]) => `(SELECT COUNT(*) FROM roster cr
   JOIN votes cv ON cv.event_id = cr.event_id AND cv.member_id = cr.member_id
-  WHERE cr.event_id = ${table}.id AND cv.slot = '${slot}') AS ${slot}_count`).join(', ');
-const readCounts = row => ({ early: row.early_count, late: row.late_count, no: row.no_count });
+  WHERE cr.event_id = ${table}.id AND ${where}) AS ${name}_count`).join(', ');
+const readCounts = row => ({ early: row.early_count, late: row.late_count, no: row.no_count, lunch: row.lunch_count });
 
 function json(body, status = 200, cookie) {
   const headers = new Headers({
@@ -255,7 +256,7 @@ async function listPublic(db, club, memberId) {
   const [events, notices] = await db.batch([
     sql(db, `
       SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open,
-        r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}
+        e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}
       FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
@@ -269,17 +270,35 @@ async function listPublic(db, club, memberId) {
     `, club, date)
   ]);
   const seconds = currentSeconds();
-  const year = Number(date.slice(0, 4));
-  const half = Number(date.slice(5, 7)) <= 6 ? 1 : 2;
-  const [mine] = (await progress(db, club, year, half, memberId)).members;
   return {
     events: events.results.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
-      place: row.place, deadline: row.deadline, canVote: Boolean(row.open) && row.deadline_at > seconds,
+      place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
+      canVote: Boolean(row.open) && row.deadline_at > seconds,
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
     notices: notices.results,
-    record: { year, half, first: mine?.first ?? 0, second: mine?.second ?? 0, rewarded: mine?.rewarded ?? false }
+    record: await memberRecord(db, club, memberId, date)
+  };
+}
+
+// 내 기록: this member's 줄서기 인정 in this half, each with its date and kind like the club's 출석완료자 명단 sheet,
+// counted exactly as the organisers' 반기 집계 (progress) counts them.
+async function memberRecord(db, club, memberId, date) {
+  const year = Number(date.slice(0, 4));
+  const half = Number(date.slice(5, 7)) <= 6 ? 1 : 2;
+  const { start, mid, end } = halfRange(year, half);
+  const [marks, reward] = await db.batch([
+    sql(db, `SELECT e.date, a.recognition ${recognisedMarks} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
+      club, start, end, memberId),
+    sql(db, 'SELECT 1 FROM rewards WHERE year = ? AND half = ? AND member_id = ?', year, half, memberId)
+  ]);
+  const mark = row => ({ date: row.date, kind: row.recognition });
+  return {
+    year, half,
+    first: marks.results.filter(row => row.date < mid).map(mark),
+    second: marks.results.filter(row => row.date >= mid).map(mark),
+    rewarded: reward.results.length > 0
   };
 }
 
@@ -610,18 +629,28 @@ function parsePeriod(year, half) {
   return { year: fullYear, half: period };
 }
 
-// memberId: one member's row only (the member home's 내 기록), with the same counting as the organisers' table.
-async function progress(db, club, year, half, memberId = null) {
-  const start = year + (half === 1 ? '-01-01' : '-07-01');
-  const mid = year + (half === 1 ? '-04-01' : '-10-01');
-  const end = half === 1 ? year + '-07-01' : (year + 1) + '-01-01';
+// A half's 1차 구간 runs from start to mid, its 2차 구간 from mid to end.
+function halfRange(year, half) {
+  return {
+    start: year + (half === 1 ? '-01-01' : '-07-01'),
+    mid: year + (half === 1 ? '-04-01' : '-10-01'),
+    end: half === 1 ? year + '-07-01' : (year + 1) + '-01-01'
+  };
+}
+
+// What counts as 줄서기 인정, shared by the 반기 집계 and the member's 내 기록: a recognition recorded at an event of
+// this club whose 마무리 is confirmed, dated within [start, end). Binds club, start, end.
+const recognisedMarks = `FROM attendance a JOIN events e ON a.event_id = e.id
+      JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
+      WHERE e.club_id = ? AND a.recognition IS NOT NULL AND e.date >= ? AND e.date < ?`;
+
+async function progress(db, club, year, half) {
+  const { start, mid, end } = halfRange(year, half);
   const { results } = await sql(db, `
     WITH marks AS (
       SELECT a.member_id, SUM(CASE WHEN e.date < ? THEN 1 ELSE 0 END) AS first_count,
         SUM(CASE WHEN e.date >= ? THEN 1 ELSE 0 END) AS second_count
-      FROM attendance a JOIN events e ON a.event_id = e.id
-      JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
-      WHERE e.club_id = ? AND a.recognition IS NOT NULL AND e.date >= ? AND e.date < ?
+      ${recognisedMarks}
       GROUP BY a.member_id
     )
     SELECT m.id, m.name, COALESCE(p.first_count,0) AS first_count,
@@ -629,9 +658,9 @@ async function progress(db, club, year, half, memberId = null) {
     FROM members m
     LEFT JOIN marks p ON p.member_id = m.id
     LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
-    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)${memberId ? ' AND m.id = ?' : ''}
+    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)
     ORDER BY m.name, m.id
-  `, mid, mid, club, start, end, year, half, club, ...(memberId ? [memberId] : [])).all();
+  `, mid, mid, club, start, end, year, half, club).all();
   return {
     members: results.map(row => ({
       id: row.id, name: row.name, first: row.first_count, second: row.second_count, rewarded: Boolean(row.rewarded)

@@ -133,8 +133,8 @@ UI 값은 이 문서와 아래 세 파일에서만 가져온다. 추측한 값�
 | 다음 운동 카드 | `.public-share-card.member-next` > `.member-answer` + `.member-next-action` | 회원 홈 첫 카드. 버튼은 카드 폭 전체 |
 | 회원 목록 카드 | `.public-share-card.member-list` > `.member-records` > `.member-record-link` | 이후 일정·공지. 행 58px 이상 |
 | 응답 상태 | `.member-record-action` (`-open` 투표하기, `-done` 응답 완료) | 일정 행 오른쪽. 문구로 상태를 말한다 |
-| 응답 현황 | `.public-event-facts` 안 한 줄 | 다음 운동 카드·투표 화면. "선발 n명 · 후발 n명 · 불참 n명"(운영진 집계와 같은 셈), 이름은 보이지 않는다. 숫자 하나·시간 범위는 `.nowrap`으로 가운데서 끊지 않는다. 응답 저장 즉시 갱신 |
-| 내 기록 | `.public-share-card.member-list.member-record-card` > `.public-event-facts` | 이번 반기 줄서기 인정 1차·2차 구간(n / 3회)과 콕 수령. 운영 화면 반기 집계의 그 회원 줄과 같은 값 |
+| 응답 현황 | `.member-counts` > `.member-count-bar` | 다음 운동 카드·투표 화면, 일시·장소 목록 아래. 썬콕19가 쓰던 카톡 투표처럼 선택지마다 막대: 선발·후발(`#458563`)·점심 함께(`--field-line`), 막대 길이는 응답한 사람 전체 대비. 머리에 "응답 n명", 아래 줄에 불참 수. 운영진 집계와 같은 셈이고 이름은 보이지 않는다. 실사용 CSP가 style 속성을 막아 막대는 viewBox로 길이를 정한 SVG(운영 `.poll-track`과 같은 방식). 응답 저장 즉시 갱신 |
+| 내 기록 | `.member-record-card` > `.member-marks` > `.member-mark-slots` | 이번 반기 줄서기 인정. 출석완료자 명단 시트처럼 1차·2차 구간마다 날짜 칸 세 개(더 받으면 칸이 늘어난다), 직접 인정이 아니면 칸 아래 "대타 인정"·"별도 승인". 빈 칸은 그림만 있고 "n / 3회"가 수를 말한다. 아래에 콕 수령. 운영 화면 반기 집계의 그 회원 줄과 같은 셈 |
 | 로딩 | `skeleton.mjs` → `.admin-skeleton` / `.sk-member` + `.loading-center` | 들어갈 화면 모양의 정지된 스켈레톤(운영 홈·회차·목록, 회원 홈·투표·공지) + 화면 정중앙 흰 카드 속 셔틀콕과 문구. 6장 참고 |
 
 ## 6. 모션

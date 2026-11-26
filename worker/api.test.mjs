@@ -136,12 +136,17 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   const publicEvent = (await visitor.request('/api/public/vote/' + event.id)).event;
   assert.equal(publicEvent.title, event.title);
   assert.equal(publicEvent.canVote, true);
-  assert.doesNotMatch(JSON.stringify(publicEvent), /가상 회원|19880517|memberCode|roster|lunch/);
+  // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.
+  const {counts, ...shownEvent} = publicEvent;
+  assert.deepEqual(Object.keys(counts), ['early', 'late', 'no', 'lunch']);
+  assert.doesNotMatch(JSON.stringify(shownEvent), /가상 회원|19880517|memberCode|roster|lunch/);
   assert.equal((await visitor.request('/api/votes/' + event.id)).vote, null);
   await visitor.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'late', lunch:true}});
   const listed = (await visitor.request('/api/public')).events.find(item => item.id === event.id);
   assert.deepEqual([listed.open, listed.eligible, listed.mySlot], [true, true, 'late']);
-  assert.doesNotMatch(JSON.stringify(listed), /가상 회원|lunch|roster/);
+  const {counts: listedCounts, ...listedEvent} = listed;
+  assert.deepEqual(listedCounts, {early:0, late:1, no:0, lunch:1});
+  assert.doesNotMatch(JSON.stringify(listedEvent), /가상 회원|lunch|roster/);
   await visitor.request('/api/pin', {method:'POST', body:{currentPin:'19880517', newPin:'19880517'}, expect:400});
   await visitor.request('/api/pin', {method:'POST', body:{currentPin:'000537', newPin:'684270'}, expect:400});
   const previousCookie = visitor.cookie;
@@ -511,31 +516,38 @@ test('members see vote counts without names and their own half-year record', asy
   await first.login(profiles[0].name, '800101');
   await second.login(profiles[1].name, '800202');
   const votePath = '/api/votes/' + event.id;
-  assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:false}})).counts, {early:1, late:0, no:0});
-  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}})).counts, {early:1, late:0, no:1});
+  assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:true}})).counts, {early:1, late:0, no:0, lunch:1});
+  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}})).counts, {early:1, late:0, no:1, lunch:1});
 
   const home = await first.request('/api/public');
-  assert.deepEqual(home.events.find(item => item.id === event.id).counts, {early:1, late:0, no:1});
+  const listed = home.events.find(item => item.id === event.id);
+  assert.deepEqual(listed.counts, {early:1, late:0, no:1, lunch:1});
+  assert.deepEqual([listed.earlyTime, listed.lateTime], [event.earlyTime, event.lateTime]);
   const shown = await first.request('/api/public/vote/' + event.id);
-  assert.deepEqual(shown.event.counts, {early:1, late:0, no:1});
+  assert.deepEqual(shown.event.counts, {early:1, late:0, no:1, lunch:1});
   assert.doesNotMatch(JSON.stringify([home, shown]), /가상 회원 나/);
 
   // 내 기록 is this member's row of this half's 반기 집계: an event today, finalized with a recognition.
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [year, month] = today.split('-').map(Number);
   const half = month <= 6 ? 1 : 2;
-  assert.deepEqual(home.record, {year, half, first:0, second:0, rewarded:false});
+  assert.deepEqual(home.record, {year, half, first:[], second:[], rewarded:false});
   const {event: done} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
     ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', earlyTime:'00:01', lateTime:'00:02'
   }});
   const donePath = '/api/admin/events/' + done.id;
-  await admin.request(donePath + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:'direct'}});
+  await admin.request(donePath + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:'substitute'}});
   await admin.request(donePath + '/settlement', {method:'PUT', body:{priorSingles:1, priorTubes:0, remainingSingles:0, courtDonation:0, confirmed:true}});
   await admin.request('/api/admin/progress', {method:'PUT', body:{year, half, memberId:members[0].id, rewarded:true}});
   const firstPeriod = month % 6 >= 1 && month % 6 <= 3;
+  const marks = [{date:today, kind:'substitute'}];
   assert.deepEqual((await first.request('/api/public')).record,
-    {year, half, first:firstPeriod ? 1 : 0, second:firstPeriod ? 0 : 1, rewarded:true});
-  assert.deepEqual((await second.request('/api/public')).record, {year, half, first:0, second:0, rewarded:false});
+    {year, half, first:firstPeriod ? marks : [], second:firstPeriod ? [] : marks, rewarded:true});
+  assert.deepEqual((await second.request('/api/public')).record, {year, half, first:[], second:[], rewarded:false});
+  // The organisers' 반기 집계 counts the same marks.
+  const {members: table} = await admin.request(`/api/admin/progress?year=${year}&half=${half}`);
+  const row = table.find(item => item.id === members[0].id);
+  assert.deepEqual([row.first, row.second], [firstPeriod ? 1 : 0, firstPeriod ? 0 : 1]);
 });
 
 test('published notices and KST deadlines are respected without exposing drafts', async t => {
