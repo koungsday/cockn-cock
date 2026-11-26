@@ -345,7 +345,7 @@ async function logPage(env, slug) {
   const rows = results.map(row => `<tr><td>${auditTime(row.at)}</td><td>${escape(row.actor_name)}</td>
       <td>${escape(actionLabels[row.action] ?? row.action)}</td><td>${escape(row.summary)}</td></tr>`).join('');
   return `<main id="main-content" class="console-page" tabindex="-1">
-    ${pageHead(`${escape(club.name)} 변경 기록`, '운영진과 총괄이 바꾼 것을 최근 200건까지 보여요. 생년월일과 번호는 남기지 않아요.',
+    ${pageHead(`${escape(club.name)} 변경 기록`, '운영진과 총괄이 바꾼 것을 최근 200건까지 보여요. 1년이 지나면 지워지고, 생년월일과 번호는 남기지 않아요.',
       `<a class="btn btn-secondary" href="/console/#club-${escape(slug)}">모임 목록으로</a>`)}
     <section class="panel"><div class="panel-body">${rows ? `<div class="data-table-wrap"><table class="data-table console-log">
       <thead><tr><th scope="col">시각</th><th scope="col">누가</th><th scope="col">무엇</th><th scope="col">내용</th></tr></thead>
@@ -369,7 +369,7 @@ async function removePage(env, slug, id) {
 
 function clubList({ today, clubs }) {
   return `<main id="main-content" class="console-page" tabindex="-1">
-    ${pageHead('모임', '모임마다 숫자와 운영진만 보여요. 회원 명단과 응답은 열지 않아요.',
+    ${pageHead('모임', '모임마다 숫자와 운영진을 보여요. 회원 이름과 응답은 각 모임의 변경 기록에 나와요.',
       `<a class="btn btn-primary btn-icon" href="/console/new" aria-label="새 모임" title="새 모임">${plus}</a>`)}
     ${clubs.length ? clubs.map(club => clubPanel(club, today)).join('\n    ') : '<p class="form-note">아직 모임이 없어요. + 버튼으로 첫 모임을 만들어 주세요.</p>'}
   </main>`;

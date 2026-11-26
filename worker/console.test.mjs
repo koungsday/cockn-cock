@@ -428,3 +428,15 @@ test('changes are recorded per club with who and what, never birthdays or PINs, 
   const saved = await as('/admin/members', 'POST', { name: '가상 기록 없는 회원', birthday: '19910101' });
   assert.equal(saved.status, 201, 'a failed record never undoes or blocks the save');
 });
+
+test('the change log keeps one year: older rows go as new ones are written', async t => {
+  const { env, receive, signIn } = await setup(t);
+  const cookie = cookieOf(await signIn({ id: 'console-fixture', password }));
+  const old = env.DB.sqlite.prepare(`INSERT INTO audit_log (club_id, at, actor, actor_id, actor_name, action, target_id, summary)
+    VALUES ('first-club', unixepoch() - ?, 'console', NULL, '총괄', 'club.suspend', 'first-club', '')`);
+  old.run(366 * 24 * 60 * 60);
+  old.run(364 * 24 * 60 * 60);
+  await receive('/console/clubs/second-club/status', { method: 'POST', form: { status: 'suspended' }, cookie });
+  const ages = env.DB.sqlite.prepare('SELECT unixepoch() - at AS age FROM audit_log ORDER BY id').all().map(row => Math.round(row.age / 86400));
+  assert.deepEqual(ages, [364, 0], 'the 366-day row is gone, the 364-day row and the new one stay');
+});

@@ -1,5 +1,7 @@
 // 변경 기록 (PLATFORM.md): one row per change an organiser or the 총괄 makes. Writing it never undoes or blocks the
 // change it describes: a failure goes to the Worker log and the saved record stays as saved.
+// Kept one year (user decision, 2026-11-26): each write also clears up to 100 rows older than that, in any club.
+export const keepSeconds = 365 * 24 * 60 * 60;
 export const actionLabels = {
   'club.create': '모임 만들기', 'club.suspend': '모임 정지', 'club.resume': '모임 다시 열기',
   'organizer.add': '운영진 추가', 'organizer.reset': '운영진 번호 재발급', 'organizer.remove': '운영진 해지',
@@ -17,10 +19,14 @@ export const organizerActor = user => ({ kind: 'organizer', id: user.id, name: u
 export async function audit(db, club, actor, action, targetId, describe = () => '') {
   try {
     const summary = String(await describe()).slice(0, 200);
-    await db.prepare(`
-      INSERT INTO audit_log (club_id, at, actor, actor_id, actor_name, action, target_id, summary)
-      VALUES (?, unixepoch(), ?, ?, ?, ?, ?, ?)
-    `).bind(club, actor.kind, actor.id, actor.name, action, targetId ?? '', summary).run();
+    await db.batch([
+      db.prepare(`
+        INSERT INTO audit_log (club_id, at, actor, actor_id, actor_name, action, target_id, summary)
+        VALUES (?, unixepoch(), ?, ?, ?, ?, ?, ?)
+      `).bind(club, actor.kind, actor.id, actor.name, action, targetId ?? '', summary),
+      db.prepare('DELETE FROM audit_log WHERE id IN (SELECT id FROM audit_log WHERE at < unixepoch() - ? ORDER BY id LIMIT 100)')
+        .bind(keepSeconds)
+    ]);
   } catch (error) {
     console.error(`변경 기록을 남기지 못했어요: ${action} (${error?.message ?? error})`);
   }
