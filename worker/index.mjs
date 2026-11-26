@@ -1,6 +1,7 @@
 import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 import { handleApi } from './api.mjs';
+import { consolePage } from './console.mjs';
 import { isAdminId, isSixDigitPin } from './auth.mjs';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -189,6 +190,25 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
         target.pathname = path;
         target.search = url.search;
         return new Response(null, { status: 308, headers: { Location: target.href, 'Cache-Control': 'no-store' } });
+      }
+      if (path === '/console' || path.startsWith('/console/')) {
+        // 총괄 콘솔 (PLATFORM.md). Not linked from any public page; noindex and never cached.
+        const result = await consolePage(request, env, url,
+          clubs.map(club => ({ ...club, ready: Boolean(scopeEnv(club, clubs, env)) })));
+        const headers = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
+        if (result.location) {
+          return new Response(null, { status: result.status, headers: {
+            ...headers, Location: result.location, ...(result.cookie && { 'Set-Cookie': result.cookie })
+          } });
+        }
+        const response = htmlResponse(request, result.html, { status: result.status });
+        response.headers.set('X-Robots-Tag', headers['X-Robots-Tag']);
+        // Its forms post back here, and browsers send Origin: null on a form post from a no-referrer page.
+        // same-origin still sends nothing to other sites; console.mjs requires the exact Origin.
+        response.headers.set('Referrer-Policy', 'same-origin');
+        if (result.allow) response.headers.set('Allow', result.allow);
+        if (result.cookie) response.headers.append('Set-Cookie', result.cookie);
+        return response;
       }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();

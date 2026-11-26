@@ -17,6 +17,7 @@ Vercel Hobby와 Supabase Free도 후보입니다. 다만 기존 Vercel Pro 팀�
 | 접근 주체 | 범위 |
 | --- | --- |
 | 배포 관리자 | 모임을 등록하고 운영진 성함·비밀번호·인증 비밀을 연결합니다. |
+| 총괄 관리자 | `/console/`에서 모임마다 활동 회원 수, 운영진 계정 수, 최근·다음 회차 날짜와 설정 상태를 봅니다. 회원 명단과 응답은 보지 않습니다([PLATFORM.md](PLATFORM.md) 인증). |
 | 모임 운영진 | 로그인한 모임의 회원·공지·투표·출석·게스트·정산을 관리합니다. |
 | 회원 | 로그인한 모임에서 게시된 공지와 일정을 보고 본인 투표를 제출하거나 변경합니다. |
 | 방문자 | 회원 로그인 화면과 카톡 링크의 모임명·공유 유형을 볼 수 있습니다. |
@@ -29,6 +30,7 @@ Vercel Hobby와 Supabase Free도 후보입니다. 다만 기존 Vercel Pro 팀�
 | --- | --- |
 | 루트 소개 홈 | 공개로 60초 저장할 수 있습니다. 모임 목록과 개인 데이터는 싣지 않습니다. '최근 들어간 모임'은 기기의 `cockcockcock-recent` 쿠키(모임 슬러그·이름·화면 종류, 180일)를 화면에서 읽어 보여 줍니다. |
 | 회원·운영진 화면, 투표·공지 공유 HTML | `no-store`로 매번 새 응답을 받습니다. |
+| 총괄 콘솔 `/console/` | `no-store`, 검색 제외(`X-Robots-Tag: noindex, nofollow`), `Referrer-Policy: same-origin`. 공개 화면에서 링크하지 않습니다. |
 | 로그인·세션·회원 공지와 투표·운영진 API | `private, no-store`로 브라우저와 CDN에 저장하지 않습니다. |
 | 공용 이미지와 홈 화면 앱 정보 | 1시간 다시 사용할 수 있습니다. |
 | 버전이 붙은 웹폰트 파일 | 최대 1년 다시 사용합니다. 폰트를 교체할 때는 파일 이름을 바꿉니다. |
@@ -66,7 +68,9 @@ npm run live:db
 npm run live:dev
 ```
 
-로컬에는 `worker/.dev.vars`에 운영진 성함 `CLUB_ADMIN_ID`, 6자리 운영 번호 `CLUB_ADMIN_PIN`, 32자 이상의 별도 난수 `CLUB_AUTH_PEPPER`를 둡니다. 로컬 파일은 Git에서 제외됩니다. 가상 회원으로 점검합니다.
+로컬에는 `worker/.dev.vars`에 운영진 성함 `CLUB_ADMIN_ID`, 6자리 운영 번호 `CLUB_ADMIN_PIN`, 32자 이상의 별도 난수 `CLUB_AUTH_PEPPER`를 둡니다. 총괄 콘솔을 확인하려면 `npm run console:password -- --local`로 시험용 아이디·비밀번호를 넣습니다(`PLATFORM_ADMIN_ID`, `PLATFORM_ADMIN_PASSWORD_HASH`). 로컬 파일은 Git에서 제외됩니다. 가상 회원으로 점검합니다.
+
+운영 총괄 로그인은 원래 폴더 터미널에서 `npm run console:password`로 정합니다. 아이디와 12자 이상 비밀번호를 입력하면 비밀번호 원문 대신 PBKDF2 값만 운영 Worker 비밀값에 저장합니다. `wrangler secret put`이라 지금 배포된 코드로 새 버전이 하나 생깁니다. 비밀번호를 바꾸면 모든 총괄 로그인이 끊깁니다.
 
 영구 운영 전에는 운영자가 Cloudflare에 로그인하고 **Workers Free**를 확인합니다. D1을 만들고 `worker/wrangler.jsonc`를 복사한 `worker/wrangler.production.local.json`에 반환된 `database_id`를 입력합니다. 운영용 초기 계정과 인증 비밀은 로컬용과 별개로 생성해 권한이 제한된 `worker/.dev.vars.production`에 저장합니다. 운영진에게는 성함과 운영 번호를 개인 경로로 전달합니다. 아래 명령은 각각의 별도 설정에서 마이그레이션과 초기 암호를 포함한 배포를 합니다.
 
@@ -85,7 +89,7 @@ npx wrangler deploy --config worker/wrangler.production.local.json --secrets-fil
 `worker/migrations/`에 새 파일이 들어간 릴리스는 코드보다 DB를 먼저 바꿉니다. 새 코드는 새 구조를 전제로 해서, 코드만 먼저 올리면 실사용 저장이 실패합니다.
 
 1. 로컬에서 `npm run live:db`로 적용하고 `npm run live:test`와 화면으로 확인합니다. 마이그레이션은 기존 행을 넣은 상태에서 검사합니다(`worker/migrations.test.mjs`).
-2. 운영 DB를 내보내 백업합니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다. 이 명령은 **새 마이그레이션 파일이 있는 체크아웃**(PR 브랜치 작업 폴더나 머지한 `main`)에서 실행합니다. 설정의 마이그레이션 폴더가 그 설정 파일 옆의 `migrations/`라서, 파일이 없는 폴더에서는 적용할 것이 있어도 "No migrations to apply"로 보입니다.
+2. 기존 행을 바꾸거나 표를 다시 만드는 마이그레이션이면 운영 DB를 내보내 백업합니다. 표만 새로 만드는 마이그레이션(예: `0004_console_sessions.sql`)은 기존 행을 건드리지 않습니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다. 이 명령은 **새 마이그레이션 파일이 있는 체크아웃**(PR 브랜치 작업 폴더나 머지한 `main`)에서 실행합니다. 설정의 마이그레이션 폴더가 그 설정 파일 옆의 `migrations/`라서, 파일이 없는 폴더에서는 적용할 것이 있어도 "No migrations to apply"로 보입니다.
 3. `npm run deploy`로 배포합니다.
 
 `0003_one_database.sql`(모든 모임이 D1 하나를 씀)은 이 순서 대신 [PLATFORM.md](PLATFORM.md)의 2단계 이전 절차로 새 D1에 옮깁니다.
