@@ -86,12 +86,14 @@ const paths = {
   'arrow-left': '<path d="m12 19-7-7 7-7m-7 7h15"/>',
   edit: '<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
   megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
-  link: '<path d="m10 13 4-4m-6 6-1 1a3 3 0 1 1-4-4l4-4a3 3 0 0 1 4 0m2 8a3 3 0 0 0 4 0l4-4a3 3 0 1 0-4-4l-1 1"/>',
+  // 카톡 공유: a chat bubble, the same in the demo (app.js icons).
+  share: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3m-5-3 5-5-5-5m5 5H3"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4m-4 5a8 8 0 0 0 14.9 4M20 20v-4h-4"/>',
+  sliders: '<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/>',
 };
 
 export function icon(name, size = 20) {
@@ -314,12 +316,24 @@ function nextEventCard(event, club) {
     </div></article>`;
 }
 
-// One 구간 of 내 기록 as the club's 출석완료자 명단 sheet keeps it: three date slots (more if earned), a filled slot per
-// 줄서기 인정 with its kind when it was not direct. Empty slots are only drawn; the count says how many are filled.
-function markSlots(label, months, marks) {
+// The months of each 구간 of a half under the 모임 규칙 (worker/api.mjs periodOf): ['7~9월', '10~12월'], ['7월', …].
+export function periodMonths(half, periods) {
+  const length = 6 / periods;
+  return Array.from({ length: periods }, (_, index) => {
+    const from = (half === 1 ? 1 : 7) + index * length;
+    return length === 1 ? `${from}월` : `${from}~${from + length - 1}월`;
+  });
+}
+
+const periodName = (periods, index) => periods === 1 ? '반기' : `${index + 1}차 구간`;
+
+// One 구간 of 내 기록 as the club's 출석완료자 명단 sheet keeps it: a date slot per 줄서기 인정 the 모임 규칙 asks for
+// (more if earned), a filled slot with its kind when it was not direct. Empty slots are only drawn; the count says how
+// many are filled.
+function markSlots(label, months, marks, goal) {
   const filled = marks.map(mark => `<li class="member-mark"><span>${Number(mark.date.slice(5, 7))}/${Number(mark.date.slice(8, 10))}</span>${mark.kind === 'direct' ? '' : `<small>${recognitionLabel[mark.kind]}</small>`}</li>`);
-  const empty = Array.from({ length: Math.max(0, 3 - marks.length) }, () => '<li class="member-mark member-mark-empty" aria-hidden="true"></li>');
-  return `<div class="member-marks"><p class="member-marks-head"><strong>${label}</strong><span>${months}</span><span class="member-marks-count">${marks.length} / 3회</span></p>
+  const empty = Array.from({ length: Math.max(0, goal - marks.length) }, () => '<li class="member-mark member-mark-empty" aria-hidden="true"></li>');
+  return `<div class="member-marks"><p class="member-marks-head"><strong>${label}</strong><span>${months}</span><span class="member-marks-count">${marks.length} / ${goal}회</span></p>
     <ol class="member-mark-slots">${filled.join('')}${empty.join('')}</ol></div>`;
 }
 
@@ -338,13 +352,14 @@ function attendanceMonths(year, { months, total }) {
 // 내 기록: this member's 출석 and row of this half's 반기 집계 (progressScreen), so they need not ask an organiser.
 function recordCard(record) {
   if (!record) return '';
-  const [first, second] = record.half === 1 ? ['1~3월', '4~6월'] : ['7~9월', '10~12월'];
+  const months = periodMonths(record.half, record.periods.length);
+  const reward = record.rewarded ? '받았어요' : record.eligible ? '수령 대상이에요' : '아직이에요';
   return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
     <h2 id="member-record">내 기록</h2>
     ${attendanceMonths(record.year, record.attendance)}
     <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
-    ${markSlots('1차 구간', first, record.first)}${markSlots('2차 구간', second, record.second)}
-    <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${record.rewarded ? '받았어요' : '아직이에요'}</dd></div></dl>
+    ${record.periods.map((marks, index) => markSlots(periodName(record.periods.length, index), months[index], marks, record.goal)).join('')}
+    <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${reward}</dd></div></dl>
     <p class="public-form-note">마무리한 회차에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
 }
 
@@ -416,7 +431,7 @@ export function messagePage(title, body, actions = '') {
 
 const adminSections = [
   ['home', '운영 홈', 'home'], ['event', '일정', 'calendar'], ['notices', '공지', 'megaphone'],
-  ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'],
+  ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'], ['rules', '모임 규칙', 'sliders'],
 ];
 
 // 카톡 공유 (운영 화면): the chat preview members will see, read from the share page's own tags (app.mjs
@@ -550,7 +565,7 @@ function pollPanel(detail) {
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="panel poll-dashboard" aria-labelledby="home-vote-title"><div id="home-vote-counts">${homeVoteCounts(detail)}</div>
     <div class="poll-footer"><span>${icon('clock', 16)} ${esc(deadlineLabel(event.deadline))} 마감</span>
-      <span ${hidden}>${button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })}</span></div></section>`;
+      <span ${hidden}>${button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })}</span></div></section>`;
 }
 
 function metric(section, glyph, tone, label, value, unit) {
@@ -579,7 +594,7 @@ export function homeTodo(events, upcoming, last) {
         button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
     } else if (event.canVote && waiting) {
       items.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
-        button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })));
+        button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })));
     }
   }
   if (last && !last.failed && !last.settlement?.confirmed) {
@@ -616,7 +631,7 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
     <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}<span>${esc(notice.title)}</span></button>
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
-    ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 공유" title="카톡 공유">${icon('link', 17)}</button>` : ''}
+    ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 공유" title="카톡 공유">${icon('share', 17)}</button>` : ''}
   </div>`);
   return `<div class="dashboard">
     <header class="dashboard-heading">
@@ -708,7 +723,7 @@ export function eventScreen(events, detail, club, tab = null) {
     + button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary small' })
     // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
     + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || (!event.open && deadlinePassed(event)) })
-    + button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
+    + button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
     ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
@@ -751,10 +766,12 @@ function attendancePanel(event, roster, counts, confirmed) {
   });
 }
 
-export function attendanceForm(person) {
+// kinds: the 인정 방식 this club counts (모임 규칙); a kind already recorded stays listed so saving keeps it.
+export function attendanceForm(person, kinds) {
+  const shown = Object.entries(recognitionLabel).filter(([kind]) => kinds.includes(kind) || kind === person.recognition);
   return form('attendance', note('대타 인정은 당일 출석도 함께 체크해 주세요. 별도 승인 사유와 증빙은 이 화면에 기록하지 않습니다.')
     + `<div class="form-grid">${select('실제 출석', 'present', [['', '미확인'], ['true', '출석'], ['false', '불참 확인']], person.present)}
-      ${select('줄서기 인정', 'recognition', [['', '해당 없음'], ...Object.entries(recognitionLabel)], person.recognition)}</div>`, '기록 저장', person.id);
+      ${select('줄서기 인정', 'recognition', [['', '해당 없음'], ...shown], person.recognition)}</div>`, '기록 저장', person.id);
 }
 
 export function overrideForm(event, person) {
@@ -870,21 +887,45 @@ export function noticesScreen(notices) {
     <h3>${esc(notice.title)}</h3>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
     <div class="notice-actions">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary small' })}
-      ${button(`${icon('link', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
+      ${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
   </article>`);
   return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
 }
 
-export function progressScreen(year, half, members) {
-  const rows = members.map(row => `<tr data-search="${esc(row.name)}"><td><strong>${esc(row.name)}</strong></td>
-    <td>${row.first} / 3회</td><td>${row.second} / 3회</td><td>${pill(row.rewarded ? '수령' : '미수령', row.rewarded ? 'green' : 'muted')}</td>
+// rules: the 모임 규칙 this table was counted under (worker/api.mjs progress): its 구간, goal and 콕 수령 대상.
+// 모임 규칙: how this club counts 줄서기 인정 and shows 콕 수령 (worker/api.mjs readRules, saveRules). The defaults are
+// how the app counted before a club could choose; 줄서기 인정 시각 and 출석 체크 방식 come with QR 체크인.
+export function rulesScreen(rules) {
+  const periods = [[1, '반기 통째로 (6개월)'], [2, '반기를 2구간 (3개월씩)'], [3, '반기를 3구간 (2개월씩)'], [6, '매달 (1개월씩)']];
+  const kinds = Object.entries(recognitionLabel).map(([kind, label]) => `<label class="form-check"><input type="checkbox" name="kinds" value="${kind}"${rules.kinds.includes(kind) ? ' checked' : ''}><span>${label}</span></label>`);
+  const rewards = [['manual', '운영진이 직접 체크해요'], ['goal', '모든 구간에서 목표를 채운 회원을 반기 집계에 "수령 대상"으로 표시해요']]
+    .map(([value, label]) => `<label class="form-check"><input type="radio" name="reward" value="${value}"${rules.reward === value ? ' checked' : ''} required><span>${label}</span></label>`);
+  const body = `<div class="form-grid">${select('집계 구간', 'periods', periods, rules.periods)}
+      ${field('구간 목표 (회)', 'goal', rules.goal, { type: 'number', attrs: 'min="1" max="20" step="1" inputmode="numeric" required' })}</div>
+    <fieldset class="rule-choices"><legend>세는 줄서기 인정</legend>${kinds.join('')}</fieldset>
+    <fieldset class="rule-choices"><legend>콕 수령</legend>${rewards.join('')}</fieldset>
+    ${note('바꾸면 반기 집계와 회원 내 기록에 바로 반영돼요. 지난 출석 기록은 그대로 두고 세는 방법만 바뀌어요. 콕 수령 기록은 어느 쪽이든 운영진이 해요.')}`;
+  return `<div class="secondary-page">${pageHead('모임 규칙', '줄서기 인정과 콕 수령을 우리 모임 방식대로 셉니다.')}
+    ${panel('집계 기준', form('rules', body, '규칙 저장', '', 'rules-form'))}</div>`;
+}
+
+export function progressScreen(year, half, members, rules) {
+  const months = periodMonths(Number(half), rules.periods);
+  const reward = row => row.rewarded ? pill('수령', 'green') : row.eligible ? pill('수령 대상', 'warm') : pill('미수령', 'muted');
+  // Every 구간 sits in one cell as a box, green once its goal is met, so a month-by-month club does not push the table
+  // past a phone's edge (live.css .period-counts).
+  const counts = periods => `<ul class="period-counts">${periods.map((count, index) => `<li${count >= rules.goal ? ' class="period-met"' : ''}><span>${months[index]}</span><strong>${count}<small>/${rules.goal}</small></strong></li>`).join('')}</ul>`;
+  const rows = members.map(row => `<tr data-search="${esc(row.name)}"><td class="member-name"><strong>${esc(row.name)}</strong></td>
+    <td class="progress-periods">${counts(row.periods)}</td><td>${reward(row)}</td>
     <td class="table-actions">${button(row.rewarded ? '수령 취소' : '수령 기록', 'reward', { id: row.id, css: row.rewarded ? 'text small' : 'secondary small', label: `${row.name} ${row.rewarded ? '수령 취소' : '수령 기록'}` })}</td></tr>`);
   const period = form('progress', `<div class="form-grid">${field('연도', 'year', year, { type: 'number', attrs: 'min="2000" max="2100" step="1" required' })}
     ${select('기간', 'half', [[1, '상반기'], [2, '하반기']], half)}</div>`, '집계 조회', '', 'progress-form');
-  return `<div class="secondary-page">${pageHead('반기 집계', '각 구간에서 줄서기 인정을 받은 횟수입니다. 지급은 운영진이 확인한 뒤 기록해 주세요.')}
+  const columns = ['회원', `구간별 인정 (목표 ${rules.goal}회)`, '콕 수령', '<span class="sr-only">기록</span>'];
+  return `<div class="secondary-page">${pageHead('반기 집계', `각 구간에서 줄서기 인정을 받은 횟수입니다. 구간 목표 ${rules.goal}회와 구간 나누기는 모임 규칙에서 바꿔요. 지급은 운영진이 확인한 뒤 기록해 주세요.`,
+    button(`${icon('sliders', 17)} 모임 규칙`, 'tab', { id: 'rules', css: 'secondary small' }))}
     ${panel('조회 기간', period)}
-    ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(['회원', '1차 구간', '2차 구간', '콕 수령', '<span class="sr-only">기록</span>'], rows, '해당 기간에 확인할 회원이 없습니다.'), {
+    ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table'), {
     actions: search('progress'),
   })}</div>`;
 }

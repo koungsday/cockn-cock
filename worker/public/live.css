@@ -103,6 +103,18 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
   .stack-table .member-name strong { overflow: hidden; text-overflow: ellipsis; }
   .stack-table tbody td.table-actions { grid-column: 1 / -1; text-align: left; white-space: normal; }
 }
+/* 반기 집계 (views.mjs progressScreen): a box per 구간 in one cell, green once that 구간's goal is met (모임 규칙).
+   On a phone the boxes take their own line and 콕 수령 shares the last line with its button. */
+.period-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.period-counts li { display: grid; min-width: 44px; padding: 4px 7px; border-radius: 6px; background: var(--hint); line-height: 1.25; }
+.period-counts li span { color: var(--muted); font-size: .75rem; white-space: nowrap; }
+.period-counts strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.period-counts .period-met { background: #e2efdc; box-shadow: inset 0 0 0 1px #458563; }
+@media (max-width: 700px) {
+  .progress-table tbody td.progress-periods { grid-column: 1 / -1; }
+  .progress-table.stack-table tbody td.table-actions { grid-column: auto; text-align: right; }
+}
 /* The live CSP blocks style attributes, so the response bar is SVG; colours match styles.css .vote-yes/.vote-no. */
 svg.poll-track { display: block; width: 100%; }
 svg.poll-track .vote-yes { fill: #458563; }

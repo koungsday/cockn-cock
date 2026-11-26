@@ -3,7 +3,7 @@ import {
   esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen, organizerForm,
-  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, sharePreview, today, voteMetrics,
+  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, rulesScreen, sharePreview, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 
@@ -131,9 +131,10 @@ const id = value => encodeURIComponent(value);
 const adminEventPath = (eventId = state.selectedEvent) => `/api/admin/events/${id(eventId)}`;
 const votePath = () => `/api/votes/${id(route.id)}`;
 
-// Admin addresses use the demo's hash format (app.js): #home, #event/:id[/:tab], #notices, #members, #progress.
+// Admin addresses use the demo's hash format (app.js): #home, #event/:id[/:tab], #notices, #members, #progress, and
+// #rules (모임 규칙, live only).
 // A refresh, the back button or the home-screen app reopened on an address shows the same section, session and tab.
-const adminSectionNames = ['home', 'event', 'notices', 'members', 'progress'];
+const adminSectionNames = ['home', 'event', 'notices', 'members', 'progress', 'rules'];
 const sessionTabNames = ['poll', 'attendance', 'settlement'];
 let lostEvent = false;
 
@@ -221,6 +222,7 @@ async function loadProgress(period = state.period) {
   const response = await request(`/api/admin/progress?year=${year}&half=${half}`);
   state.period = period;
   state.progress = response.members;
+  state.progressRules = response.rules;
 }
 
 async function load() {
@@ -289,7 +291,8 @@ function render({ voteSaved = false, motion = '' } = {}) {
     if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club, state.last);
     else if (state.section === 'members') body = membersScreen(state.admin.members, state.admin.organizers, state.user.id);
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
-    else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
+    else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
+    else if (state.section === 'rules') body = rulesScreen(state.admin.rules);
     else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
     main.innerHTML = adminShell(state.section, body, club, state.user);
     for (const memberId of checking) {
@@ -709,7 +712,7 @@ async function doAction(action, itemId, tab) {
       await copy(itemId);
       break;
     case 'attendance':
-      openDialog('출석 상세 기록', attendanceForm(findRoster(itemId)));
+      openDialog('출석 상세 기록', attendanceForm(findRoster(itemId), state.admin.rules.kinds));
       break;
     case 'vote-override':
       openDialog('회원 응답 변경', overrideForm(state.detail.event, findRoster(itemId)));
@@ -936,6 +939,11 @@ async function doSubmit(kind, itemId, data) {
     case 'progress':
       await loadProgress({ year: Number(read(data, 'year')), half: Number(read(data, 'half')) });
       render();
+      break;
+    case 'rules':
+      await update('/api/admin/rules', 'PUT', {
+        periods: Number(read(data, 'periods')), goal: Number(read(data, 'goal')), kinds: data.getAll('kinds'), reward: read(data, 'reward'),
+      }, '모임 규칙을 저장했어요. 반기 집계와 회원 내 기록에 바로 반영돼요.');
       break;
   }
 }

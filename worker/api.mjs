@@ -290,28 +290,30 @@ const attendedMarks = `FROM attendance a JOIN events e ON a.event_id = e.id
       JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
       WHERE e.club_id = ? AND a.member_id = ? AND a.present = 1`;
 
-// 내 기록: this member's 줄서기 인정 in this half, each with its date and kind like the club's 출석완료자 명단 sheet,
-// counted exactly as the organisers' 반기 집계 (progress) counts them; and their 출석, by month this year and in all.
+// 내 기록: this member's 줄서기 인정 in this half by 구간, each with its date and kind like the club's 출석완료자 명단
+// sheet, counted exactly as the organisers' 반기 집계 (progress) counts them under the 모임 규칙; and their 출석, by
+// month this year and in all.
 async function memberRecord(db, club, memberId, date) {
   const year = Number(date.slice(0, 4));
   const half = Number(date.slice(5, 7)) <= 6 ? 1 : 2;
-  const { start, mid, end } = halfRange(year, half);
+  const rules = await readRules(db, club);
+  const { start, end } = halfRange(year, half);
   const [marks, reward, months, total] = await db.batch([
-    sql(db, `SELECT e.date, a.recognition ${recognisedMarks} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
-      club, start, end, memberId),
+    sql(db, `SELECT e.date, a.recognition ${recognisedMarks(rules.kinds)} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
+      club, ...rules.kinds, start, end, memberId),
     sql(db, 'SELECT 1 FROM rewards WHERE year = ? AND half = ? AND member_id = ?', year, half, memberId),
     sql(db, `SELECT CAST(substr(e.date, 6, 2) AS INTEGER) AS month, COUNT(*) AS count ${attendedMarks}
       AND e.date >= ? AND e.date < ? GROUP BY month`, club, memberId, year + '-01-01', (year + 1) + '-01-01'),
     sql(db, `SELECT COUNT(*) AS total ${attendedMarks}`, club, memberId)
   ]);
-  const mark = row => ({ date: row.date, kind: row.recognition });
+  const periods = Array.from({ length: rules.periods }, () => []);
+  for (const row of marks.results) periods[periodOf(row.date, half, rules)].push({ date: row.date, kind: row.recognition });
   const byMonth = Array(12).fill(0);
   for (const row of months.results) byMonth[row.month - 1] = row.count;
   return {
-    year, half,
-    first: marks.results.filter(row => row.date < mid).map(mark),
-    second: marks.results.filter(row => row.date >= mid).map(mark),
+    year, half, periods, goal: rules.goal, reward: rules.reward,
     rewarded: reward.results.length > 0,
+    eligible: rules.reward === 'goal' && periods.every(list => list.length >= rules.goal),
     attendance: { months: byMonth, total: total.results[0].total }
   };
 }
@@ -363,7 +365,8 @@ async function listAdmin(db, club) {
   return {
     members: members.results.map(serializeMember),
     events: events.results.map(row => ({ ...serializeEvent(row), settled: Boolean(row.settled) })),
-    notices: notices.results.map(serializeNotice)
+    notices: notices.results.map(serializeNotice),
+    rules: await readRules(db, club)
   };
 }
 
@@ -652,43 +655,82 @@ function parsePeriod(year, half) {
   return { year: fullYear, half: period };
 }
 
-// A half's 1차 구간 runs from start to mid, its 2차 구간 from mid to end.
+// A half runs from start to end; the 모임 규칙 cut it into 1, 2, 3 or 6 구간 of equal months.
 function halfRange(year, half) {
   return {
     start: year + (half === 1 ? '-01-01' : '-07-01'),
-    mid: year + (half === 1 ? '-04-01' : '-10-01'),
     end: half === 1 ? year + '-07-01' : (year + 1) + '-01-01'
   };
 }
 
-// What counts as 줄서기 인정, shared by the 반기 집계 and the member's 내 기록: a recognition recorded at an event of
-// this club whose 마무리 is confirmed, dated within [start, end). Binds club, start, end.
-const recognisedMarks = `FROM attendance a JOIN events e ON a.event_id = e.id
+// Which 구간 of its half a date falls in, 0-based.
+function periodOf(date, half, rules) {
+  return Math.floor((Number(date.slice(5, 7)) - (half === 1 ? 1 : 7)) / (6 / rules.periods));
+}
+
+// What counts as 줄서기 인정, shared by the 반기 집계 and the member's 내 기록: a recognition of a kind this club counts
+// (모임 규칙) recorded at an event of this club whose 마무리 is confirmed, dated within [start, end).
+// Binds club, each kind, start, end.
+const recognisedMarks = kinds => `FROM attendance a JOIN events e ON a.event_id = e.id
       JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
-      WHERE e.club_id = ? AND a.recognition IS NOT NULL AND e.date >= ? AND e.date < ?`;
+      WHERE e.club_id = ? AND a.recognition IN (${kinds.map(() => '?').join(', ')}) AND e.date >= ? AND e.date < ?`;
 
 async function progress(db, club, year, half) {
-  const { start, mid, end } = halfRange(year, half);
-  const { results } = await sql(db, `
-    WITH marks AS (
-      SELECT a.member_id, SUM(CASE WHEN e.date < ? THEN 1 ELSE 0 END) AS first_count,
-        SUM(CASE WHEN e.date >= ? THEN 1 ELSE 0 END) AS second_count
-      ${recognisedMarks}
-      GROUP BY a.member_id
-    )
-    SELECT m.id, m.name, COALESCE(p.first_count,0) AS first_count,
-      COALESCE(p.second_count,0) AS second_count, (r.member_id IS NOT NULL) AS rewarded
-    FROM members m
-    LEFT JOIN marks p ON p.member_id = m.id
-    LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
-    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)
-    ORDER BY m.name, m.id
-  `, mid, mid, club, start, end, year, half, club).all();
+  const rules = await readRules(db, club);
+  const { start, end } = halfRange(year, half);
+  const [members, marks] = await db.batch([
+    sql(db, `
+      SELECT m.id, m.name, (r.member_id IS NOT NULL) AS rewarded
+      FROM members m LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
+      WHERE m.club_id = ? AND (m.active = 1 OR r.member_id IS NOT NULL
+        OR EXISTS (SELECT 1 ${recognisedMarks(rules.kinds)} AND a.member_id = m.id))
+      ORDER BY m.name, m.id
+    `, year, half, club, club, ...rules.kinds, start, end),
+    sql(db, `SELECT a.member_id, e.date ${recognisedMarks(rules.kinds)}`, club, ...rules.kinds, start, end)
+  ]);
+  const counts = new Map();
+  for (const row of marks.results) {
+    const periods = counts.get(row.member_id) ?? Array(rules.periods).fill(0);
+    periods[periodOf(row.date, half, rules)] += 1;
+    counts.set(row.member_id, periods);
+  }
   return {
-    members: results.map(row => ({
-      id: row.id, name: row.name, first: row.first_count, second: row.second_count, rewarded: Boolean(row.rewarded)
-    }))
+    rules,
+    members: members.results.map(row => {
+      const periods = counts.get(row.id) ?? Array(rules.periods).fill(0);
+      return {
+        id: row.id, name: row.name, periods, rewarded: Boolean(row.rewarded),
+        eligible: rules.reward === 'goal' && periods.every(count => count >= rules.goal)
+      };
+    })
   };
+}
+
+// 모임 규칙 (worker/migrations/0007_club_rules.sql): how this club counts 줄서기 인정 and shows 콕 수령.
+const rulePeriods = [1, 2, 3, 6];
+const rewardRules = ['manual', 'goal'];
+
+async function readRules(db, club) {
+  const row = await sql(db, 'SELECT rule_periods, rule_goal, rule_kinds, rule_reward FROM clubs WHERE id = ?', club).first();
+  return {
+    periods: row.rule_periods, goal: row.rule_goal,
+    kinds: markKinds.filter(kind => row.rule_kinds.split(',').includes(kind)), reward: row.rule_reward
+  };
+}
+
+async function saveRules(db, club, body) {
+  const periods = Number(body.periods);
+  const goal = Number(body.goal);
+  if (!rulePeriods.includes(periods)) bad('집계 구간을 확인해 주세요.');
+  if (!Number.isInteger(goal) || goal < 1 || goal > 20) bad('구간 목표는 1회에서 20회 사이로 정해 주세요.');
+  if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.some(kind => !markKinds.includes(kind))) {
+    bad('인정 방식을 하나 이상 골라 주세요.');
+  }
+  if (!rewardRules.includes(body.reward)) bad('콕 수령 방식을 확인해 주세요.');
+  const kinds = markKinds.filter(kind => body.kinds.includes(kind));
+  await sql(db, 'UPDATE clubs SET rule_periods = ?, rule_goal = ?, rule_kinds = ?, rule_reward = ? WHERE id = ?',
+    periods, goal, kinds.join(','), body.reward, club).run();
+  return { rules: { periods, goal, kinds, reward: body.reward } };
 }
 
 async function setReward(db, club, body) {
@@ -776,6 +818,17 @@ async function routeAdmin(db, env, url, method, body, user) {
     await record(body.id ? 'notice.update' : 'notice.add', result.notice.id,
       () => `${result.notice.title} · ${result.notice.published ? '공개' : '비공개'}`);
     return json(result, body.id ? 200 : 201);
+  }
+  if (path === '/api/admin/rules') {
+    if (method === 'GET') return json({ rules: await readRules(db, club) });
+    if (method === 'PUT') {
+      const result = await saveRules(db, club, body);
+      const { periods, goal, kinds, reward } = result.rules;
+      await record('rules.update', club, () => `${periods === 1 ? '반기 통째로' : periods === 6 ? '매달' : `반기 ${periods}구간`} · 구간 ${goal}회 · ${
+        kinds.map(kind => markWords[kind]).join('·')} · 콕 수령 ${reward === 'goal' ? '목표 채우면 대상 표시' : '운영진이 직접'}`);
+      return json(result);
+    }
+    methodNotAllowed();
   }
   if (path === '/api/admin/progress') {
     if (method === 'GET') {
