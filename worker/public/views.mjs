@@ -267,8 +267,8 @@ const signInCard = `<section class="member-pin" aria-labelledby="member-sign-in-
 
 // 응답 현황: how many answered each way, never who (worker/api.mjs countColumns), drawn like the club's 카카오톡 투표:
 // a bar per choice as a share of everyone coming (선발 + 후발; members have no 불참). The live CSP blocks style
-// attributes, so each bar is an SVG sized by its viewBox, as the organisers' .poll-track is. share.js and
-// platform/demo-club.mjs draw the same markup.
+// attributes, so each bar is an SVG sized by its viewBox, as the organisers' .poll-track is. The demo's share.js
+// draws the same markup.
 function countsBlock(counts, event) {
   if (!counts) return '';
   const coming = counts.early + counts.late;

@@ -217,7 +217,7 @@
         <p class="preserve-lines">${e(notice.body)}</p>
         <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}${action(notice.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', notice.id, {tone: 'text', symbol: 'pushpin', extra: `data-kind="notice" aria-label="${e(notice.title)} ${notice.pinnedAt ? '상단 고정 해제' : '상단 고정'}"`})}</div>
       </article>`);
-      return heading('공지사항', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
+      return heading('공지', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
     }
 
@@ -241,8 +241,8 @@
         <td>${e(dateLabel(member.joined))}</td>
         <td class="table-actions">${action('수정', 'open-member', member.id, {tone: 'text', extra: `aria-label="${e(member.name)} 정보 수정"`})}</td>
       </tr>`);
-      return heading('멤버 관리', '새 멤버를 추가하고 활동 상태를 관리하세요.', addButton('멤버 추가', 'open-member'))
-        + panel('멤버 명단', rows.length ? table(['이름', '역할', '상태', '가입일', '<span class="sr-only">멤버 수정</span>'], rows) : empty('조건에 맞는 멤버가 없어요.'), {
+      return heading('회원 관리', '새 회원을 추가하고 활동 상태를 관리하세요.', addButton('회원 추가', 'open-member'))
+        + panel('회원 명단', rows.length ? table(['이름', '역할', '상태', '가입일', '<span class="sr-only">멤버 수정</span>'], rows) : empty('조건에 맞는 멤버가 없어요.'), {
           subtitle: `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, actions: controls
         });
     }
@@ -250,7 +250,7 @@
     function statistics(state, ui) {
       const report = stats(state, ui.statsMonth);
       const months = [...new Set([today.slice(0, 7), ...state.events.filter(event => event.finalized).map(event => event.date.slice(0, 7))])].sort().reverse();
-      const selector = `<select data-filter="stats-month" aria-label="출석 통계 기간">${option('', '전체 기간', ui.statsMonth)}${months.map(month => {
+      const selector = `<select data-filter="stats-month" aria-label="반기 집계 기간">${option('', '전체 기간', ui.statsMonth)}${months.map(month => {
         const [year, monthNumber] = month.split('-');
         return option(month, `${year}년 ${Number(monthNumber)}월`, ui.statsMonth);
       }).join('')}</select>`;
@@ -264,7 +264,7 @@
       const credits = qualification(state);
       const creditRows = credits.byMember.map(({member, first, second, met}) => `<tr><td><strong>${e(member.name)}</strong></td>
         <td>${first} / 3회</td><td>${second} / 3회</td><td>${pill(met ? '기준 충족' : '진행 중', met ? 'green' : 'neutral')}</td></tr>`);
-      return heading('출석 통계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
+      return heading('반기 집계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
         + summary([['일정 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
         + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
           subtitle: '확정한 회차에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'

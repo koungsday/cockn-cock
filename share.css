@@ -389,18 +389,6 @@
   font-size: .875rem;
 }
 
-.public-return {
-  min-height: var(--touch-target, 44px);
-  margin-bottom: 14px;
-  padding: 8px 12px;
-  border: 1px solid #cfdcd2;
-  border-radius: 10px;
-  background: #fff;
-  color: #23523b;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
 
 .public-share-card {
   overflow: hidden;
@@ -625,7 +613,6 @@
 .share-button:focus-visible,
 .share-close:focus-visible,
 .share-link-field input:focus-visible,
-.public-return:focus-visible,
 .public-field select:focus-visible,
 .public-choice input:focus-visible + span {
   outline: 2px solid #386e4e;
@@ -651,6 +638,9 @@
 
 /* Member club screens (DESIGN.md 5): the same markup in the demo and the live member home. */
 .member-page { display: grid; gap: 12px; padding-top: clamp(14px, 4vw, 36px); }
+/* In the shell (ROLES.md 2·3단계) they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content
+   area's own padding. */
+.main-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
 .member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: #23523b; font-size: .9rem; font-weight: 700; }
 .member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
 .public-receipt strong { margin-left: 4px; }

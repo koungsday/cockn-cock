@@ -10,10 +10,15 @@
   const toast = document.querySelector('#toast');
   const state = model.load();
   const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}};
+  // The live menu names (ROLES.md 3단계: worker/public/views.mjs organizerSections) where the demo has the same screen;
+  // 반복 설정 is the demo's own (the live club has 모임 규칙 instead).
   const pages = [
-    ['home','운영 홈','home'], ['events','모임 일정','calendar'], ['notices','공지사항','megaphone'],
-    ['members','회원 관리','users'], ['stats','출석 통계','chart'], ['repeat','반복 설정','repeat']
+    ['home','홈','home'], ['events','일정','calendar'], ['notices','공지','megaphone'],
+    ['members','회원 관리','users'], ['stats','반기 집계','chart'], ['repeat','반복 설정','repeat']
   ];
+  // 회원 보기: the live member menus (memberSections). The demo has no sign-in, so the top bar switches between views.
+  const memberPages = [['member','홈','home'], ['member-events','일정','calendar'], ['member-notices','공지','megaphone'], ['member-record','내 기록','user']];
+  const memberView = route => route.page.startsWith('member') || route.page.startsWith('public-');
   const paths = {
     home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
     calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18m-13 5h2m4 0h2"/>',
@@ -66,13 +71,12 @@
     closed:['투표 마감','muted'], today:['오늘','warm'], wrapup:['마무리 전','warm']
   };
   const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit};
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
   let navScroll = null;
   let navTrigger;
-  let returnFromPublic = null;
 
   function routeFromHash() {
     let hash = location.hash;
@@ -85,12 +89,11 @@
     // #event alone is the 일정 list, as in the live club (DESIGN.md 4).
     if (page === 'event' && !id) return {page:'events'};
     if (page === 'event' || page === 'public-notice' || page === 'public-vote') return {page, id, tab:['attendance','settlement'].includes(tab) ? tab : 'poll'};
-    return {page:pages.some(([key]) => key === page) ? page : 'home'};
+    return {page:[...pages, ...memberPages].some(([key]) => key === page) ? page : 'home'};
   }
   function routeTo(target) {
     const before = currentRoute;
     const fromDialog = modal.open;
-    if (target.startsWith('public-') && !before.page.startsWith('public-')) returnFromPublic = location.hash.slice(1) || 'home';
     const sameRoute = location.hash === '#' + target;
     if (mobileNav.open) closeMobileMenu(sameRoute, !sameRoute);
     if (sameRoute) {
@@ -100,7 +103,9 @@
     location.hash = target;
   }
   function currentLabel(route) {
-    return route.page === 'event' ? '모임 일정' : pages.find(([key]) => key === route.page)?.[1] || '운영 홈';
+    if (route.page === 'event' || route.page === 'public-vote') return '일정';
+    if (route.page === 'public-notice') return '공지';
+    return [...pages, ...memberPages].find(([key]) => key === route.page)?.[1] || '홈';
   }
   function persist(message) {
     showToast(model.save(state) ? message : message + ' · 브라우저 저장 공간을 사용할 수 없어요.');
@@ -125,8 +130,11 @@
   function navLink([key, label, glyph], active) {
     return `<a class="nav-link${active === key ? ' active' : ''}" href="#${key}" data-route="${key}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,19)}<span>${label}</span>${active === key ? '<i aria-hidden="true"></i>' : ''}</a>`;
   }
-  function menuLinks(active) {
-    return `<nav class="navigation" aria-label="모임 관리">
+  function menuLinks(active, member) {
+    if (member) {
+      return `<nav class="navigation" aria-label="모임 메뉴"><div class="nav-heading">모임</div>${memberPages.map(item => navLink(item, active)).join('')}</nav>`;
+    }
+    return `<nav class="navigation" aria-label="모임 메뉴">
       <div class="nav-heading">모임 운영</div>
       ${pages.slice(0, 5).map(item => navLink(item, active)).join('')}
       <div class="nav-heading nav-heading-settings">설정</div>
@@ -134,13 +142,13 @@
     </nav>`;
   }
   function menuPage() {
-    return currentRoute.page === 'event' ? 'events' : currentRoute.page;
+    return {event:'events', 'public-vote':'member-events', 'public-notice':'member-notices'}[currentRoute.page] ?? currentRoute.page;
   }
   // Phones: the first four sections stay one tap away; 더보기 opens the full menu (DESIGN.md 4).
   // Same markup as the live app (worker/public/views.mjs adminTabBar): four icons; the menu opens from the top bar.
-  function tabBar(active) {
-    return `<nav class="tab-bar" aria-label="모임 관리 바로가기">
-      ${pages.slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
+  function tabBar(active, member) {
+    return `<nav class="tab-bar" aria-label="바로가기">
+      ${(member ? memberPages : pages).slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
     </nav>`;
   }
   // Same drawer as the live app (worker/public/app.mjs openAdminMenu): the top bar's two lines turn into × in place.
@@ -149,7 +157,7 @@
     mobileNav.innerHTML = `<button class="icon-button menu-toggle" type="button" data-action="close-menu" aria-label="메뉴 닫기" autofocus>${menuIcon}</button>
     <div class="menu-panel"><header class="mobile-nav-header">${brand()}</header><div class="mobile-nav-links">
       ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
-      ${menuLinks(menuPage())}
+      ${menuLinks(menuPage(), memberView(currentRoute))}
     </div></div>`;
 
     navScroll = Math.max(window.scrollY, 0);
@@ -193,42 +201,46 @@
     }
     finish();
   }
+  // 보기 전환 (ROLES.md 3단계): in the live club the sign-in decides the menus; here the visitor picks a view.
+  function viewSwitch(member) {
+    return `<nav class="view-switch" aria-label="보기 전환">${[['home', '운영진', !member], ['member', '회원', member]].map(([route, label, on]) =>
+      `<a class="btn btn-small ${on ? 'btn-secondary' : 'btn-text'}" href="#${route}" data-route="${route}"${on ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+  }
   function renderShell() {
+    const member = memberView(currentRoute);
     app.innerHTML = `
       <aside class="sidebar">
         ${brand()}
         ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
-        ${menuLinks(menuPage())}
+        ${menuLinks(menuPage(), member)}
         <div class="sidebar-footer">
           <span class="operator-mark">${icon('user',18)}</span>
-          <span><strong>모임 운영진</strong><small>관리자 화면</small></span>
+          <span>${member ? '<strong>예시 회원</strong><small>회원 화면</small>' : '<strong>모임 운영진</strong><small>운영 화면</small>'}</span>
         </div>
       </aside>
       <div class="main-shell">
         <header class="topbar">
           <div class="breadcrumb">
-            <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
+            <span class="breadcrumb-parent">썬콕19</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
-          <div class="topbar-actions"><span class="demo-label"><i></i> 가상 데이터 체험</span>
+          <div class="topbar-actions">${viewSwitch(member)}<span class="demo-label"><i></i> 가상 데이터 체험</span>
             <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${menuIcon}</button></div>
         </header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
-        ${tabBar(menuPage())}
+        ${tabBar(menuPage(), member)}
       </div>`;
   }
   function renderPage({focus = false} = {}) {
-    const publicView = currentRoute.page.startsWith('public-');
-    const section = publicView ? (currentRoute.page === 'public-vote' ? '참석 투표' : '공지') : currentLabel(currentRoute);
-    document.title = `${section} · 썬콕19 · 콕콕콕!`;
-    if (publicView) {
-      app.innerHTML = `<main id="main-content" class="public-shell" tabindex="-1">${window.clubShare.renderPublic(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts, returnFromPublic, platformHome})}</main>`;
-    } else {
-      if (!app.querySelector('.main-shell') || app.dataset.section !== section) renderShell();
-      const content = app.querySelector('#main-content');
-      content.innerHTML = currentRoute.page === 'home'
-        ? renderHome()
-        : window.clubScreens.renderScreen(currentRoute, state, ui, helpers);
-    }
+    const member = memberView(currentRoute);
+    const label = currentLabel(currentRoute);
+    // The shell is redrawn when the breadcrumb or the view changes; the menus follow the view.
+    const section = `${member ? 'member' : 'organizer'}:${label}:${menuPage()}`;
+    document.title = `${label} · 썬콕19 · 콕콕콕!`;
+    if (!app.querySelector('.main-shell') || app.dataset.section !== section) renderShell();
+    const content = app.querySelector('#main-content');
+    content.innerHTML = member ? window.clubShare.renderMember(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts})
+      : currentRoute.page === 'home' ? renderHome()
+      : window.clubScreens.renderScreen(currentRoute, state, ui, helpers);
     app.dataset.section = section;
     if (focus) app.querySelector('#main-content')?.focus({preventScroll:true});
   }

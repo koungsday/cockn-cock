@@ -21,23 +21,19 @@ async function read(path = '') {
 const club = CLUBS.find(item => item.slug === 'suncok19');
 const clubPath = `clubs/${club.slug}/`;
 const catalog = (await read()).toString();
-const memberHome = (await read(clubPath)).toString();
+// One club address for both views, as the live club (ROLES.md 3단계); the old 운영 화면 address leads to it.
+const home = (await read(clubPath)).toString();
 const adminPath = clubPath + 'admin/';
-const home = (await read(adminPath)).toString();
+const moved = (await read(adminPath)).toString();
 assert(catalog.includes(PLATFORM_NAME));
 assert(!catalog.includes('id="clubs"') && !catalog.includes(club.name), 'the intro home lists no clubs (PLATFORM.md)');
-assert(catalog.includes(`href="${remote?.pathname ?? ''}${clubPath}"`) ||
-  (!remote && catalog.includes(`${clubPath}"`)), 'the demo try links open the demo member page');
-assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
-assert(memberHome.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
-assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
-assert(memberHome.includes('/' + adminPath + '"'));
-assert(memberHome.includes('/' + adminPath + '#public-vote/e-nov28"'), 'the member home vote button opens the demo vote');
-// The demo member home shares the live member home's markup and stylesheet (worker/public/views.mjs homeScreen).
-for (const marker of ['public-share-card member-next', 'member-next-action', 'member-records', 'share.css"']) {
-  assert(memberHome.includes(marker), `the demo member home uses ${marker}`);
+for (const view of ['#member', '#home']) {
+  assert(catalog.includes(`href="${remote?.pathname ?? ''}${clubPath}${view}"`) ||
+    (!remote && catalog.includes(`${clubPath}${view}"`)), `the demo try links open the club page at ${view}`);
 }
-assert.doesNotMatch(memberHome, /<form\b|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD/);
+assert.doesNotMatch(catalog, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|CLUB_ADMIN_PASSWORD|예시 회원|roster/);
+assert(home.includes(`<title>${club.name} · ${PLATFORM_NAME}</title>`));
+assert.match(moved, new RegExp(`location\\.replace\\("[^"]*/${clubPath}" \\+ location\\.search \\+ location\\.hash\\)`), 'the old 운영 화면 address moves to the club page');
 const basePath = /<meta name="platform-home" content="([^"]+)">/.exec(home)?.[1];
 assert(basePath, 'the club demo links back to the directory');
 assert((await read('platform.css')).length > 0);
@@ -49,7 +45,7 @@ const legacy = (await read('legacy-links.js')).toString();
 let redirect;
 const oldHash = '#public-vote/e-nov28';
 runInNewContext(legacy, { location: { hash: oldHash, search: '', replace: target => { redirect = target; } } });
-assert.equal(redirect, basePath + adminPath + oldHash);
+assert.equal(redirect, basePath + clubPath + oldHash);
 redirect = undefined;
 runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
 assert.equal(redirect, undefined);
@@ -83,7 +79,7 @@ const seed = window.clubModel.load();
 const { linkFor } = window.clubShare;
 
 function openDemo(suffix) {
-  const address = new URL(basePath + adminPath, remote ?? 'http://localhost:4173/');
+  const address = new URL(basePath + clubPath, remote ?? 'http://localhost:4173/');
   const location = new URL(suffix(address.href), address);
   const content = { innerHTML: '' };
   const app = {
@@ -104,15 +100,27 @@ function openDemo(suffix) {
 
 const joinedVote = openDemo(address => `${oldHash}${address}#home`);
 assert.equal(joinedVote.hash, oldHash, 'recover the vote from two pasted demo URLs');
-assert.match(joinedVote.html, /<h1>일요 정기 운동<\/h1>/);
-assert.match(joinedVote.html, /data-route="home">운영 화면으로/);
+assert.match(joinedVote.html, /<h1 tabindex="-1">일요 정기 운동<\/h1>/);
+// 회원 보기 in the one shell: the member menus and the way back to the 일정 list (worker/public/views.mjs memberPage).
+assert.match(joinedVote.html, /data-route="member-events">[^<]*<svg[\s\S]*?<\/svg> 일정<\/a>/);
+for (const label of ['홈', '일정', '공지', '내 기록']) assert.match(joinedVote.html, new RegExp(`<span>${label}<\/span>`), `the member menu has ${label}`);
+assert.doesNotMatch(joinedVote.html, /<span>회원 관리<\/span>/);
 assert.match(openDemo(() => '#home').html, /<h1>운영 홈<\/h1>/);
+for (const label of ['홈', '일정', '공지', '회원 관리', '반기 집계']) {
+  assert.match(openDemo(() => '#home').html, new RegExp(`<span>${label}<\/span>`), `the organiser menu has ${label} as the live club names it`);
+}
 // 일정 흐름 (FLOW.md): the demo home lists the 진행 중인 일정 in the live order (flow.js), the member home bundles the
 // votes still to answer.
 const demoHome = openDemo(() => '#home').html;
 assert.match(demoHome, /진행 중인 일정 \d+개/);
 assert.match(demoHome, /<h2 id="home-todo-title">진행 중인 일정<\/h2>/);
-assert.match((await read(clubPath)).toString(), /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/);
+// The member home shares the live member home's markup and stylesheet (worker/public/views.mjs homeScreen).
+const memberHome = openDemo(() => '#member').html;
+assert.match(memberHome, /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/);
+for (const marker of ['public-share-card member-next', 'member-next-action', 'member-records', 'data-route="public-vote/e-nov28"']) {
+  assert(memberHome.includes(marker), `the demo member home uses ${marker}`);
+}
+assert(home.includes(`href="${basePath}share.css"`));
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);
 
 for (const [kind, id, title] of [
@@ -149,14 +157,13 @@ for (const [kind, id, title] of [
   assert.equal(og['image:width'], '1200');
   assert.equal(og['image:height'], '630');
   const demoHash = `#public-${kind}/${id}`;
-  assert(html.includes(`href="${clubBase.pathname}admin/${demoHash}"`));
+  assert(html.includes(`href="${clubBase.pathname}${demoHash}"`));
   assert.doesNotMatch(html, /<script\b|<form\b|김서윤|localStorage/);
 
   const records = kind === 'vote' ? seed.events : seed.notices;
   const item = records.find(record => record.id === id);
-  const adminBase = new URL('admin/', clubBase);
-  window.location = new URL('#home', adminBase);
-  const localHref = new URL(demoHash, adminBase).href;
+  window.location = new URL('#home', clubBase);
+  const localHref = new URL(demoHash, clubBase).href;
   delete window.clubPublishedShares;
   assert.equal(linkFor(kind, item).href, localHref);
   assert.equal(linkFor(kind, item).published, false);
