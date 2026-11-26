@@ -139,6 +139,7 @@ UI 값은 이 문서와 아래 세 파일에서만 가져온다. 추측한 값�
 | 다음 일정 카드 | `.public-share-card.member-next` > `.member-answer` + `.member-next-action` | 회원 홈 첫 카드. 버튼은 카드 폭 전체 |
 | 회원 목록 카드 | `.public-share-card.member-list` > `.member-records` > `.member-record-link` | 이후 일정·공지. 행 58px 이상 |
 | 응답 상태 | `.member-record-action` (`-open` 투표하기, `-done` 응답 완료) | 일정 행 오른쪽. 문구로 상태를 말한다 |
+| 카톡 공유 | `dialog.share-preview-dialog` > `.share-preview` | 운영 화면의 "카톡 공유"(회차·공지)가 연다. 공유 링크 페이지를 쿠키 없이 받아 그 og 태그(제목·설명·이미지)로 카카오톡 말풍선(`.share-chat`, 이미지 `.share-chat-image`)을 그리고, 아래에 붙여 넣을 링크 칸과 "받는 화면 보기" · "링크 복사"(주요). 가상 체험의 공유 대화상자와 같은 부품이다. 미리보기를 못 받으면 한 줄 안내 뒤 링크만 보인다. 공유 이미지는 썬콕19만 이름이 들어간 카드(`assets/kakao-{vote,notice}.png`), 다른 모임은 같은 카드의 이름 자리에 "콕콕콕!"을 넣은 공용 카드(`-common.png`) |
 | 응답 현황 | `.member-counts` > `.member-count-bar` | 다음 일정 카드·투표 화면, 일시·장소 목록 아래. 썬콕19가 쓰던 카톡 투표처럼 선택지마다 막대: 선발·후발(`#458563`)·점심 함께(`--field-line`), 막대 길이는 참석(선발+후발) 대비. 머리에 "참석 n명", 아래 줄은 이름이 보이지 않는다는 안내. 운영진 집계와 같은 셈이고 이름은 보이지 않는다. 실사용 CSP가 style 속성을 막아 막대는 viewBox로 길이를 정한 SVG(운영 `.poll-track`과 같은 방식). 응답 저장 즉시 갱신 |
 | 내 기록 | `.member-record-card` > `.member-marks` > `.member-mark-slots` | 이번 반기 줄서기 인정. 출석완료자 명단 시트처럼 1차·2차 구간마다 날짜 칸 세 개(더 받으면 칸이 늘어난다), 직접 인정이 아니면 칸 아래 "대타 인정"·"별도 승인". 빈 칸은 그림만 있고 "n / 3회"가 수를 말한다. 아래에 콕 수령. 운영 화면 반기 집계의 그 회원 줄과 같은 셈 |
 | 로딩 | `skeleton.mjs` → `.admin-skeleton` / `.sk-member` + `.loading-center` | 들어갈 화면 모양의 정지된 스켈레톤(운영 홈·회차·목록, 회원 홈·투표·공지) + 화면 정중앙 흰 카드 속 셔틀콕과 문구. 6장 참고 |
