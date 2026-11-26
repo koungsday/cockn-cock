@@ -1,6 +1,6 @@
 import {
   ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  matchesAdminPin, matchingCredentials, membersNamed, randomHex, readSession, sql, temporaryPin
+  matchesAdminPin, matchingCredentials, membersNamed, readSession, sql, temporaryPin
 } from './auth.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -219,22 +219,22 @@ function eventParams(event) {
     event.earlyTime, event.lateTime, event.notes, +event.open, +event.published];
 }
 
-async function fetchEvent(db, id, publicOnly = false) {
-  const row = await sql(db, `SELECT ${eventFields} FROM events WHERE id = ? ${publicOnly ? 'AND published = 1' : ''}`, id).first();
+async function fetchEvent(db, club, id, publicOnly = false) {
+  const row = await sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ? ${publicOnly ? 'AND published = 1' : ''}`, id, club).first();
   if (!row) missing();
   return serializeEvent(row);
 }
 
-async function fetchPublic(db, kind, id) {
-  if (kind === 'vote') return { event: await fetchEvent(db, id, true) };
-  const row = await sql(db, `SELECT ${noticeFields} FROM notices WHERE id = ? AND published = 1`, id).first();
+async function fetchPublic(db, club, kind, id) {
+  if (kind === 'vote') return { event: await fetchEvent(db, club, id, true) };
+  const row = await sql(db, `SELECT ${noticeFields} FROM notices WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
   if (!row) missing();
   return { notice: serializeNotice(row) };
 }
 
 // The member home: published upcoming events with this member's own place on the roster and answer
 // (never anyone else's), so the home can show 투표하기 / 응답 완료 without one request per event.
-async function listPublic(db, memberId) {
+async function listPublic(db, club, memberId) {
   const now = kstNow();
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
@@ -245,14 +245,14 @@ async function listPublic(db, memberId) {
       FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
-      WHERE e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)
+      WHERE e.club_id = ? AND e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)
       ORDER BY e.date, e.time, e.id LIMIT 12
-    `, memberId, memberId, date, date, time),
+    `, memberId, memberId, club, date, date, time),
     sql(db, `
       SELECT id, title, date FROM notices
-      WHERE date <= ? AND published = 1
+      WHERE club_id = ? AND date <= ? AND published = 1
       ORDER BY date DESC, rowid DESC LIMIT 8
-    `, date)
+    `, club, date)
   ]);
   const seconds = currentSeconds();
   return {
@@ -265,12 +265,12 @@ async function listPublic(db, memberId) {
   };
 }
 
-async function memberVote(db, method, id, user, body = {}) {
+async function memberVote(db, club, method, id, user, body = {}) {
   const roster = await sql(db, `
     SELECT e.open, e.deadline_at
     FROM events e JOIN roster r ON r.event_id = e.id
-    WHERE e.id = ? AND e.published = 1 AND r.member_id = ?
-  `, id, user.id).first();
+    WHERE e.id = ? AND e.club_id = ? AND e.published = 1 AND r.member_id = ?
+  `, id, club, user.id).first();
   if (!roster) missing();
 
   if (method === 'GET') {
@@ -283,21 +283,21 @@ async function memberVote(db, method, id, user, body = {}) {
     INSERT INTO votes (event_id, member_id, slot, lunch)
     SELECT r.event_id, r.member_id, ?, ?
     FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
-    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1
+    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND e.club_id = ?
       AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()
     ON CONFLICT (event_id, member_id) DO UPDATE SET slot = excluded.slot, lunch = excluded.lunch
-  `, slot, +lunch, id, user.id, user.version).run();
+  `, slot, +lunch, id, user.id, club, user.version).run();
   if (!result.meta.changes) throw new ApiError(409, '투표가 마감되었거나 회원 정보가 바뀌었어요. 새로고침해 주세요.');
   return { vote: { slot, lunch } };
 }
 
-async function listAdmin(db) {
+async function listAdmin(db, club) {
   const [members, events, notices] = await db.batch([
-    sql(db, 'SELECT id, name, active FROM members ORDER BY active DESC, name, id'),
+    sql(db, 'SELECT id, name, active FROM members WHERE club_id = ? ORDER BY active DESC, name, id', club),
     // settled is for the organiser's session picker only; serializeEvent stays shared with the member screens.
     sql(db, `SELECT ${eventFields}, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled
-      FROM events ORDER BY date DESC, time DESC, id`),
-    sql(db, `SELECT ${noticeFields} FROM notices ORDER BY date DESC, rowid DESC`)
+      FROM events WHERE club_id = ? ORDER BY date DESC, time DESC, id`, club),
+    sql(db, `SELECT ${noticeFields} FROM notices WHERE club_id = ? ORDER BY date DESC, rowid DESC`, club)
   ]);
   return {
     members: members.results.map(serializeMember),
@@ -306,19 +306,19 @@ async function listAdmin(db) {
   };
 }
 
-function rosterOpenEvents(db, id, version = null) {
+function rosterOpenEvents(db, club, id, version = null) {
   return sql(db, `
     INSERT INTO roster (event_id, member_id)
     SELECT e.id, m.id FROM events e CROSS JOIN members m
-    WHERE m.id = ? AND m.active = 1 AND e.deadline_at > unixepoch()
+    WHERE m.id = ? AND m.club_id = ? AND e.club_id = m.club_id AND m.active = 1 AND e.deadline_at > unixepoch()
       AND (? IS NULL OR m.credential_version = ?)
       AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = e.id AND s.confirmed = 1)
     ON CONFLICT (event_id, member_id) DO NOTHING
-  `, id, version, version);
+  `, id, club, version, version);
 }
 
 async function addMember(env, body) {
-  const db = env.DB;
+  const { DB: db, CLUB_SCOPE: club } = env;
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
@@ -327,33 +327,31 @@ async function addMember(env, body) {
   }
   const { hash, salt, version } = await makeMemberCredential(env, birthday);
   const id = crypto.randomUUID();
-  // The legacy column is still NOT NULL on existing databases.
-  const legacyPlaceholder = randomHex(32);
   const [insert] = await db.batch([
     sql(db, `
-      INSERT INTO members (id, name, code_hash, credential_salt, credential_hash, credential_version)
+      INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version)
       SELECT ?, ?, ?, ?, ?, ?
       WHERE NOT EXISTS (
-        SELECT 1 FROM members WHERE name IN (?, ?)
+        SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?)
           AND credential_version NOT IN (SELECT value FROM json_each(?))
       )
-    `, id, name, legacyPlaceholder, salt, hash, version, name, name.normalize('NFD'),
+    `, id, club, name, salt, hash, version, club, name, name.normalize('NFD'),
     JSON.stringify(candidates.map(row => row.credential_version))),
-    rosterOpenEvents(db, id)
+    rosterOpenEvents(db, club, id)
   ]);
   if (!insert.meta.changes) throw new ApiError(409, '같은 이름의 회원 정보가 바뀌었어요. 다시 등록해 주세요.');
   return { member: { id, name, active: true } };
 }
 
 async function updateMember(env, id, body) {
-  const db = env.DB;
+  const { DB: db, CLUB_SCOPE: club } = env;
   const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
   let version = null;
   if (name === env.CLUB_ADMIN_ID) {
     const target = await sql(db, `
-      SELECT credential_salt, credential_hash, credential_version, must_change FROM members WHERE id = ?
-    `, id).first();
+      SELECT credential_salt, credential_hash, credential_version, must_change FROM members WHERE id = ? AND club_id = ?
+    `, id, club).first();
     if (!target) missing();
     if ((await matchingCredentials(env, [target], env.CLUB_ADMIN_PIN, true)).length) {
       throw new ApiError(409, '같은 이름과 로그인 번호가 이미 사용 중이에요. 회원의 번호를 재설정해 주세요.');
@@ -362,14 +360,14 @@ async function updateMember(env, id, body) {
   }
   const statements = [sql(db, `
     UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active)
-    WHERE id = ? AND (? IS NULL OR credential_version = ?)
-  `, name, active, id, version, version)];
+    WHERE id = ? AND club_id = ? AND (? IS NULL OR credential_version = ?)
+  `, name, active, id, club, version, version)];
   if (active === 0) statements.push(sql(db, `
     DELETE FROM sessions WHERE member_id = ?
-      AND EXISTS (SELECT 1 FROM members WHERE id = ? AND active = 0 AND (? IS NULL OR credential_version = ?))
-  `, id, id, version, version));
-  if (active === 1) statements.push(rosterOpenEvents(db, id, version));
-  statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ?', id));
+      AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0 AND (? IS NULL OR credential_version = ?))
+  `, id, id, club, version, version));
+  if (active === 1) statements.push(rosterOpenEvents(db, club, id, version));
+  statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ? AND club_id = ?', id, club));
   const results = await db.batch(statements);
   const row = results.at(-1).results[0];
   if (!row) missing();
@@ -378,8 +376,8 @@ async function updateMember(env, id, body) {
 }
 
 async function resetMember(env, id) {
-  const db = env.DB;
-  const target = await sql(db, 'SELECT name, credential_version FROM members WHERE id = ?', id).first();
+  const { DB: db, CLUB_SCOPE: club } = env;
+  const target = await sql(db, 'SELECT name, credential_version FROM members WHERE id = ? AND club_id = ?', id, club).first();
   if (!target) missing();
   const name = target.name.normalize('NFC');
   const candidates = await membersNamed(env, name, target.name);
@@ -397,11 +395,12 @@ async function resetMember(env, id) {
     sql(db, `
       UPDATE members SET credential_salt = ?, credential_hash = ?,
         credential_version = ?, must_change = 1
-      WHERE id = ? AND name = ? AND credential_version = ?
+      WHERE id = ? AND club_id = ? AND name = ? AND credential_version = ?
         AND NOT EXISTS (
-          SELECT 1 FROM members WHERE name IN (?, ?, ?) AND credential_version NOT IN (SELECT value FROM json_each(?))
+          SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?, ?)
+            AND credential_version NOT IN (SELECT value FROM json_each(?))
         )
-    `, salt, hash, version, id, target.name, target.credential_version, name, name.normalize('NFD'), target.name,
+    `, salt, hash, version, id, club, target.name, target.credential_version, club, name, name.normalize('NFD'), target.name,
     JSON.stringify(candidates.map(row => row.credential_version))),
     sql(db, `
       DELETE FROM sessions WHERE role = 'member' AND member_id = ?
@@ -416,41 +415,41 @@ async function resetMember(env, id) {
   return { temporaryPin: temporary };
 }
 
-async function addEvent(db, body) {
+async function addEvent(db, club, body) {
   const data = validateEvent(body);
   const id = crypto.randomUUID();
   await db.batch([
     sql(db, `
-      INSERT INTO events (${eventFields})
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, id, ...eventParams(data)),
-    sql(db, 'INSERT INTO roster (event_id, member_id) SELECT ?, id FROM members WHERE active = 1', id)
+      INSERT INTO events (club_id, ${eventFields})
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, club, id, ...eventParams(data)),
+    sql(db, 'INSERT INTO roster (event_id, member_id) SELECT ?, id FROM members WHERE club_id = ? AND active = 1', id, club)
   ]);
-  return { event: await fetchEvent(db, id) };
+  return { event: await fetchEvent(db, club, id) };
 }
 
-async function updateEvent(db, id, body) {
-  const previous = await fetchEvent(db, id);
+async function updateEvent(db, club, id, body) {
+  const previous = await fetchEvent(db, club, id);
   const data = validateEvent({ ...previous, ...body });
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
       early_time=?, late_time=?, notes=?, open=?, published=?
-    WHERE id=?
+    WHERE id=? AND club_id=?
       AND title=? AND date=? AND time=? AND end_time=? AND place=? AND deadline=? AND deadline_at=?
       AND early_time=? AND late_time=? AND notes=? AND open=? AND published=?
       AND (
         (date=? AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
-  `, ...eventParams(data), id, ...eventParams(previous), data.date, +data.open, id).run();
+  `, ...eventParams(data), id, club, ...eventParams(previous), data.date, +data.open, id).run();
   if (!updates.meta.changes) {
     throw new ApiError(409, '다른 곳에서 일정이 바뀌었거나 마무리가 확정됐어요. 새로고침한 뒤 확인해 주세요.');
   }
-  return { event: await fetchEvent(db, id) };
+  return { event: await fetchEvent(db, club, id) };
 }
 
-async function eventDetails(db, id) {
+async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement] = await db.batch([
-    sql(db, `SELECT ${eventFields} FROM events WHERE id = ?`, id),
+    sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
       SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition
       FROM roster r JOIN members m ON r.member_id = m.id
@@ -473,12 +472,15 @@ async function eventDetails(db, id) {
   };
 }
 
-async function ensureRoster(db, eventId, memberId) {
-  if (!await sql(db, 'SELECT member_id FROM roster WHERE event_id = ? AND member_id = ?', eventId, memberId).first()) missing();
+async function ensureRoster(db, club, eventId, memberId) {
+  if (!await sql(db, `
+    SELECT r.member_id FROM roster r JOIN events e ON e.id = r.event_id
+    WHERE r.event_id = ? AND r.member_id = ? AND e.club_id = ?
+  `, eventId, memberId, club).first()) missing();
 }
 
-async function overrideVote(db, id, memberId, body) {
-  await ensureRoster(db, id, memberId);
+async function overrideVote(db, club, id, memberId, body) {
+  await ensureRoster(db, club, id, memberId);
   const { slot, lunch } = validateVote(body, true);
   if (slot === null) {
     await sql(db, 'DELETE FROM votes WHERE event_id = ? AND member_id = ?', id, memberId).run();
@@ -495,7 +497,7 @@ function lockedSettlement() {
   throw new ApiError(409, '마무리 확정을 해제한 뒤 기록을 바꿔 주세요.');
 }
 
-async function setAttendance(db, id, memberId, body) {
+async function setAttendance(db, club, id, memberId, body) {
   const { present, recognition } = body;
   if ((present !== null && typeof present !== 'boolean') ||
     (recognition !== null && !markKinds.includes(recognition))) {
@@ -504,7 +506,7 @@ async function setAttendance(db, id, memberId, body) {
   if ((recognition === 'direct' || recognition === 'substitute') && present !== true) {
     bad('직접·대타 인정은 당일 출석으로 표시한 뒤 선택해 주세요.');
   }
-  await ensureRoster(db, id, memberId);
+  await ensureRoster(db, club, id, memberId);
   const result = await sql(db, `
     INSERT INTO attendance (event_id, member_id, present, recognition)
     SELECT ?, ?, ?, ?
@@ -516,8 +518,8 @@ async function setAttendance(db, id, memberId, body) {
   return { attendance: { present, recognition } };
 }
 
-async function setGuest(db, eventId, body) {
-  await fetchEvent(db, eventId);
+async function setGuest(db, club, eventId, body) {
+  await fetchEvent(db, club, eventId);
   const id = body.id ?? crypto.randomUUID();
   if (typeof id !== 'string' || !recordId.test(id)) bad('게스트 기록을 확인해 주세요.');
   const params = [
@@ -543,7 +545,7 @@ async function setGuest(db, eventId, body) {
   return { guest: serializeGuest(await sql(db, 'SELECT id, name, level, invited_by, status, paid FROM guests WHERE id = ?', id).first()) };
 }
 
-async function setSettlement(db, id, body) {
+async function setSettlement(db, club, id, body) {
   const values = [
     number(body.priorSingles, '이전 콕 낱개 수'),
     number(body.priorTubes, '이전 콕 타 수'),
@@ -551,22 +553,22 @@ async function setSettlement(db, id, body) {
     number(body.courtDonation, '코트 찬조금'),
     +boolean(body.confirmed, '마무리 확정 상태')
   ];
-  const event = await fetchEvent(db, id);
+  const event = await fetchEvent(db, club, id);
   const today = kstToday();
   if (body.confirmed && event.date > today) bad('운동 날짜가 되면 마무리를 확정할 수 있어요.');
   const statements = [sql(db, `
     INSERT INTO settlements (event_id, prior_singles, prior_tubes, remaining_singles, court_donation, confirmed)
-    SELECT id, ?, ?, ?, ?, ? FROM events WHERE id = ? AND (? = 0 OR date <= ?)
+    SELECT id, ?, ?, ?, ?, ? FROM events WHERE id = ? AND club_id = ? AND (? = 0 OR date <= ?)
     ON CONFLICT (event_id)
     DO UPDATE SET prior_singles=excluded.prior_singles, prior_tubes=excluded.prior_tubes,
       remaining_singles=excluded.remaining_singles, court_donation=excluded.court_donation, confirmed=excluded.confirmed
-  `, ...values, id, +body.confirmed, today)];
+  `, ...values, id, club, +body.confirmed, today)];
   if (body.confirmed) {
     statements.push(sql(db, `
-      UPDATE events SET open=0 WHERE id=? AND EXISTS (
+      UPDATE events SET open=0 WHERE id=? AND club_id=? AND EXISTS (
         SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1
       )
-    `, id, id));
+    `, id, club, id));
   }
   statements.push(sql(db, 'SELECT * FROM settlements WHERE event_id = ?', id));
   const results = await db.batch(statements);
@@ -576,7 +578,7 @@ async function setSettlement(db, id, body) {
   return { settlement: serializeSettlement(results.at(-1).results[0]) };
 }
 
-async function saveNotice(db, body) {
+async function saveNotice(db, club, body) {
   const title = text(body.title, '공지 제목', 120);
   const content = text(body.body, '공지 내용', 4000);
   const published = +boolean(body.published ?? false, '공개 상태');
@@ -584,10 +586,10 @@ async function saveNotice(db, body) {
   if (typeof id !== 'string' || !recordId.test(id)) bad('공지 기록을 확인해 주세요.');
 
   const statement = body.id
-    ? sql(db, 'UPDATE notices SET title=?, body=?, published=? WHERE id=?', title, content, published, id)
-    : sql(db, `INSERT INTO notices (${noticeFields}) VALUES (?, ?, ?, ?, ?)`, id, title, content, kstToday(), published);
+    ? sql(db, 'UPDATE notices SET title=?, body=?, published=? WHERE id=? AND club_id=?', title, content, published, id, club)
+    : sql(db, `INSERT INTO notices (club_id, ${noticeFields}) VALUES (?, ?, ?, ?, ?, ?)`, club, id, title, content, kstToday(), published);
   if (!(await statement.run()).meta.changes) missing();
-  return { notice: serializeNotice(await sql(db, `SELECT ${noticeFields} FROM notices WHERE id=?`, id).first()) };
+  return { notice: serializeNotice(await sql(db, `SELECT ${noticeFields} FROM notices WHERE id=? AND club_id=?`, id, club).first()) };
 }
 
 function parsePeriod(year, half) {
@@ -599,7 +601,7 @@ function parsePeriod(year, half) {
   return { year: fullYear, half: period };
 }
 
-async function progress(db, year, half) {
+async function progress(db, club, year, half) {
   const start = year + (half === 1 ? '-01-01' : '-07-01');
   const mid = year + (half === 1 ? '-04-01' : '-10-01');
   const end = half === 1 ? year + '-07-01' : (year + 1) + '-01-01';
@@ -609,7 +611,7 @@ async function progress(db, year, half) {
         SUM(CASE WHEN e.date >= ? THEN 1 ELSE 0 END) AS second_count
       FROM attendance a JOIN events e ON a.event_id = e.id
       JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
-      WHERE a.recognition IS NOT NULL AND e.date >= ? AND e.date < ?
+      WHERE e.club_id = ? AND a.recognition IS NOT NULL AND e.date >= ? AND e.date < ?
       GROUP BY a.member_id
     )
     SELECT m.id, m.name, COALESCE(p.first_count,0) AS first_count,
@@ -617,9 +619,9 @@ async function progress(db, year, half) {
     FROM members m
     LEFT JOIN marks p ON p.member_id = m.id
     LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
-    WHERE m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL
+    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)
     ORDER BY m.name, m.id
-  `, mid, mid, start, end, year, half).all();
+  `, mid, mid, club, start, end, year, half, club).all();
   return {
     members: results.map(row => ({
       id: row.id, name: row.name, first: row.first_count, second: row.second_count, rewarded: Boolean(row.rewarded)
@@ -627,12 +629,12 @@ async function progress(db, year, half) {
   };
 }
 
-async function setReward(db, body) {
+async function setReward(db, club, body) {
   const { year, half } = parsePeriod(body.year, body.half);
   const { memberId } = body;
   if (typeof memberId !== 'string' || !recordId.test(memberId)) bad('회원 정보를 확인해 주세요.');
   const rewarded = boolean(body.rewarded, '콕 수령 상태');
-  if (!await sql(db, 'SELECT id FROM members WHERE id=?', memberId).first()) missing();
+  if (!await sql(db, 'SELECT id FROM members WHERE id=? AND club_id=?', memberId, club).first()) missing();
   if (rewarded) {
     await sql(db, 'INSERT INTO rewards (year, half, member_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', year, half, memberId).run();
   } else {
@@ -643,16 +645,17 @@ async function setReward(db, body) {
 
 async function routeAdmin(db, env, url, method, body) {
   const path = url.pathname;
-  if (path === '/api/admin' && method === 'GET') return json(await listAdmin(db));
+  const club = env.CLUB_SCOPE;
+  if (path === '/api/admin' && method === 'GET') return json(await listAdmin(db, club));
   if (path === '/api/admin/members' && method === 'POST') return json(await addMember(env, body), 201);
-  if (path === '/api/admin/events' && method === 'POST') return json(await addEvent(db, body), 201);
-  if (path === '/api/admin/notices' && method === 'POST') return json(await saveNotice(db, body), body.id ? 200 : 201);
+  if (path === '/api/admin/events' && method === 'POST') return json(await addEvent(db, club, body), 201);
+  if (path === '/api/admin/notices' && method === 'POST') return json(await saveNotice(db, club, body), body.id ? 200 : 201);
   if (path === '/api/admin/progress') {
     if (method === 'GET') {
       const { year, half } = parsePeriod(url.searchParams.get('year'), url.searchParams.get('half'));
-      return json(await progress(db, year, half));
+      return json(await progress(db, club, year, half));
     }
-    if (method === 'PUT') return json(await setReward(db, body));
+    if (method === 'PUT') return json(await setReward(db, club, body));
   }
   const member = memberPath.exec(path);
   if (member) {
@@ -663,12 +666,12 @@ async function routeAdmin(db, env, url, method, body) {
   const event = eventPath.exec(path);
   if (!event) missing();
   const [, id, resource, memberId] = event;
-  if (!resource && method === 'GET') return json(await eventDetails(db, id));
-  if (!resource && method === 'PATCH') return json(await updateEvent(db, id, body));
-  if (resource === 'attendance' && memberId && method === 'PUT') return json(await setAttendance(db, id, memberId, body));
-  if (resource === 'votes' && memberId && method === 'PUT') return json(await overrideVote(db, id, memberId, body));
-  if (resource === 'guests' && !memberId && method === 'POST') return json(await setGuest(db, id, body), body.id ? 200 : 201);
-  if (resource === 'settlement' && !memberId && method === 'PUT') return json(await setSettlement(db, id, body));
+  if (!resource && method === 'GET') return json(await eventDetails(db, club, id));
+  if (!resource && method === 'PATCH') return json(await updateEvent(db, club, id, body));
+  if (resource === 'attendance' && memberId && method === 'PUT') return json(await setAttendance(db, club, id, memberId, body));
+  if (resource === 'votes' && memberId && method === 'PUT') return json(await overrideVote(db, club, id, memberId, body));
+  if (resource === 'guests' && !memberId && method === 'POST') return json(await setGuest(db, club, id, body), body.id ? 200 : 201);
+  if (resource === 'settlement' && !memberId && method === 'PUT') return json(await setSettlement(db, club, id, body));
   methodNotAllowed();
 }
 
@@ -686,7 +689,9 @@ async function route(request, env) {
   if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
     const member = requireUser(await readSession(request, env, 'member'), 'member');
-    const publicData = exposed ? await fetchPublic(env.DB, exposed[1], exposed[2]) : await listPublic(env.DB, member.id);
+    const publicData = exposed
+      ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2])
+      : await listPublic(env.DB, env.CLUB_SCOPE, member.id);
     return json(publicData);
   }
 
@@ -717,7 +722,7 @@ async function route(request, env) {
     return routeAdmin(env.DB, env, url, method, body);
   }
   const vote = votePath.exec(path);
-  if (vote) return json(await memberVote(env.DB, method, vote[1], requireUser(user, 'member'), body));
+  if (vote) return json(await memberVote(env.DB, env.CLUB_SCOPE, method, vote[1], requireUser(user, 'member'), body));
   missing();
 }
 

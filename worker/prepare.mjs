@@ -1,12 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { CLUBS } from '../platform/clubs.mjs';
 import { shuttlecockMark } from '../platform/shuttlecock.mjs';
 import { adminSkeleton, loadingCenter, memberSkeleton } from './public/skeleton.mjs';
-import { verifyDatabaseBindings } from './bindings.mjs';
-
-const config = JSON.parse(await readFile(new URL('./wrangler.jsonc', import.meta.url), 'utf8'));
-verifyDatabaseBindings(CLUBS, config.d1_databases);
 
 const site = new URL('./site/', import.meta.url);
 const theme = (await readFile(new URL('../platform/theme.css', import.meta.url), 'utf8')).replaceAll('../assets/fonts/', '/assets/fonts/');

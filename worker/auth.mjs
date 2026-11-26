@@ -125,8 +125,8 @@ export async function readSession(request, env, role) {
     SELECT s.role, s.member_id, s.credential_version AS session_version,
       m.name, m.active, m.must_change, m.credential_version AS member_version
     FROM sessions s LEFT JOIN members m ON s.member_id = m.id
-    WHERE s.token_hash = ? AND s.role = ? AND s.expires_at > ?
-  `, tokenHash, role, currentSeconds()).first();
+    WHERE s.token_hash = ? AND s.role = ? AND s.club_id = ? AND s.expires_at > ?
+  `, tokenHash, role, env.CLUB_SCOPE, currentSeconds()).first();
   if (!found) return null;
 
   if (found.role === 'admin') {
@@ -149,14 +149,14 @@ async function sessionInsert(env, user) {
   const expiresAt = currentSeconds() + age;
   const statement = user.role === 'admin'
     ? sql(env.DB, `
-      INSERT INTO sessions (token_hash, role, member_id, credential_version, expires_at)
-      VALUES (?, 'admin', NULL, ?, ?)
-    `, hash, user.version, expiresAt)
+      INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
+      VALUES (?, ?, 'admin', NULL, ?, ?)
+    `, hash, env.CLUB_SCOPE, user.version, expiresAt)
     : sql(env.DB, `
-      INSERT INTO sessions (token_hash, role, member_id, credential_version, expires_at)
-      SELECT ?, 'member', id, credential_version, ?
-      FROM members WHERE id = ? AND active = 1 AND credential_version = ?
-    `, hash, expiresAt, user.id, user.version);
+      INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
+      SELECT ?, club_id, 'member', id, credential_version, ?
+      FROM members WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+    `, hash, expiresAt, user.id, env.CLUB_SCOPE, user.version);
   return { token, statement };
 }
 
@@ -211,8 +211,8 @@ async function startSession(request, env, user, limits) {
   const statements = [statement, ...cleanExpired(env)];
   for (const { key, expiresAt } of limits) statements.push(...releaseAttempt(env, key, expiresAt));
   if (previous) {
-    statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ?',
-      await sessionHash(env, user.role, previous), user.role));
+    statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ? AND club_id = ?',
+      await sessionHash(env, user.role, previous), user.role, env.CLUB_SCOPE));
   }
   const results = await env.DB.batch(statements);
   if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
@@ -223,8 +223,8 @@ export async function membersNamed(env, name, input = name) {
   // New rows use NFC. Preserve exact and decomposed spellings already stored.
   const { results } = await sql(env.DB, `
     SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
-    FROM members WHERE name IN (?, ?, ?)
-  `, name, name.normalize('NFD'), input).all();
+    FROM members WHERE club_id = ? AND name IN (?, ?, ?)
+  `, env.CLUB_SCOPE, name, name.normalize('NFD'), input).all();
   return results;
 }
 
@@ -297,7 +297,8 @@ export async function login(request, env, body) {
 export async function logout(request, env, role) {
   const token = cookieToken(request, env, role);
   if (token) {
-    await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ?', await sessionHash(env, role, token), role).run();
+    await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ? AND club_id = ?',
+      await sessionHash(env, role, token), role, env.CLUB_SCOPE).run();
   }
   return sessionCookie(request, env, role);
 }
@@ -319,8 +320,8 @@ export async function changePin(request, env, user, body) {
   const expiresAt = await reserveAttempt(env, limitKey, 5);
   const row = await sql(env.DB, `
     SELECT name, credential_salt, credential_hash, must_change FROM members
-    WHERE id = ? AND active = 1 AND credential_version = ?
-  `, user.id, user.version).first();
+    WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+  `, user.id, env.CLUB_SCOPE, user.version).first();
   if (!row) throw new ApiError(401, '다시 로그인해 주세요.');
   const matched = await matchedMemberSecret(env, row, currentPin, true);
   if (!matched) throw new ApiError(400, '현재 비밀번호가 맞지 않아요.');
@@ -342,11 +343,12 @@ export async function changePin(request, env, user, body) {
   const results = await env.DB.batch([
     sql(env.DB, `
       UPDATE members SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
-      WHERE id = ? AND name = ? AND active = 1 AND credential_version = ?
+      WHERE id = ? AND club_id = ? AND name = ? AND active = 1 AND credential_version = ?
         AND NOT EXISTS (
-          SELECT 1 FROM members WHERE name IN (?, ?, ?) AND credential_version NOT IN (SELECT value FROM json_each(?))
+          SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?, ?)
+            AND credential_version NOT IN (SELECT value FROM json_each(?))
         )
-    `, version, salt, hash, user.id, row.name, user.version, name, name.normalize('NFD'), row.name,
+    `, version, salt, hash, user.id, env.CLUB_SCOPE, row.name, user.version, env.CLUB_SCOPE, name, name.normalize('NFD'), row.name,
     JSON.stringify(candidates.map(candidate => candidate.credential_version))),
     sql(env.DB, `
       DELETE FROM sessions WHERE role = 'member' AND member_id = ? AND credential_version = ?
