@@ -1,5 +1,5 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
-import { adminSkeleton, loadingCenter, memberSkeleton } from './skeleton.mjs';
+import { adminSkeleton, loadingCenter } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
@@ -110,10 +110,9 @@ export function loader(text, css = '') {
   return `<div class="shuttle-loader${css ? ` ${css}` : ''}" role="status">${shuttlecockMark()}<span>${esc(text)}</span></div>`;
 }
 
-// kind: 'admin:home' | 'admin:event' | 'admin:list' | 'member:home' | 'member:vote' | 'member:notice' (skeleton.mjs).
-export function loadingPage(kind = 'member:home', text = undefined) {
-  const [area, screen] = kind.split(':');
-  return (area === 'admin' ? adminSkeleton(screen) : memberSkeleton(screen)) + loadingCenter(shuttlecockMark(), text);
+// section: 'home' | 'event' | any list section (skeleton.mjs). Everyone has the one shell (ROLES.md 2단계).
+export function loadingPage(section = 'home', text = undefined) {
+  return adminSkeleton(section) + loadingCenter(shuttlecockMark(), text);
 }
 
 const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
@@ -220,22 +219,25 @@ const courtLines = '<div class="share-art-decoration" aria-hidden="true"><span><
 
 function memberCard(kind, type, title, head, content) {
   return `<article class="public-share-card">
-    <header class="public-story-head share-art--${kind}">${courtLines}<span class="public-share-type">${type}</span><h1>${esc(title)}</h1>${head}</header>
+    <header class="public-story-head share-art--${kind}">${courtLines}<span class="public-share-type">${type}</span><h1 tabindex="-1">${esc(title)}</h1>${head}</header>
     <div class="public-share-content">${content}</div></article>`;
 }
 
-function memberPage(club, content, { back = true } = {}) {
-  return `<main id="main-content" class="public-share-page member-page" tabindex="-1">
-    ${back ? `<a class="member-back" href="${esc(club.home)}">${icon('arrow-left', 18)} 모임 홈</a>` : ''}${content}</main>`;
+// The member screens sit in the one shell (ROLES.md 2단계) as a single column of cards (DESIGN.md 4). Links are the
+// shell's own addresses (#event/<id>), so they open in place (app.mjs follows the address); back names the list
+// they came from as [section, label].
+function memberPage(content, { back = null } = {}) {
+  return `<div class="public-share-page member-page">
+    ${back ? `<a class="member-back" href="#${back[0]}">${icon('arrow-left', 18)} ${back[1]}</a>` : ''}${content}</div>`;
 }
 
-// organizer: the organiser's own number (PLATFORM.md 인증). inline: the form stands on a page, not in a dialog.
-export function pinForm({ organizer = false, inline = false } = {}) {
+// organizer: the organiser's own number (PLATFORM.md 인증).
+export function pinForm({ organizer = false } = {}) {
   const pin = 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required';
   const word = organizer ? '번호' : 'PIN';
-  return form('pin', (inline ? '<p class="inline-error form-field-full" role="alert" hidden></p>' : '') + field(organizer ? '지금 번호' : '현재 로그인 번호', 'currentPin', '', {
+  return form('pin', field(organizer ? '지금 번호' : '현재 로그인 번호', 'currentPin', '', {
     type: 'password', wide: true, attrs: `autocomplete="off" enterkeyhint="next" ${pin}`,
-    help: organizer ? '받은 임시 번호나 지금 쓰는 번호를 입력해 주세요.' : '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
+    help: organizer ? '지금 로그인할 때 쓰는 번호를 입력해 주세요. 생년월일 6자리나 받은 임시 번호도 돼요.' : '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
   }) + field(`새 ${word}`, 'newPin', '', {
     type: 'password', wide: true, attrs: `autocomplete="new-password" enterkeyhint="next" ${pin}`,
     help: '숫자 6자리를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
@@ -244,17 +246,24 @@ export function pinForm({ organizer = false, inline = false } = {}) {
   }), `새 ${word} 저장`, '', 'form-grid');
 }
 
-// An organiser who signed in with a temporary number from the console sets their own before anything else opens.
-export function organizerPinScreen(club, user) {
-  return `<main id="main-content" class="login-page" tabindex="-1"><div class="login-stack">
-    <div class="hero"><p class="tagline">first login</p><h1>${esc(club.name)}</h1><div class="hero-meta"><span>${esc(user.name)}님, 내 번호를 정해 주세요</span></div></div>
-    <section class="login-card organizer-pin" aria-labelledby="organizer-pin-title">
-      <h2 id="organizer-pin-title">내 번호 정하기</h2>
-      <p class="form-note">총괄 관리자가 보낸 임시 번호는 처음 한 번만 써요. 운영 화면을 열기 전에 나만 아는 숫자 6자리로 바꿔 주세요.</p>
-      ${pinForm({ organizer: true, inline: true })}
-    </section>
-  </div></main>`;
+// Someone signed in with a birthday or a temporary number (mustChange). With the 운영 권한 the 운영 메뉴 opens only after
+// they set their own number (ROLES.md 계정·데이터); the member menus are open meanwhile.
+function pinCard(user) {
+  if (!user?.mustChange) return '';
+  if (user.organizer) {
+    return `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 번호 정하기</h2>
+    <p>운영 권한이 있어요. 운영 메뉴는 나만 아는 번호 6자리를 정한 뒤에 열려요.</p>
+    <button type="button" class="share-button share-button--secondary" data-action="pin">내 번호 정하기</button></section>`;
+  }
+  return `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 로그인</h2>
+    <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
+    <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>`;
 }
+
+// Before sign-in: what signing in adds (홈, 내 기록).
+const signInCard = `<section class="member-pin" aria-labelledby="member-sign-in-title"><h2 id="member-sign-in-title">로그인</h2>
+    <p>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 6개월 동안 유지돼요. 장소와 안내, 공지 전체, 내 기록을 보고 투표할 수 있어요.</p>
+    <button type="button" class="share-button share-button--secondary" data-action="sign-in">로그인</button></section>`;
 
 // 응답 현황: how many answered each way, never who (worker/api.mjs countColumns), drawn like the club's 카카오톡 투표:
 // a bar per choice as a share of everyone coming (선발 + 후발; members have no 불참). The live CSP blocks style
@@ -272,12 +281,19 @@ function countsBlock(counts, event) {
 
 // 로그인 없이 보기 (사용자 결정, 2026-11-26): before sign-in (signedIn false) the place reads 로그인 후 보여요, there are no
 // notes, and answering offers sign-in instead of the form.
-export function memberVoteScreen(event, vote, eligible, club, voteSaved = false, signedIn = true) {
+export function memberVoteScreen(event, vote, eligible, voteSaved = false, signedIn = true) {
   const facts = `<dl class="public-event-facts">
     <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
     <div><dt>장소</dt><dd>${placeText(event)}</dd></div>
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>${countsBlock(event.counts, event)}`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
+  return memberPage(memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes
+    + voteResponse(event, vote, eligible, voteSaved, signedIn)), { back: ['event', '일정'] });
+}
+
+// The answer part of a vote: the member's own form (or why there is none). The organisers' 일정 상세 shows the same
+// part as 내 응답, since organisers vote as members (ROLES.md 2단계).
+function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true) {
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
   if (event.cancelled) {
@@ -293,18 +309,18 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false,
   } else if (event.canVote) {
     response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong>운영진에게 참석 명단을 확인해 주세요.</p></div>';
   }
-  return memberPage(club, memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes + response));
+  return response;
 }
 
 // Before sign-in the body is null and only its start (preview) shows, with the way to the whole notice when the start
 // was cut (worker/api.mjs noticePreview ends it with …); a short notice is whole in its preview.
-export function noticeScreen(notice, club) {
+export function noticeScreen(notice) {
   const date = `<time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>`;
   const more = notice.body === null && notice.preview.endsWith('…');
   const body = `<p class="public-share-body">${esc(notice.body ?? notice.preview)}</p>${more ? `
       <div class="public-form"><p class="public-status"><strong>전체 내용은 로그인 후 볼 수 있어요.</strong></p>
       <button class="share-button share-button--primary" type="button" data-action="sign-in">로그인하고 전체 보기</button></div>` : ''}`;
-  return memberPage(club, memberCard('notice', '모임 공지', notice.title, date, body));
+  return memberPage(memberCard('notice', '모임 공지', notice.title, date, body), { back: ['notices', '공지'] });
 }
 
 // The place before sign-in (worker/api.mjs listPublic, fetchPublic give null).
@@ -328,7 +344,7 @@ function memberEventState(event, signedIn = true) {
   return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
-function nextEventCard(event, club, signedIn) {
+function nextEventCard(event, signedIn) {
   const state = memberEventState(event, signedIn);
   const kind = event.cancelled ? '취소된 일정' : event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
   const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
@@ -338,7 +354,7 @@ function nextEventCard(event, club, signedIn) {
     <div class="public-share-content">
       <dl class="public-event-facts"><div><dt>장소</dt><dd>${placeText(event)}</dd></div>${deadline}</dl>${countsBlock(event.counts, event)}
       <p class="member-answer">${state.note}</p>
-      <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">${state.action}</a>
+      <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="#event/${encodeURIComponent(event.id)}">${state.action}</a>
     </div></article>`;
 }
 
@@ -381,7 +397,7 @@ function recordCard(record) {
   const months = periodMonths(record.half, record.periods.length);
   const reward = record.rewarded ? '받았어요' : record.eligible ? '수령 대상이에요' : '아직이에요';
   return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
-    <h2 id="member-record">내 기록</h2>
+    <h1 id="member-record" tabindex="-1">내 기록</h1>
     ${attendanceMonths(record.year, record.attendance)}
     <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
     ${record.periods.map((marks, index) => markSlots(periodName(record.periods.length, index), months[index], marks, record.goal)).join('')}
@@ -389,38 +405,58 @@ function recordCard(record) {
     <p class="public-form-note">마무리한 회차에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
 }
 
+// One event or notice in the member lists (홈, 일정, 공지); the whole row opens it in the shell.
+function memberEventRow(event, signedIn) {
+  const state = memberEventState(event, signedIn);
+  const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
+  return `<li class="member-record"><a class="member-record-link" href="#event/${encodeURIComponent(event.id)}">
+    <span><strong>${pinMark(event)}${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(kindPrefix(event) + dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
+    <span class="member-record-action${tone}">${state.row}</span></a></li>`;
+}
+
+function memberNoticeRow(notice) {
+  return `<li class="member-record"><a class="member-record-link" href="#notices/${encodeURIComponent(notice.id)}">
+    <span><strong>${pinMark(notice)}${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
+    <span class="member-record-arrow" aria-hidden="true">${icon('chevron-right', 18)}</span></a></li>`;
+}
+
+// heading: 'h1' where the list is the whole screen (일정, 공지), 'h2' among the cards of 홈.
+function memberListCard(id, title, rows, empty, heading = 'h2') {
+  return `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
+    <${heading} id="${id}"${heading === 'h1' ? ' tabindex="-1"' : ''}>${title}</${heading}>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
+}
+
+const noEvents = '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.';
+
 // 회원 홈 (FLOW.md 4·5): the big card is the member's first event (memberOrder), the votes they still have to answer
-// follow it as one bundle ("응답할 투표 n개"), then the rest in the same order.
-export function homeScreen({ events, notices, record }, club, user = null) {
+// follow it as one bundle ("응답할 투표 n개"), then the rest in the same order. 내 기록 and the PIN 안내 have their own
+// menu (ROLES.md 2단계); an organiser who has yet to set their number sees that first, as it opens the 운영 메뉴.
+export function homeScreen({ events, notices }, club, user = null) {
   const [next, ...others] = memberOrder(events, koreanNow());
   const waiting = others.filter(awaitingVote);
   const later = others.filter(event => !awaitingVote(event));
   const signedIn = Boolean(user);
-  const eventRow = event => {
-    const state = memberEventState(event, signedIn);
-    const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
-    return `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
-    <span><strong>${pinMark(event)}${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(kindPrefix(event) + dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
-    <span class="member-record-action${tone}">${state.row}</span></a></li>`;
-  };
-  const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">
-    <span><strong>${pinMark(notice)}${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
-    <span class="member-record-arrow" aria-hidden="true">${icon('chevron-right', 18)}</span></a></li>`);
-  const listCard = (id, title, rows, empty) => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
-    <h2 id="${id}">${title}</h2>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
-  const first = next ? nextEventCard(next, club, signedIn)
-    : listCard('member-events', '일정', [], '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.');
-  // Before sign-in: what signing in adds, in the place of 내 기록 (the same card as the PIN 안내).
-  const signInCard = signedIn ? '' : `<section class="member-pin" aria-labelledby="member-sign-in-title"><h2 id="member-sign-in-title">로그인</h2>
-    <p>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 6개월 동안 유지돼요. 장소와 안내, 공지 전체, 내 기록을 보고 투표할 수 있어요.</p>
-    <button type="button" class="share-button share-button--secondary" data-action="sign-in">로그인</button></section>`;
-  const pin = user?.mustChange ? `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 로그인</h2>
-    <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
-    <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
-  return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
-    ${waiting.length ? listCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(eventRow), '') : ''}
-    ${later.length ? listCard('member-events', '이후 일정', later.map(eventRow), '') : ''}
-    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${signInCard}${pin}`, { back: false });
+  const first = next ? nextEventCard(next, signedIn) : memberListCard('member-events', '일정', [], noEvents);
+  return memberPage(`<h1 class="sr-only" tabindex="-1">${esc(club.name)} 모임 홈</h1>${user?.organizer ? pinCard(user) : ''}${first}
+    ${waiting.length ? memberListCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(event => memberEventRow(event, signedIn)), '') : ''}
+    ${later.length ? memberListCard('member-events', '이후 일정', later.map(event => memberEventRow(event, signedIn)), '') : ''}
+    ${memberListCard('member-notices', '공지', notices.map(memberNoticeRow), '게시된 공지가 없어요.')}${signedIn ? '' : signInCard}`);
+}
+
+// 일정 (회원): every published upcoming event in the member order (FLOW.md 4); each opens its vote.
+export function memberEventsScreen({ events }, user = null) {
+  const rows = memberOrder(events, koreanNow()).map(event => memberEventRow(event, Boolean(user)));
+  return memberPage(memberListCard('member-events', '일정', rows, noEvents, 'h1'));
+}
+
+export function memberNoticesScreen({ notices }) {
+  return memberPage(memberListCard('member-notices', '공지', notices.map(memberNoticeRow), '게시된 공지가 없어요.', 'h1'));
+}
+
+// 내 기록: the record, then the PIN 안내 for a birthday or temporary sign-in; before sign-in what signing in adds.
+export function memberRecordScreen({ record }, user = null) {
+  if (!user) return memberPage(`<h1 class="sr-only" tabindex="-1">내 기록</h1>${signInCard}`);
+  return memberPage(recordCard(record) + pinCard(user));
 }
 
 // browse: a member page asked for sign-in (worker/public/app.mjs sign-in), so 로그인 없이 보기 goes back to it.
@@ -465,12 +501,24 @@ export function messagePage(title, body, actions = '') {
     <p class="public-share-body">${body}</p>${actions ? `<div class="form-actions message-actions">${actions}</div>` : ''}</div></main>`;
 }
 
-/* Admin screens: the demo's operations shell and dashboard (styles.css). */
+/* The shell: the demo's operations shell and dashboard (styles.css), for everyone since ROLES.md 2단계. */
 
-const adminSections = [
-  ['home', '운영 홈', 'home'], ['event', '일정', 'calendar'], ['notices', '공지', 'megaphone'],
-  ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'], ['rules', '모임 규칙', 'sliders'],
+// The same frame and menu names for everyone; the 운영 권한 adds menus (ROLES.md 권한 표). The first four are the
+// phone's tab bar.
+const organizerSections = [
+  ['home', '홈', 'home'], ['event', '일정', 'calendar'], ['notices', '공지', 'megaphone'],
+  ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'], ['rules', '모임 규칙', 'sliders'], ['record', '내 기록', 'user'],
 ];
+const memberSections = [['home', '홈', 'home'], ['event', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['record', '내 기록', 'user']];
+
+// The 운영 메뉴 open with the 운영 권한 and the member's own number (ROLES.md 계정·데이터); the API refuses them otherwise.
+export function operating(user) {
+  return Boolean(user?.organizer && !user.mustChange);
+}
+
+export function appSections(user) {
+  return operating(user) ? organizerSections : memberSections;
+}
 
 // 카톡 공유 (운영 화면): the chat preview members will see, read from the share page's own tags (app.mjs
 // openSharePreview), then the link to paste. The same parts as the demo's share dialog (share.js renderShare).
@@ -482,44 +530,52 @@ export function sharePreview(link, preview) {
     : '<p class="form-note">미리보기를 불러오지 못했어요. 링크는 그대로 복사할 수 있어요.</p>';
   return `<div class="share-preview">${chat}
     <label class="share-link-field"><span>단체방에 붙여 넣을 링크</span><input type="text" value="${esc(link)}" readonly></label>
-    <div class="share-dialog-actions"><a class="share-button share-button--secondary" href="${esc(link)}" target="_blank" rel="noopener">받는 화면 보기</a>
+    <div class="share-dialog-actions"><a class="share-button share-button--secondary" href="${esc(link)}" target="_blank" rel="noopener">링크 열기</a>
       <button type="button" class="share-button share-button--primary" data-action="copy-share-link" data-id="${esc(link)}">링크 복사</button></div></div>`;
 }
 
 export function brand(club) {
-  return `<a class="brand" href="${esc(club.admin)}"><img class="brand-mark" width="43" height="43" src="/assets/shuttlecock-icon-96.png" alt="">
+  return `<a class="brand" href="${esc(club.home)}"><img class="brand-mark" width="43" height="43" src="/assets/shuttlecock-icon-96.png" alt="">
     <span><strong>${esc(club.name)}</strong>${club.subtitle ? `<small>${esc(club.subtitle)}</small>` : ''}</span></a>`;
 }
 
-export function adminMenu(section) {
-  return `<nav class="navigation" aria-label="운영 메뉴"><div class="nav-heading">모임 운영</div>
-    ${adminSections.map(([name, title, glyph]) => `<button type="button" class="nav-link${section === name ? ' active' : ''}" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 19)}<span>${title}</span>${section === name ? '<i aria-hidden="true"></i>' : ''}</button>`).join('')}
+export function adminMenu(section, user) {
+  return `<nav class="navigation" aria-label="모임 메뉴"><div class="nav-heading">${operating(user) ? '모임 운영' : '모임'}</div>
+    ${appSections(user).map(([name, title, glyph]) => `<button type="button" class="nav-link${section === name ? ' active' : ''}" data-action="tab" data-id="${name}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 19)}<span>${title}</span>${section === name ? '<i aria-hidden="true"></i>' : ''}</button>`).join('')}
   </nav>`;
 }
 
 // Phones: a floating bar of four icons follows the screen; the full menu opens from the top bar (DESIGN.md 4).
-function adminTabBar(section) {
-  return `<nav class="tab-bar" aria-label="운영 바로가기">
-    ${adminSections.slice(0, 4).map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}" title="${title}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 23)}<span class="sr-only">${title}</span></button>`).join('')}
+function adminTabBar(section, user) {
+  return `<nav class="tab-bar" aria-label="바로가기">
+    ${appSections(user).slice(0, 4).map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}" title="${title}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 23)}<span class="sr-only">${title}</span></button>`).join('')}
   </nav>`;
 }
 
+// Signed in: 번호 바꾸기 and 로그아웃 (in the ☰ menu on a phone). Before sign-in: 로그인, on every width.
+export function accountActions(user, css = '') {
+  return user ? button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: `text small ${css}`.trim() }) + button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: `text small ${css}`.trim() })
+    : button('로그인', 'sign-in', { css: 'text small' });
+}
+
 export function adminShell(section, contents, club, user) {
-  const title = adminSections.find(([name]) => name === section)?.[1] ?? '운영 홈';
+  const sections = appSections(user);
+  const title = sections.find(([name]) => name === section)?.[1] ?? sections[0][1];
+  const role = operating(user) ? '운영진' : user ? '회원' : '보기만 할 수 있어요';
   return `<div class="admin-app">
-    <aside class="sidebar">${brand(club)}${adminMenu(section)}
-      <div class="sidebar-footer"><span class="operator-mark">${icon('user', 18)}</span><span><strong>${esc(user?.name ?? '운영진')}</strong><small>운영진</small></span></div>
+    <aside class="sidebar">${brand(club)}${adminMenu(section, user)}
+      <div class="sidebar-footer"><span class="operator-mark">${icon('user', 18)}</span><span><strong>${user ? esc(user.name) : '로그인 전'}</strong><small>${role}</small></span></div>
     </aside>
     <div class="main-shell">
       <header class="topbar">
         <div class="breadcrumb">
-          <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
+          <span class="breadcrumb-parent">${esc(club.name)}</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
-        <div class="topbar-actions">${button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: 'text small topbar-logout' })}${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small topbar-logout' })}
+        <div class="topbar-actions">${accountActions(user, 'topbar-logout')}
           <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${menuIcon}</button></div>
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
-      ${adminTabBar(section)}
+      ${adminTabBar(section, user)}
     </div>
   </div>`;
 }
@@ -545,7 +601,7 @@ function sessionSteps(steps, stage) {
   }).join('')}</ol>`;
 }
 
-function featured(detail, club) {
+function featured(detail) {
   const event = detail?.event;
   if (!event) {
     return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
@@ -556,14 +612,12 @@ function featured(detail, club) {
   const go = stage === 2 ? '당일 출석 체크' : stage >= 3 ? '마무리하기' : '회차 관리';
   // The big card holds the first of the 진행 중인 일정 (FLOW.md), so it says which it is.
   const kicker = stage === 2 ? '오늘 일정' : stage === 3 ? '마무리할 일정' : '다음 일정';
-  const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
     <div class="featured-kicker"><i></i> ${kicker}${pinMark(event)}</div>
     <h2 id="next-event-title">${esc(event.title)}</h2>
     <div class="featured-meta"><span>${icon('calendar', 18)} <time datetime="${esc(`${event.date}T${event.time}`)}">${esc(fullDate(event.date))} · ${esc(event.time)}–${esc(event.endTime)}</time></span>
       <span>${icon('pin', 18)} ${esc(event.place)}</span></div>
-    <div class="featured-actions">${button(`${go} ${icon('chevron-right', 17)}`, 'open-event', { id: event.id, css: 'lime', tab: stageTabs[stage] })}
-      <span ${hidden}><a class="btn btn-glass" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 17)} 회원 투표 화면</a></span></div>
+    <div class="featured-actions">${button(`${go} ${icon('chevron-right', 17)}`, 'open-event', { id: event.id, css: 'lime', tab: stageTabs[stage] })}</div>
   </div>${homeSteps(detail)}</section>`;
 }
 
@@ -707,7 +761,17 @@ function flowSummary(events) {
   return flows.length ? `진행 중인 일정 ${flows.length}개${wrapups ? ` · 마무리 전 ${wrapups}개` : ''}` : '진행 중인 일정이 없어요.';
 }
 
-export function adminHome({ events, members, notices }, upcoming, club, last = null) {
+// 응답할 투표 (ROLES.md 결정 5): organisers vote as members, so the votes they have not answered come first on the 홈.
+// listing is their own member listing (worker/api.mjs listPublic); each row opens the 일정 상세 at 내 응답.
+function myVotesPanel(listing) {
+  const waiting = memberOrder(listing?.events ?? [], koreanNow()).filter(awaitingVote);
+  if (!waiting.length) return '';
+  const rows = waiting.map(event => `<li><button type="button" class="event-link" data-action="open-event" data-id="${esc(event.id)}" data-tab="poll"><span><strong>${pinMark(event)}${esc(event.title)}</strong>
+    <small>${esc(`${kindPrefix(event)}${dateLine(event)} · ${deadlineLabel(event.deadline)} 마감`)}</small></span>${icon('chevron-right', 18)}</button></li>`);
+  return `<div class="my-votes">${panel(`응답할 투표 ${waiting.length}개`, `<ul class="event-list">${rows.join('')}</ul>`, { subtitle: '운영진도 회원으로 투표해요.' })}</div>`;
+}
+
+export function adminHome({ events, members, notices }, upcoming, last = null, listing = null) {
   const month = today().slice(0, 7);
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
     <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}${pinMark(notice)}<span>${esc(notice.title)}</span></button>
@@ -719,7 +783,8 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
       <div><h1 tabindex="-1">운영 홈</h1><p>${esc(flowSummary(events))}</p></div>
       <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' })}</div>
     </header>
-    <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
+    ${myVotesPanel(listing)}
+    <div class="dashboard-grid">${featured(upcoming)}${pollPanel(upcoming)}</div>
     <div class="dashboard-grid dashboard-bottom">${homeFlows(events, upcoming?.event.id)}${lastPanel(last)}</div>
     <div class="dashboard-metrics" aria-label="모임 현황">
       ${metric('members', 'users', 'mint', '활동 회원', members.filter(member => member.active).length, '명')}
@@ -799,7 +864,8 @@ function eventList(events) {
     + (pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''));
 }
 
-export function eventScreen(events, detail, club, tab = null) {
+// own: the organiser's own answer ({ vote, eligible, saved }); 내 응답 shows when they are on the roster or answered.
+export function eventScreen(events, detail, tab = null, own = null) {
   const event = detail?.event;
   const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' }) + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
   const head = pageHead('일정', event ? '투표 응답, 당일 출석, 마무리를 기록하세요.' : '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
@@ -829,15 +895,19 @@ export function eventScreen(events, detail, club, tab = null) {
     + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || event.cancelled || (!event.open && deadlinePassed(event)) })
     + button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
-    ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
     ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
   { subtitle: `${esc(deadlineLabel(event.deadline))} 마감`, actions: voteActions });
   // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
   const current = tab ?? defaultTab(event);
   const nav = `<nav class="tabs" aria-label="회차 단계">${sessionTabs.map(([name, label]) => `<button type="button" data-action="event-tab" data-id="${name}"${name === current ? ' aria-current="page"' : ''}>${label}</button>`).join('')}</nav>`;
   const guestList = guestsPanel(guests, settlement?.confirmed);
+  // 내 응답 (ROLES.md 2단계): first while the vote is open, so saving an answer does not move it away; after the counts
+  // once the vote is closed.
+  const mine = own && (own.eligible || own.vote)
+    ? panel('내 응답', voteResponse(event, own.vote, own.eligible, own.saved, true), { subtitle: '운영진도 회원으로 투표해요.', id: 'my-vote' }) : '';
+  const poll = mine && event.canVote ? mine + vote : vote + mine;
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed) + guestList
-    : current === 'settlement' ? settlementPanel(settlement, counts) : vote + guestList;
+    : current === 'settlement' ? settlementPanel(settlement, counts) : poll + guestList;
   return `<div class="secondary-page">${back}${head}${overview}${nav}${content}</div>`;
 }
 

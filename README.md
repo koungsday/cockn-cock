@@ -1,6 +1,6 @@
 # 콕콕콕! 배드민턴 모임 관리
 
-[콕콕콕! 소개 홈](https://cockcockcock.pages.dev/) · [썬콕19 모임 주소](https://cockcockcock.pages.dev/clubs/suncok19/) · [홈 화면에 추가할 운영 주소](https://cockcockcock.pages.dev/clubs/suncok19/admin/)
+[콕콕콕! 소개 홈](https://cockcockcock.pages.dev/) · [썬콕19 모임 주소 (회원·운영진 같은 주소, 홈 화면에 추가)](https://cockcockcock.pages.dev/clubs/suncok19/)
 
 [소개 홈](https://koungsday.github.io/cockn-cock/) · [운영 홈 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#home) · [회원 투표 체험](https://koungsday.github.io/cockn-cock/clubs/suncok19/admin/#public-vote/e-nov28) · [카톡 투표 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/vote/e-nov28/) · [카톡 공지 링크 예시](https://koungsday.github.io/cockn-cock/clubs/suncok19/share/notice/n-schedule/) · [실사용 운영 환경](OPERATIONS.md)
 

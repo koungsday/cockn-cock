@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { shuttlecockMark } from '../platform/shuttlecock.mjs';
-import { adminSkeleton, loadingCenter, memberSkeleton } from './public/skeleton.mjs';
+import { adminSkeleton, loadingCenter } from './public/skeleton.mjs';
 
 const site = new URL('./site/', import.meta.url);
 const theme = (await readFile(new URL('../platform/theme.css', import.meta.url), 'utf8')).replaceAll('../assets/fonts/', '/assets/fonts/');
@@ -40,7 +40,7 @@ const template = await readFile(new URL('index.html', site), 'utf8');
 const shell = template
   .replace('href="/live.css"', `href="/${prefix}live.css"`)
   .replace('src="/app.mjs"', `src="/${prefix}app.mjs"`);
-// The first paint already has the shape of the screen (DESIGN.md 6); app.mjs then draws the one for the exact route.
+// The first paint already has the shape of the screen (DESIGN.md 6): one shell for everyone (ROLES.md 2단계); app.mjs
+// then draws each person's menus and the exact section.
 const loading = loadingCenter(shuttlecockMark('shuttle-spin', 'shuttle-gap-static'));
-await writeFile(new URL('index.html', site), shell.replace('<!-- loading -->', () => memberSkeleton('home') + loading));
-await writeFile(new URL('admin-shell.html', site), shell.replace('<!-- loading -->', () => adminSkeleton('home') + loading));
+await writeFile(new URL('index.html', site), shell.replace('<!-- loading -->', () => adminSkeleton('home') + loading));

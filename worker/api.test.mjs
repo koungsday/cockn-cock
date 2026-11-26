@@ -312,7 +312,7 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   const otherBrowser = client('203.0.113.12');
   await otherBrowser.adminLogin();
   const changed = await admin.request('/api/admin/pin', {method:'POST', body:{currentPin:adminPin, newPin:'316794'}});
-  assert.deepEqual(changed.user, {id:changed.user.id, name:adminId, role:'admin', mustChange:false});
+  assert.deepEqual(changed.user, {id:changed.user.id, name:adminId, role:'admin', mustChange:false, organizer:true});
   assert.equal((await otherBrowser.request('/api/admin/session')).user, null);
   await client('203.0.113.13').adminLogin({expect:401});
   assert.equal(env.CLUB_ADMIN_PIN, adminPin);

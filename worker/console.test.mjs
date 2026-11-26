@@ -77,7 +77,7 @@ async function setup(t) {
     PLATFORM_ADMIN_PASSWORD_HASH: await consoleSecret(password),
     ASSETS: {
       async fetch(request) {
-        if (!['/index.html', '/admin-shell.html'].includes(new URL(request.url).pathname)) return new Response(null, { status: 404 });
+        if (new URL(request.url).pathname !== '/index.html') return new Response(null, { status: 404 });
         return new Response(`<html><head><title>원본</title><link rel="stylesheet" href="${style}"><!-- club-context --><!-- share-meta --><!-- admin-app --></head><body></body></html>`, {
           headers: { 'Content-Type': 'text/html' }
         });

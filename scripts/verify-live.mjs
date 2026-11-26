@@ -51,41 +51,49 @@ const remembered = (await get(home)).headers.get('set-cookie') ?? '';
 const secure = origin.protocol === 'https:' ? '; Secure' : '';
 assert.match(remembered, new RegExp(`^cockcockcock-recent=[^;]+; Path=/; Max-Age=15552000; SameSite=Lax${secure}$`), 'a club page remembers itself');
 
-const [privateApi, manifest] = await Promise.all([get(`${home}api/admin`), get(`${admin}manifest.webmanifest`)]);
-// Right after wrangler deploy the new Worker version takes a while to reach every edge (#46 on 2026-11-26: about 35 s),
-// so the two pages can briefly come from different releases. Fetch both again until they match, for at most 60 s;
-// a mismatch that outlasts that still fails the assert below.
-let [memberPage, adminPage] = await Promise.all([shell(home), shell(admin)]);
+// One club address for everyone (ROLES.md 2단계): the old 운영 화면 address leads to it, and so does its app manifest.
+// Right after wrangler deploy the new Worker version takes a while to reach every edge (#46 on 2026-11-26: about 35 s,
+// #47), so these can briefly come from the previous release. Fetch them again until they show this one, for at most
+// 60 s; what still differs after that fails the asserts below.
+async function release() {
+  const [page, moved, manifest, oldManifest] = await Promise.all([
+    shell(home), get(admin), get(`${home}manifest.webmanifest`), get(`${admin}manifest.webmanifest`),
+  ]);
+  const starts = await Promise.all([manifest, oldManifest].map(response => response.ok ? response.json().then(body => body.start_url) : null));
+  return { page, moved, manifest, starts };
+}
+const settled = ({ page, moved, starts }) => moved.status === 308 && page.html.includes(`href="${home}manifest.webmanifest"`)
+  && starts.every(start => start === home);
+let current = await release();
 const settleStart = Date.now();
 let waits = 0;
-while (memberPage.style !== adminPage.style && Date.now() - settleStart < 60000) {
+while (!settled(current) && Date.now() - settleStart < 60000) {
   waits++;
-  console.log(`회원·운영 페이지의 화면 묶음이 다릅니다 (회원 ${memberPage.style} / 운영 ${adminPage.style}). 5초 뒤 다시 받습니다 (${waits}번째).`);
+  console.log(`모임 페이지가 아직 이전 배포입니다 (옛 운영 주소 ${current.moved.status}, 앱 시작 주소 ${current.starts.join(' · ')}). 5초 뒤 다시 받습니다 (${waits}번째).`);
   await new Promise(resolve => setTimeout(resolve, 5000));
-  [memberPage, adminPage] = await Promise.all([shell(home), shell(admin)]);
+  current = await release();
 }
 if (waits) {
   const seconds = Math.round((Date.now() - settleStart) / 1000);
-  console.log(memberPage.style === adminPage.style
-    ? `${waits}번 기다린 뒤(${seconds}초) 두 페이지가 같은 화면 묶음이 됐습니다.`
-    : `${waits}번 기다렸지만(${seconds}초) 여전히 달라 실패합니다.`);
+  console.log(settled(current) ? `${waits}번 기다린 뒤(${seconds}초) 새 배포가 됐습니다.` : `${waits}번 기다렸지만(${seconds}초) 여전히 이전 배포라 실패합니다.`);
 }
-assert.equal(memberPage.style, adminPage.style);
-assert.equal(memberPage.script, adminPage.script);
-assert(!memberPage.html.includes('rel="manifest"'));
-assert(adminPage.html.includes(`href="${admin}manifest.webmanifest"`));
+const { page, moved, manifest, starts } = current;
+assert.equal(moved.status, 308, 'the old 운영 화면 address moves to the club address');
+assert.equal(moved.headers.get('location'), new URL(home, origin).href);
+assert(page.html.includes(`href="${home}manifest.webmanifest"`));
+assert.equal(manifest.status, 200);
+assert.deepEqual(starts, [home, home], 'both app manifests start at the club address');
+const privateApi = await get(`${home}api/admin`);
 assert.equal(privateApi.status, 401);
 assert.equal(privateApi.headers.get('cache-control'), 'private, no-store');
-assert.equal(manifest.status, 200);
-assert.equal((await manifest.json()).start_url, admin);
 
 // Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
-const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs'].map(file => adminPage.script.replace('app.mjs', file));
-await Promise.all([adminPage.style, adminPage.script, ...modules].map(async path => {
+const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs'].map(file => page.script.replace('app.mjs', file));
+await Promise.all([page.style, page.script, ...modules].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable', path);
-  if (path !== adminPage.style) return;
+  if (path !== page.style) return;
   const css = await asset.text();
   const urls = [...css.matchAll(/url\("(\/assets\/fonts\/[^"]+\.(woff2|ttf))"\)/g)];
   assert.equal(urls.length, 3);
@@ -133,5 +141,5 @@ for (const start = Date.now(); ;) {
 assert.equal(missing.status, 404);
 assert.equal(missing.headers.get('cache-control'), 'no-store', 'a missing UI file is not cached');
 
-console.log(`Verified ${origin.origin}: member/admin shells, console, UI release hashes, missing UI files uncached, fonts, protected API, app manifest, share images${
+console.log(`Verified ${origin.origin}: club shell and old 운영 화면 address, console, UI release hashes, missing UI files uncached, fonts, protected API, app manifest, share images${
   process.env.CLUB_VOTE_PATH || process.env.CLUB_NOTICE_PATH ? ', selected share previews' : ''}.`);

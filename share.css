@@ -665,7 +665,7 @@
 .member-record-action { padding: 6px 10px; border: 1px solid #cfdcd2; border-radius: 8px; color: #23523b; font-size: .86rem; font-weight: 750; white-space: nowrap; }
 .member-record-open { border-color: transparent; background: #e2efdc; }
 .member-record-arrow { display: grid; color: var(--muted); }
-.member-list h2 { font-size: 1.12rem; margin-bottom: 4px; }
+.member-list :is(h1, h2) { font-size: 1.12rem; margin-bottom: 4px; }
 .member-record-done { border-color: transparent; background: #e8f3e7; color: #28583e; }
 .public-story-head .public-title {
   margin: 7px 0 0;

@@ -441,9 +441,9 @@ function page(style, main, signedInNow = false) {
 </html>`;
 }
 
-// The versioned live stylesheet of this release, as the club shells reference it.
+// The versioned live stylesheet of this release, as the club page (one shell since ROLES.md 2단계) references it.
 async function stylesheet(env, url) {
-  const shell = await env.ASSETS.fetch(new Request(new URL('/admin-shell.html', url.origin)));
+  const shell = await env.ASSETS.fetch(new Request(new URL('/index.html', url.origin)));
   if (!shell.ok) return null;
   return (await shell.text()).match(/href="(\/club-ui\/[a-f0-9]{20}\/live\.css)"/)?.[1] ?? null;
 }

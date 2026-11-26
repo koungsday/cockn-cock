@@ -137,11 +137,12 @@ async function sessionHash(env, token) {
   return sha256('session\0member\0' + pepper(env) + '\0' + token);
 }
 
-// role is the screen the answer is for: 'admin' only with the 운영 권한 (api.mjs route).
+// role is the screen the answer is for: 'admin' only with the 운영 권한 (api.mjs route). organizer tells the one club
+// screen which menus to draw (ROLES.md 2단계).
 export function clientUser(user, role = 'member') {
   if (!user) return null;
   const { id, name, mustChange } = user;
-  return { id, name, role, mustChange };
+  return { id, name, role, mustChange, organizer: Boolean(user.organizer) };
 }
 
 // The signed-in person, with the 운영 권한 read from their member row on every request: turning it off takes effect at
