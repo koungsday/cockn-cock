@@ -1,7 +1,9 @@
 import { audit, organizerActor } from './audit.mjs';
 
 const encoder = new TextEncoder();
-const memberSessionAge = 12 * 60 * 60;
+// Members stay signed in on their phone for half a year (사용자 결정, 2026-11-26: name and 6 digits once, not every
+// visit); a PIN change or a reset by the organisers still ends it (credential_version).
+const memberSessionAge = 180 * 24 * 60 * 60;
 const adminSessionAge = 30 * 24 * 60 * 60;
 const invalidLogin = '입력한 로그인 정보를 확인해 주세요.';
 const attemptWindow = 15 * 60;
@@ -125,8 +127,7 @@ function cookieName(request, env, role) {
 function sessionCookie(request, env, role, token = '') {
   const name = cookieName(request, env, role);
   const secure = name.startsWith('__Host-') ? '; Secure' : '';
-  const maxAge = !token ? '; Max-Age=0'
-    : role === 'admin' ? '; Max-Age=' + adminSessionAge : '';
+  const maxAge = !token ? '; Max-Age=0' : '; Max-Age=' + (role === 'admin' ? adminSessionAge : memberSessionAge);
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 

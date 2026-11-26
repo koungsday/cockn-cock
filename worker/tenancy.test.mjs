@@ -131,11 +131,23 @@ test('catalog, canonical club links and legacy shares do not expose unscoped API
   assert.equal(publicPage.headers.get('Cache-Control'), 'no-store');
   assert.match(publicHtml, /property="og:site_name" content="콕콕콕!"/);
   assert.match(publicHtml, /가상 첫 모임 공지/);
-  assert.doesNotMatch(publicHtml, /가상 공지|공개할 예시 문장/);
-  assert.equal((await request(first, '/public/notice/' + notice.id)).status, 401);
+  // 카톡 미리보기 and the page before sign-in (사용자 결정, 2026-11-26): the notice's title, date and the start of its
+  // body; the whole body waits for sign-in.
+  assert.match(publicHtml, /property="og:title" content="가상 공지 · 가상 첫 모임"/);
+  assert.match(publicHtml, /property="og:description" content="[^"]+ · 공개할 예시 문장"/);
+  const anonymous = await request(first, '/public/notice/' + notice.id);
+  assert.equal(anonymous.status, 200);
+  const shown = (await anonymous.json()).notice;
+  assert.deepEqual([shown.title, shown.body, shown.preview], ['가상 공지', null, '공개할 예시 문장']);
   const head = await request(first, '/public/notice/' + notice.id, {method:'HEAD'});
-  assert.equal(head.status, 401);
+  assert.equal(head.status, 200);
   assert.equal(await head.text(), '');
+  // A draft never reaches the preview.
+  const draft = await (await request(first, '/admin/notices', {
+    method: 'POST', cookie, body: { title: '가상 비공개 공지', body: '아직 비공개인 문장', published: false }
+  })).json();
+  const draftHtml = await (await receive('/clubs/first-club/notice/' + draft.notice.id)).text();
+  assert.doesNotMatch(draftHtml, /가상 비공개 공지|아직 비공개인 문장/);
   assert.match(publicHtml, /property="og:url" content="https:\/\/clubs.test\/clubs\/first-club\/notice\//);
   // A club other than 썬콕19 still reaches the chat with an image: the shared 콕콕콕! card (worker/index.mjs shareTags).
   assert(publicHtml.includes('<meta property="og:image" content="https://clubs.test/assets/kakao-notice-common.png">'));
@@ -334,7 +346,7 @@ test('sessions and name lookups stay in their club even with a shared pepper', a
   assert.notEqual((await membersNamed(firstEnv, '가상 같은 이름'))[0].id, (await membersNamed(sameSecretsOtherClub, '가상 같은 이름'))[0].id);
 });
 
-test('member overview requires login and limits records to published upcoming events and notices', async t => {
+test('member overview opens without sign-in for when and deadlines, and limits records to published upcoming events and notices', async t => {
   const { env, receive, request, login, adminLogin } = setup(t);
   const { cookie } = await adminLogin(first);
   const futureDate = offset => new Date(Date.now() + (9 + offset * 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -370,7 +382,11 @@ test('member overview requires login and limits records to published upcoming ev
     notices.push((await response.json()).notice);
   }
 
-  assert.equal((await request(first, '/public')).status, 401);
+  // Before sign-in (사용자 결정, 2026-11-26): the same events and notices, without the place, an own answer or 내 기록.
+  const before = await (await request(first, '/public')).json();
+  assert.equal(before.events.length, 15);
+  assert.ok(before.events.every(event => event.place === null && event.eligible === false && event.mySlot === null));
+  assert.equal(before.record, null);
   const profile = {name:'가상 첫 모임 회원', birthday:'19900517'};
   const added = await request(first, '/admin/members', {method:'POST', cookie, body:profile});
   assert.equal(added.status, 201);
@@ -396,7 +412,9 @@ test('member overview requires login and limits records to published upcoming ev
   assert.ok(pinned.events[12].pinnedAt);
   assert.deepEqual(pinned.notices.map(notice => notice.id), [notices[0], ...notices.slice(2, 9).reverse()].map(notice => notice.id));
   assert.ok(result.events.every(event => event.id !== draft.id && event.id !== previous.id));
-  assert.equal((await request(second, '/public', {cookie:memberCookie})).status, 401);
+  // The first club's member cookie means nothing to the second club: it sees the second club as before sign-in.
+  const elsewhere = await (await request(second, '/public', {cookie:memberCookie})).json();
+  assert.deepEqual([elsewhere.events, elsewhere.notices, elsewhere.record], [[], [], null]);
   assert.equal((await request(first, '/public', { method: 'POST', body: {} })).status, 405);
   const head = await request(first, '/public', { method: 'HEAD', cookie: memberCookie });
   assert.equal(head.status, 200);

@@ -1,6 +1,6 @@
 import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
-import { handleApi } from './api.mjs';
+import { handleApi, shareSummary } from './api.mjs';
 import { consolePage } from './console.mjs';
 import { findClub, legacyIndex, scopeEnv, slugPattern } from './scope.mjs';
 
@@ -17,10 +17,12 @@ function meta(attr, key, value) {
   return `<meta ${attr}="${key}" content="${escape(value)}">`;
 }
 
-function shareTags(url, club, kind) {
+// summary: what anyone with the link may see (worker/api.mjs shareSummary, 사용자 결정 2026-11-26): the event's date and
+// deadline or the start of the notice. A draft or a missing record keeps the club name and type only.
+function shareTags(url, club, kind, summary) {
   const type = kind === 'vote' ? '참석 투표' : '공지';
-  const title = `${club.name} ${type} · ${PLATFORM_NAME}`;
-  const description = '회원 로그인 후 확인할 수 있어요.';
+  const title = summary ? `${summary.title} · ${club.name}` : `${club.name} ${type} · ${PLATFORM_NAME}`;
+  const description = summary?.description || '회원 로그인 후 확인할 수 있어요.';
   const canonical = url.origin + url.pathname.replace(/\/$/, '');
   const tags = [
     ['og:type', 'website'],
@@ -114,8 +116,8 @@ function recentCookie(url, club, admin) {
   return `cockcockcock-recent=${value}; Path=/; Max-Age=15552000; SameSite=Lax${url.protocol === 'https:' ? '; Secure' : ''}`;
 }
 
-async function clubPage(request, env, url, club, share, admin) {
-  const tags = share ? shareTags(url, club, share[1]) : '';
+async function clubPage(request, env, url, club, share, admin, summary = null) {
+  const tags = share ? shareTags(url, club, share[1], summary) : '';
   const path = admin ? '/admin-shell.html' : '/index.html';
   const index = await env.ASSETS.fetch(new Request(new URL(path, url.origin)));
   if (!index.ok) return errorPage(request, 503, '화면을 불러올 수 없어요');
@@ -235,7 +237,8 @@ export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = 
         url.pathname += '/';
         return Response.redirect(url, 308);
       }
-      return clubPage(request, env, url, club, share, remainder === '/admin/');
+      const summary = share ? await shareSummary(scoped.DB, scoped.CLUB_SCOPE, share[1], share[2]) : null;
+      return clubPage(request, env, url, club, share, remainder === '/admin/', summary);
     }
   };
 }

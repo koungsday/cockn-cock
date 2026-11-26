@@ -68,11 +68,14 @@ let busy = false;
 let messageTimer;
 let eventSnapshot = null;
 let navigationVersion = 0;
+let renderedBrowsing = null;
 let renderedAccountUser;
 let dialogOpener = null;
 let startedOnBackdrop = false;
 let dialogScrollTop = null;
-const signIn = { name: null, numberStep: false };
+// requested: a member page asked for the login screen (로그인 버튼); member pages otherwise show what is open before
+// sign-in (사용자 결정, 2026-11-26), and the admin shell always asks first.
+const signIn = { name: null, numberStep: false, requested: false };
 
 const authRole = route?.kind === 'admin' ? 'admin' : 'member';
 const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
@@ -189,13 +192,17 @@ function showMessage(text, error = false, { visuallyHidden = false } = {}) {
 
 function renderAccount() {
   document.title = state.user?.role === 'admin' ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
-  if (renderedAccountUser === state.user) return;
+  const browsing = !state.user && route.kind !== 'admin' && !signIn.requested;
+  if (renderedAccountUser === state.user && renderedBrowsing === browsing) return;
   renderedAccountUser = state.user;
+  renderedBrowsing = browsing;
   const signedIn = state.user?.role === authRole;
   clubLink.hidden = !signedIn;
-  loginMenu.hidden = signedIn;
+  // The login menu (모임 홈, 로그인 도움말) belongs to the login screen; reading before sign-in has 로그인 instead.
+  loginMenu.hidden = signedIn || browsing;
   if (!signedIn) {
-    account.innerHTML = '';
+    // Reading a member page before sign-in: the way in stays in the header.
+    account.innerHTML = browsing ? button('로그인', 'sign-in', { css: 'text small' }) : '';
     return;
   }
   const user = state.user;
@@ -228,14 +235,16 @@ async function loadProgress(period = state.period) {
 }
 
 async function load() {
-  if (state.user?.role !== authRole) return;
+  const signedIn = state.user?.role === authRole;
+  // Member pages load what is open before sign-in (worker/api.mjs fetchPublic); the admin shell waits for sign-in.
+  if (!signedIn && route.kind === 'admin') return;
   // A temporary number from the console opens only 내 번호 정하기 (the API refuses the rest until then).
-  if (state.user.role === 'admin' && state.user.mustChange) return;
+  if (signedIn && state.user.role === 'admin' && state.user.mustChange) return;
   if (route.kind === 'vote') {
     ({ event: state.event } = await request(`/api/public/vote/${id(route.id)}`));
     state.vote = null;
     state.eligible = false;
-    try {
+    if (signedIn) try {
       ({ vote: state.vote } = await request(votePath()));
       state.eligible = true;
     } catch (error) {
@@ -280,12 +289,12 @@ function render({ voteSaved = false, motion = '' } = {}) {
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
   const pinFirst = isAdmin && state.user.mustChange;
   main.classList.toggle('narrow', !isAdmin || pinFirst);
-  if (!state.user) {
-    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep);
+  if (!state.user && (route.kind === 'admin' || signIn.requested)) {
+    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, route.kind !== 'admin');
   } else if (pinFirst) {
     main.innerHTML = organizerPinScreen(club, state.user);
   } else if (route.kind === 'vote') {
-    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved);
+    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved, Boolean(state.user));
   } else if (route.kind === 'notice') {
     main.innerHTML = noticeScreen(state.notice, club);
   } else if (route.kind === 'home') {
@@ -322,7 +331,7 @@ function clearProtectedView() {
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
-  Object.assign(signIn, { name: null, numberStep: false });
+  Object.assign(signIn, { name: null, numberStep: false, requested: false });
   dialogOpener = null;
   closeDialog({ instant: true });
   dialog.replaceChildren();
@@ -337,6 +346,7 @@ function clearProtectedView() {
 
 function loginExpired() {
   clearProtectedView();
+  signIn.requested = true;
   render();
   showMessage('로그인이 만료됐어요. 다시 로그인해 주세요.', true);
 }
@@ -658,8 +668,21 @@ async function doAction(action, itemId, tab) {
     case 'logout':
       await request(authPath('logout'), 'POST', {});
       clearProtectedView();
+      if (route.kind !== 'admin') await load();
       render();
       showMessage('로그아웃했어요.');
+      break;
+    // 로그인 없이 보기 (사용자 결정, 2026-11-26): a member page asks for sign-in only when the member wants to answer,
+    // read the whole notice or see the place; 로그인 없이 보기 goes back to the page as it was.
+    case 'sign-in':
+      signIn.requested = true;
+      showLoginStep('');
+      break;
+    case 'sign-in-cancel':
+      Object.assign(signIn, { requested: false, numberStep: false });
+      hideMessage();
+      render();
+      main.focus({ preventScroll: true });
       break;
     case 'pin':
       openDialog(authRole === 'admin' ? '번호 바꾸기' : 'PIN 설정·변경', pinForm({ organizer: authRole === 'admin' }));
@@ -899,6 +922,7 @@ async function doSubmit(kind, itemId, data) {
         break;
       }
       state.user = user;
+      signIn.requested = false;
       await openSignedInPage();
       break;
     }

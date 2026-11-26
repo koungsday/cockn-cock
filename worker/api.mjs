@@ -247,21 +247,53 @@ async function fetchEvent(db, club, id) {
   return serializeEvent(row);
 }
 
-async function fetchPublic(db, club, kind, id) {
+// 로그인 없이 보기 (사용자 결정, 2026-11-26): anyone with the link sees when an event is, its deadline, state and
+// counts, and a notice's title, date and the start of its body; the place, the event notes and the whole notice
+// wait for sign-in. Answering always needs sign-in (/api/votes).
+async function fetchPublic(db, club, kind, id, signedIn) {
   if (kind === 'vote') {
     const row = await sql(db, `SELECT ${eventFields}, cancelled_at, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
     if (!row) missing();
-    return { event: { ...serializeEvent(row), counts: readCounts(row) } };
+    const event = { ...serializeEvent(row), counts: readCounts(row) };
+    return { event: signedIn ? event : { ...event, place: null, notes: null } };
   }
   const row = await sql(db, `SELECT ${noticeFields} FROM notices WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
   if (!row) missing();
-  return { notice: serializeNotice(row) };
+  const notice = serializeNotice(row);
+  return { notice: signedIn ? notice : { ...notice, body: null, preview: noticePreview(row.body) } };
+}
+
+// 공지 미리보기: the start of the body on one line, as the notice page before sign-in and the KakaoTalk preview show it.
+export function noticePreview(body) {
+  const characters = [...String(body).replace(/\s+/g, ' ').trim()];
+  return characters.length > 60 ? characters.slice(0, 60).join('').trimEnd() + '…' : characters.join('');
+}
+
+const weekdayWords = ['일', '월', '화', '수', '목', '금', '토'];
+function koreanDate(date) {
+  return `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 (${weekdayWords[new Date(date + 'T00:00:00Z').getUTCDay()]})`;
+}
+
+// 카톡 미리보기 (worker/index.mjs shareTags): what anyone with the link may see, the same as the pages before sign-in.
+// A draft or a missing record gives nothing, so the preview stays generic.
+export async function shareSummary(db, club, kind, id) {
+  if (kind === 'vote') {
+    const row = await sql(db, 'SELECT title, date, time, deadline, cancelled_at FROM events WHERE id = ? AND club_id = ? AND published = 1', id, club).first();
+    return row && {
+      title: row.title,
+      description: `${koreanDate(row.date)} ${row.time} · ${row.cancelled_at ? '취소된 일정이에요.'
+        : `${koreanDate(row.deadline.slice(0, 10))} ${row.deadline.slice(11, 16)} 투표 마감`}`
+    };
+  }
+  const row = await sql(db, 'SELECT title, date, body FROM notices WHERE id = ? AND club_id = ? AND published = 1', id, club).first();
+  return row && { title: row.title, description: `${koreanDate(row.date)} · ${noticePreview(row.body)}` };
 }
 
 // The member home: published upcoming events with this member's own place on the roster and answer
 // (never anyone else's; others only as counts), so the home can show 투표하기 / 응답 완료 without one request per
 // event, and 내 기록: this member's row of this half's 반기 집계. Every pinned event, today's events and every open vote
 // come (FLOW.md 6); only the rest are cut to the next 12. The screen orders them (flow.mjs memberOrder).
+// memberId is null before sign-in: no place, no own answer and no 내 기록 (fetchPublic says what stays open).
 async function listPublic(db, club, memberId) {
   const now = kstNow();
   const date = now.slice(0, 10);
@@ -290,12 +322,12 @@ async function listPublic(db, club, memberId) {
   return {
     events: rows.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
-      place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
+      place: memberId ? row.place : null, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
       canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
     notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
-    record: await memberRecord(db, club, memberId, date)
+    record: memberId ? await memberRecord(db, club, memberId, date) : null
   };
 }
 
@@ -1033,10 +1065,11 @@ async function route(request, env) {
   const exposed = publicPath.exec(path);
   if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
-    const member = requireUser(await readSession(request, env, 'member'), 'member');
+    // Open without sign-in (사용자 결정, 2026-11-26); a member's session adds what fetchPublic keeps for members.
+    const member = await readSession(request, env, 'member');
     const publicData = exposed
-      ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2])
-      : await listPublic(env.DB, env.CLUB_SCOPE, member.id);
+      ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2], member?.role === 'member')
+      : await listPublic(env.DB, env.CLUB_SCOPE, member?.role === 'member' ? member.id : null);
     return json(publicData);
   }
 
