@@ -121,5 +121,17 @@ for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', pr
   }
 }
 
-console.log(`Verified ${origin.origin}: member/admin shells, console, UI release hashes, fonts, protected API, app manifest, share images${
+// A UI file of no release is never cached (worker/index.mjs): right after a deploy an edge may still run the previous
+// version, which marks it immutable, so ask again for at most 60 s.
+let missing;
+for (const start = Date.now(); ;) {
+  missing = await get('/club-ui/00000000000000000000/live.css');
+  if (missing.headers.get('cache-control') === 'no-store' || Date.now() - start > 60000) break;
+  console.log('없는 화면 파일 응답이 아직 이전 배포입니다. 5초 뒤 다시 받습니다.');
+  await new Promise(resolve => setTimeout(resolve, 5000));
+}
+assert.equal(missing.status, 404);
+assert.equal(missing.headers.get('cache-control'), 'no-store', 'a missing UI file is not cached');
+
+console.log(`Verified ${origin.origin}: member/admin shells, console, UI release hashes, missing UI files uncached, fonts, protected API, app manifest, share images${
   process.env.CLUB_VOTE_PATH || process.env.CLUB_NOTICE_PATH ? ', selected share previews' : ''}.`);

@@ -509,6 +509,25 @@ test('the root is the intro home and lists no clubs; a club page remembers itsel
   assert.match(html, /<a class="try-link" href="https:\/\/koungsday\.github\.io\/cockn-cock\/">가상 체험 열기<\/a>/);
 });
 
+test('a UI file of another release answers 404 without the year-long cache of the files that exist', async t => {
+  const { env } = setup(t);
+  const release = '/club-ui/0123456789abcdef0123/';
+  // Like the live asset server: _headers marks everything under /club-ui/ immutable, found or not.
+  env.ASSETS = {
+    async fetch(request) {
+      const found = new URL(request.url).pathname === release + 'live.css';
+      return new Response(found ? 'body{}' : null, { status: found ? 200 : 404, headers: { 'Cache-Control': 'public, max-age=31536000, immutable' } });
+    }
+  };
+  const worker = createWorker([first]);
+  const current = await worker.fetch(new Request(origin + release + 'live.css'), env);
+  assert.equal(current.status, 200);
+  assert.equal(current.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+  const other = await worker.fetch(new Request(origin + '/club-ui/fedcba9876543210fedc/live.css'), env);
+  assert.equal(other.status, 404);
+  assert.equal(other.headers.get('Cache-Control'), 'no-store');
+});
+
 test('a configured address move preserves paths without redirecting credential requests', async t => {
   const {env} = setup(t);
   const worker = createWorker([first]);
