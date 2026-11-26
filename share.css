@@ -510,6 +510,11 @@
   overflow-wrap: anywhere;
 }
 
+/* A time range ("07:00–11:00") or one count ("선발 5명") breaks only before or after, never inside. */
+.public-event-facts .nowrap {
+  white-space: nowrap;
+}
+
 .public-form {
   display: grid;
   gap: 16px;
@@ -670,6 +675,9 @@
 .member-answer { margin: 0; color: #344b3b; font-size: 1rem; line-height: 1.55; }
 .member-answer strong { color: #193b27; }
 .member-next-action { width: 100%; }
+.member-record-card .public-share-content { display: grid; gap: 10px; }
+.member-record-card .public-share-content > * { margin: 0; }
+.member-record-card .public-form-note { word-break: keep-all; }
 .member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
 .member-pin h2 { font-size: 1.05rem; }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }

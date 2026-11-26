@@ -247,11 +247,21 @@ export function organizerPinScreen(club, user) {
   </div></main>`;
 }
 
+// 참석 현황: how many answered each way, never who (worker/api.mjs countColumns). Each count stays on one line.
+function countsFact(counts) {
+  if (!counts) return '';
+  const total = counts.early + counts.late + counts.no;
+  const line = total
+    ? [['선발', counts.early], ['후발', counts.late], ['불참', counts.no]].map(([word, n]) => `<span class="nowrap">${word} ${n}명</span>`).join(' · ')
+    : '아직 응답이 없어요';
+  return `<div><dt>응답 현황</dt><dd>${line}</dd></div>`;
+}
+
 export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
   const facts = `<dl class="public-event-facts">
-    <div><dt>일시</dt><dd>${esc(dateLine(event))}</dd></div>
+    <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
     <div><dt>장소</dt><dd>${esc(event.place)}</dd></div>
-    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>`;
+    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>${countsFact(event.counts)}</dl>`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
@@ -292,13 +302,26 @@ function nextEventCard(event, club) {
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}</span>
       <h2 id="member-next-title" class="public-title">${esc(event.title)}</h2><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time></header>
     <div class="public-share-content">
-      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}</dl>
+      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}${countsFact(event.counts)}</dl>
       <p class="member-answer">${state.note}</p>
       <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">${state.action}</a>
     </div></article>`;
 }
 
-export function homeScreen({ events, notices }, club, user = null) {
+// 내 기록: this member's row of this half's 반기 집계 (progressScreen), so they need not ask an organiser.
+function recordCard(record) {
+  if (!record) return '';
+  const [first, second] = record.half === 1 ? ['1~3월', '4~6월'] : ['7~9월', '10~12월'];
+  return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
+    <h2 id="member-record">내 기록</h2>
+    <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
+    <dl class="public-event-facts"><div><dt>1차 구간</dt><dd>${record.first} / 3회</dd></div>
+      <div><dt>2차 구간</dt><dd>${record.second} / 3회</dd></div>
+      <div><dt>콕 수령</dt><dd>${record.rewarded ? '받았어요' : '아직이에요'}</dd></div></dl>
+    <p class="public-form-note">1차는 ${first}, 2차는 ${second}이에요. 마무리한 회차에서 운영진이 기록한 인정만 세요.</p></div></section>`;
+}
+
+export function homeScreen({ events, notices, record }, club, user = null) {
   const [next, ...later] = events;
   const eventRows = later.map(event => {
     const state = memberEventState(event);
@@ -319,7 +342,7 @@ export function homeScreen({ events, notices }, club, user = null) {
     <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
   return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
     ${later.length ? listCard('member-events', '이후 운동 일정', eventRows, '') : ''}
-    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${pin}`, { back: false });
+    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${pin}`, { back: false });
 }
 
 export function loginScreen(club, name, numberStep) {
