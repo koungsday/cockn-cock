@@ -198,10 +198,11 @@ function voteLabel(slot, event) {
   return '미응답';
 }
 
-function choiceFields(event, vote, lunchLabel) {
-  const choices = ['early', 'late', 'no'].map(slot => `<label class="public-choice">
+// Members choose 선발 or 후발 (worker/api.mjs memberSlots); the organisers' 회원 응답 변경 also offers 불참.
+function choiceFields(event, vote, lunchLabel, slots = ['early', 'late', 'no']) {
+  const choices = slots.map(slot => `<label class="public-choice">
     <input type="radio" name="slot" value="${slot}"${vote?.slot === slot ? ' checked' : ''} required><span>${esc(voteLabel(slot, event))}</span></label>`);
-  return `<fieldset class="public-choices"><legend>운동 참석</legend><div class="public-choice-row public-choice-slots">${choices.join('')}</div></fieldset>
+  return `<fieldset class="public-choices"><legend>운동 참석</legend><div class="public-choice-row${slots.length === 3 ? ' public-choice-slots' : ''}">${choices.join('')}</div></fieldset>
     <label class="public-lunch"><input type="checkbox" name="lunch"${vote?.lunch ? ' checked' : ''}> ${lunchLabel}</label>`;
 }
 
@@ -248,16 +249,17 @@ export function organizerPinScreen(club, user) {
 }
 
 // 응답 현황: how many answered each way, never who (worker/api.mjs countColumns), drawn like the club's 카카오톡 투표:
-// a bar per choice as a share of everyone who answered. The live CSP blocks style attributes, so each bar is an SVG
-// sized by its viewBox, as the organisers' .poll-track is. share.js and platform/demo-club.mjs draw the same markup.
+// a bar per choice as a share of everyone coming (선발 + 후발; members have no 불참). The live CSP blocks style
+// attributes, so each bar is an SVG sized by its viewBox, as the organisers' .poll-track is. share.js and
+// platform/demo-club.mjs draw the same markup.
 function countsBlock(counts, event) {
   if (!counts) return '';
-  const total = counts.early + counts.late + counts.no;
-  if (!total) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+  const coming = counts.early + counts.late;
+  if (!coming && !counts.lunch) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
   const rows = [[voteLabel('early', event), counts.early, 'slot'], [voteLabel('late', event), counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
-  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>응답 ${total}명</span></p>
-    <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${total} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
-    <p class="member-counts-note">불참 ${counts.no}명 · 누가 응답했는지는 보이지 않아요</p></div>`;
+  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명</span></p>
+    <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
+    <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
 export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
@@ -269,9 +271,10 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
   if (event.canVote && eligible) {
-    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요')}
+    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요', ['early', 'late'])}
       <p class="inline-error" role="alert" hidden></p>
-      <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button></form>`;
+      <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
+      ${vote ? '<button class="share-button share-button--secondary" type="button" data-action="cancel-vote">응답 취소</button>' : ''}</form>`;
   } else if (event.canVote) {
     response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong> 운영진에게 참석 명단을 확인해 주세요.</p></div>';
   }

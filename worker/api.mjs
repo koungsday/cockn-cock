@@ -15,6 +15,8 @@ const recordId = new RegExp(`^${identifier}$`);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 const slots = ['early', 'late', 'no'];
+// Members answer 선발 or 후발 only, as in the club's 카카오톡 투표; 불참 stays for organisers' own records.
+const memberSlots = ['early', 'late'];
 const markKinds = ['direct', 'substitute', 'approved'];
 const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
@@ -196,8 +198,8 @@ function serializeVote(row) {
   return row ? { slot: row.slot, lunch: Boolean(row.lunch) } : null;
 }
 
-function validateVote(body, allowClear = false) {
-  if (!slots.includes(body.slot) && !(allowClear && body.slot === null)) bad('운동 참석 선택을 확인해 주세요.');
+function validateVote(body, allowClear = false, allowed = slots) {
+  if (!allowed.includes(body.slot) && !(allowClear && body.slot === null)) bad('운동 참석 선택을 확인해 주세요.');
   const lunch = boolean(body.lunch, '점심 선택');
   if (body.slot === null && lunch) bad('응답을 지울 때는 점심 선택도 해제해 주세요.');
   return { slot: body.slot, lunch };
@@ -315,18 +317,27 @@ async function memberVote(db, club, method, id, user, body = {}) {
     return { vote: serializeVote(row) };
   }
   if (method !== 'PUT') methodNotAllowed();
-  const { slot, lunch } = validateVote(body);
-  const result = await sql(db, `
+  // slot null is 응답 취소: the answer is removed under the same conditions that let it be saved.
+  const { slot, lunch } = validateVote(body, true, memberSlots);
+  const canAnswer = `FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
+    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND e.club_id = ?
+      AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()`;
+  const result = slot === null
+    ? await sql(db, `DELETE FROM votes WHERE event_id = ? AND member_id = ? AND EXISTS (SELECT 1 ${canAnswer})`,
+      id, user.id, id, user.id, club, user.version).run()
+    : await sql(db, `
     INSERT INTO votes (event_id, member_id, slot, lunch)
     SELECT r.event_id, r.member_id, ?, ?
-    FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
-    WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND e.club_id = ?
-      AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()
+    ${canAnswer}
     ON CONFLICT (event_id, member_id) DO UPDATE SET slot = excluded.slot, lunch = excluded.lunch
   `, slot, +lunch, id, user.id, club, user.version).run();
-  if (!result.meta.changes) throw new ApiError(409, '투표가 마감되었거나 회원 정보가 바뀌었어요. 새로고침해 주세요.');
+  // Nothing removed is fine when there was no answer to remove; an answer still there means the vote is closed.
+  const blocked = slot === null
+    ? await sql(db, 'SELECT 1 FROM votes WHERE event_id = ? AND member_id = ?', id, user.id).first()
+    : !result.meta.changes;
+  if (blocked) throw new ApiError(409, '투표가 마감되었거나 회원 정보가 바뀌었어요. 새로고침해 주세요.');
   const counts = await sql(db, `SELECT ${countColumns('events')} FROM events WHERE id = ? AND club_id = ?`, id, club).first();
-  return { vote: { slot, lunch }, counts: readCounts(counts) };
+  return { vote: slot === null ? null : { slot, lunch }, counts: readCounts(counts) };
 }
 
 async function listAdmin(db, club) {
