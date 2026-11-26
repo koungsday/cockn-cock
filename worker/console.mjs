@@ -2,9 +2,10 @@
 // It sees each club as numbers and organiser names only, never members or answers.
 // The server draws every page with the live stylesheet; there is no script, and the forms post back here.
 import {
-  ApiError, currentSeconds, equalDigest, isAdminId, isSixDigitPin, makeMemberCredential, matchingCredentials,
-  membersNamed, randomHex, releaseAttempt, reserveAttempt, sql, temporaryPin
+  ApiError, currentSeconds, equalDigest, isAdminId, isSixDigitPin, makeMemberCredential, randomHex, releaseAttempt,
+  reserveAttempt, sql, temporaryPin
 } from './auth.mjs';
+import { issueOrganizer, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
 import { actionLabels, audit, auditTime, consoleActor } from './audit.mjs';
 import { allClubs, findClub, scopeEnv, slugPattern } from './scope.mjs';
 
@@ -142,16 +143,6 @@ function field(form, name, label, max, { required = true } = {}) {
   return value;
 }
 
-// A six-digit temporary PIN no member of the same name already signs in with (auth.mjs refuses such a pair).
-async function temporaryFor(scoped, name) {
-  const members = await membersNamed(scoped, name);
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const pin = temporaryPin();
-    if (!(await matchingCredentials(scoped, members, pin, true)).length) return pin;
-  }
-  throw new ApiError(409, '임시 번호를 만들지 못했어요. 다시 시도해 주세요.');
-}
-
 async function scoped(env, legacy, slug) {
   const club = await findClub(env, slug);
   if (!club) throw new ApiError(404, '모임을 찾을 수 없어요.');
@@ -197,44 +188,22 @@ async function createClub(env, legacy, form) {
 
 async function addOrganizer(env, legacy, slug, form) {
   const { club, scope } = await scoped(env, legacy, slug);
-  const name = field(form, 'organizer', '운영진 성함', 60);
-  const pin = await temporaryFor(scope, name);
-  const { hash, salt, version } = await makeMemberCredential(scope, pin);
-  const id = crypto.randomUUID();
-  const added = await sql(env.DB, `
-    INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
-    SELECT ?, ?, ?, ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM organizers WHERE club_id = ? AND name = ? AND active = 1)
-  `, id, slug, name, salt, hash, version, currentSeconds(), slug, name).run();
-  if (!added.meta.changes) throw new ApiError(409, '같은 이름의 운영진이 이미 있어요. 번호 재발급을 써 주세요.');
-  await audit(env.DB, slug, consoleActor, 'organizer.add', id, () => name);
-  return { title: '운영진을 추가했어요', club, organizer: name, pin };
+  const issued = await issueOrganizer(scope, organizerName(form.get('organizer')));
+  await audit(env.DB, slug, consoleActor, 'organizer.add', issued.id, () => issued.name);
+  return { title: '운영진을 추가했어요', club, organizer: issued.name, pin: issued.pin };
 }
 
 async function resetOrganizer(env, legacy, slug, id) {
   const { club, scope } = await scoped(env, legacy, slug);
-  const row = await sql(env.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ? AND active = 1', id, slug).first();
-  if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
-  const pin = await temporaryFor(scope, row.name);
-  const { hash, salt, version } = await makeMemberCredential(scope, pin);
-  const [updated] = await env.DB.batch([
-    sql(env.DB, `UPDATE organizers SET credential_salt = ?, credential_hash = ?, credential_version = ?, must_change = 1
-      WHERE id = ? AND club_id = ? AND active = 1`, salt, hash, version, id, slug),
-    sql(env.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id),
-    sql(env.DB, 'DELETE FROM attempts WHERE key = ?', 'pin-organizer:' + id)
-  ]);
-  if (!updated.meta.changes) throw new ApiError(409, '운영진 정보가 바뀌었어요. 목록을 다시 열어 주세요.');
-  await audit(env.DB, slug, consoleActor, 'organizer.reset', id, () => row.name);
-  return { title: '임시 번호를 다시 발급했어요', club, organizer: row.name, pin };
+  const issued = await reissueOrganizer(scope, id);
+  await audit(env.DB, slug, consoleActor, 'organizer.reset', id, () => issued.name);
+  return { title: '임시 번호를 다시 발급했어요', club, organizer: issued.name, pin: issued.pin };
 }
 
-async function removeOrganizer(env, slug, id) {
-  const [removed, , row] = await env.DB.batch([
-    sql(env.DB, 'UPDATE organizers SET active = 0 WHERE id = ? AND club_id = ? AND active = 1', id, slug),
-    sql(env.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id),
-    sql(env.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ?', id, slug)
-  ]);
-  if (!removed.meta.changes) throw new ApiError(404, '운영진을 찾을 수 없어요.');
-  await audit(env.DB, slug, consoleActor, 'organizer.remove', id, () => row.results[0]?.name ?? '');
+async function removeOrganizer(env, legacy, slug, id) {
+  const { scope } = await scoped(env, legacy, slug);
+  const retired = await retireOrganizer(scope, id);
+  await audit(env.DB, slug, consoleActor, 'organizer.remove', id, () => retired.name);
 }
 
 async function setStatus(env, slug, form) {
@@ -518,7 +487,7 @@ export async function consolePage(request, env, url, legacy) {
     if (kind === 'status') await setStatus(env, slug, form);
     else if (!organizerId) return { status: 201, html: page(style, issuedPage(url, await addOrganizer(env, legacy, slug, form)), true) };
     else if (verb === 'reset') return { status: 200, html: page(style, issuedPage(url, await resetOrganizer(env, legacy, slug, organizerId)), true) };
-    else await removeOrganizer(env, slug, organizerId);
+    else await removeOrganizer(env, legacy, slug, organizerId);
     return { status: 303, location: new URL(`/console/#club-${slug}`, url.origin).href };
   } catch (error) {
     // Never print request bodies or credentials; ApiError messages are written for the operator.

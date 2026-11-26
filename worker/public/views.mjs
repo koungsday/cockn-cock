@@ -747,7 +747,31 @@ export function reportText(detail, clubName) {
   ].join('\n');
 }
 
-export function membersScreen(members) {
+// 운영진 (PLATFORM.md 인증): who may open this screen. Another organiser is issued, reissued or retired here;
+// one's own number is changed from the menu (번호 바꾸기).
+function organizersPanel(organizers, me) {
+  const rows = organizers.map(organizer => {
+    const self = organizer.id === me;
+    return `<tr><td><div class="member-name">${avatar(organizer.name)}<strong>${esc(organizer.name)}</strong></div></td>
+    <td>${self ? pill('나', 'green') : pill(organizer.mustChange ? '임시 번호 전달 대기' : '사용 중', organizer.mustChange ? 'warm' : 'green')}</td>
+    <td class="table-actions">${self ? '<small>메뉴의 번호 바꾸기</small>'
+      : button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })
+        + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
+  </tr>`;
+  });
+  return panel('운영진', table(['이름', '상태', '<span class="sr-only">운영진 관리</span>'], rows, '운영진이 없습니다.'), {
+    subtitle: '운영 화면에 들어오는 사람이에요. 추가하면 임시 번호가 한 번 보여요.',
+    actions: button('운영진 추가', 'new-organizer', { css: 'secondary small' }),
+  });
+}
+
+export function organizerForm() {
+  return form('organizer', `<div class="form-grid">${field('성함', 'name', '', {
+    wide: true, attrs: 'maxlength="60" autocomplete="off" required', help: '이 성함과 임시 번호로 운영 화면에 처음 들어와요.',
+  })}</div>`, '임시 번호 발급');
+}
+
+export function membersScreen(members, organizers = [], me = null) {
   const active = members.filter(member => member.active).length;
   const rows = members.map(member => `<tr data-search="${esc(member.name)}">
     <td><div class="member-name">${avatar(member.name)}<strong>${esc(member.name)}</strong></div></td>
@@ -757,7 +781,8 @@ export function membersScreen(members) {
   return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}
     ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.'), {
     subtitle: `전체 ${members.length}명 · 활동 중 ${active}명`, actions: search('members'),
-  })}</div>`;
+  })}
+    ${organizersPanel(organizers, me)}</div>`;
 }
 
 export function memberForm(member = null) {
