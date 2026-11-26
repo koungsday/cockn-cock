@@ -155,7 +155,8 @@ function applyAdminHash() {
   const { section, eventId, tab } = readAdminHash();
   state.section = section;
   state.eventTab = tab;
-  if (eventId) state.selectedEvent = eventId;
+  // #event is the 일정 list, #event/:id one session (FLOW.md 5).
+  if (section === 'event') state.selectedEvent = eventId;
 }
 
 function writeAdminHash({ replace = false } = {}) {
@@ -168,7 +169,7 @@ function writeAdminHash({ replace = false } = {}) {
 function noteLostEvent() {
   if (!lostEvent) return;
   lostEvent = false;
-  showMessage('주소의 회차를 찾지 못해 가장 가까운 회차를 열었어요.');
+  showMessage('주소의 회차를 찾지 못해 일정 목록을 열었어요.');
 }
 
 function hideMessage() {
@@ -247,14 +248,13 @@ async function load() {
   } else if (state.user?.role === 'admin') {
     state.admin = await request('/api/admin');
     const events = state.admin.events.sort((a, b) => b.date.localeCompare(a.date));
-    const kstMinute = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
-    const soonest = [...events].reverse().find(event => `${event.date}T${event.endTime}` > kstMinute);
-    if (!events.some(event => event.id === state.selectedEvent)) {
-      if (state.selectedEvent && state.section === 'event') {
+    // A session the address names but the club no longer has: the 일정 list opens instead, with a line saying so.
+    if (state.selectedEvent && !events.some(event => event.id === state.selectedEvent)) {
+      if (state.section === 'event') {
         lostEvent = true;
         state.eventTab = null;
       }
-      state.selectedEvent = soonest?.id ?? events[0]?.id ?? null;
+      state.selectedEvent = null;
     }
     if (state.section === 'home') {
       // The big card is the first of the 진행 중인 일정 (FLOW.md, flow.mjs); the rest are listed under it.
@@ -604,12 +604,15 @@ function submitCompleteCode(input) {
 }
 
 // Moves to a section, session or tab. Only a new section or session is fetched; a tab change redraws what is already here.
-async function goTo(section, { eventId = null, tab = null, push = true } = {}) {
+// list: the 일정 list (#event) rather than a session.
+async function goTo(section, { eventId = null, tab = null, push = true, list = false } = {}) {
   const previous = { section: state.section, selectedEvent: state.selectedEvent, eventTab: state.eventTab };
-  const reload = section !== previous.section || (section === 'event' && eventId !== null && eventId !== previous.selectedEvent);
+  const reload = section !== previous.section || (section === 'event'
+    && (list ? previous.selectedEvent !== null : eventId !== null && eventId !== previous.selectedEvent));
   state.section = section;
   state.eventTab = section === 'event' ? tab : null;
   if (eventId) state.selectedEvent = eventId;
+  if (list) state.selectedEvent = null;
   if (reload) {
     try {
       await load();
@@ -667,12 +670,18 @@ async function doAction(action, itemId, tab) {
     case 'open-event':
     case 'tab': {
       const section = action === 'open-event' ? 'event' : itemId;
-      if (state.section !== section) dialogOpener = null;
-      closeDialog({ instant: state.section !== section });
-      if (state.section === section) break;
-      await goTo(section, { eventId: action === 'open-event' ? itemId : null, tab: tab ?? null });
+      const eventId = action === 'open-event' ? itemId : null;
+      // 일정 in the menu opens the list, a session its detail (FLOW.md 5); the screen already shown stays.
+      const same = state.section === section && (section !== 'event' || state.selectedEvent === eventId);
+      if (!same) dialogOpener = null;
+      closeDialog({ instant: !same });
+      if (same) break;
+      await goTo(section, { eventId, tab: tab ?? null, list: section === 'event' && !eventId });
       break;
     }
+    case 'event-list':
+      await goTo('event', { list: true });
+      break;
     case 'event-tab':
       await goTo('event', { tab: itemId });
       break;
@@ -1146,26 +1155,6 @@ document.addEventListener('submit', event => {
   void run(() => doSubmit(kind, itemId, data), control);
 });
 
-main.addEventListener('change', event => {
-  const control = event.target;
-  if (!control.matches('[data-action=switch-event]')) return;
-  void run(async () => {
-    const selected = control.value;
-    const previous = state.selectedEvent;
-    try {
-      state.detail = await request(`/api/admin/events/${id(selected)}`);
-    } catch (error) {
-      control.value = previous;
-      throw error;
-    }
-    state.selectedEvent = selected;
-    state.eventTab = null;
-    render();
-    writeAdminHash();
-    main.querySelector('[data-action=switch-event]')?.focus({ preventScroll: true });
-  }, control);
-});
-
 function applyFilter(control) {
   const term = control.value.trim().toLocaleLowerCase('ko-KR');
   for (const item of main.querySelectorAll('[data-search]')) {
@@ -1246,7 +1235,7 @@ window.addEventListener('popstate', () => {
   const { section, eventId, tab } = readAdminHash();
   const control = document.createElement('button');
   Object.assign(control.dataset, { action: 'tab', id: section });
-  void run(() => goTo(section, { eventId, tab, push: false }), control);
+  void run(() => goTo(section, { eventId, tab, push: false, list: section === 'event' && !eventId }), control);
 });
 
 // The skip link moves focus without changing the address: #main-content is not an admin route.
