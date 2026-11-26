@@ -30,15 +30,15 @@ function shareTags(url, club, kind) {
     ['og:description', description],
     ['og:url', canonical]
   ];
-  if (club.slug === 'suncok19') {
-    const image = new URL(`/assets/kakao-${kind}.png`, url.origin);
-    tags.push(
-      ['og:image', image.href],
-      ['og:image:width', 1200],
-      ['og:image:height', 630],
-      ['og:image:alt', `${club.name} ${type}`]
-    );
-  }
+  // 썬콕19 keeps its card with its name; every other club gets the same card with 콕콕콕! in that place, so no link
+  // reaches the chat without an image. The 운영 화면 shows this preview from these tags (worker/public/app.mjs).
+  const image = new URL(`/assets/kakao-${kind}${club.slug === 'suncok19' ? '' : '-common'}.png`, url.origin);
+  tags.push(
+    ['og:image', image.href],
+    ['og:image:width', 1200],
+    ['og:image:height', 630],
+    ['og:image:alt', `${club.name} ${type}`]
+  );
   return `<link rel="canonical" href="${escape(canonical)}">\n${tags.map(
     ([key, value]) => meta('property', key, value)
   ).join('\n')}`;

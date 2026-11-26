@@ -93,13 +93,16 @@ for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', pr
     assert(page.html.includes(`property="og:url" content="${origin.origin}${url.pathname.replace(/\/$/, '')}"`));
     assert(page.html.includes(`<meta property="og:image" content="${image}">`));
   }
-  const png = await get(image);
-  assert.equal(png.status, 200);
-  assert.match(png.headers.get('content-type') ?? '', /^image\/png\b/);
-  const bytes = Buffer.from(await png.arrayBuffer());
-  assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-  assert.equal(bytes.readUInt32BE(16), 1200);
-  assert.equal(bytes.readUInt32BE(20), 630);
+  // The shared card every other club's links use (worker/index.mjs shareTags) must be there too.
+  for (const href of [image, new URL(`/assets/kakao-${kind}-common.png`, origin).href]) {
+    const png = await get(href);
+    assert.equal(png.status, 200, href);
+    assert.match(png.headers.get('content-type') ?? '', /^image\/png\b/);
+    const bytes = Buffer.from(await png.arrayBuffer());
+    assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(bytes.readUInt32BE(16), 1200);
+    assert.equal(bytes.readUInt32BE(20), 630);
+  }
 }
 
 console.log(`Verified ${origin.origin}: member/admin shells, console, UI release hashes, fonts, protected API, app manifest, share images${

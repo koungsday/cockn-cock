@@ -137,6 +137,9 @@ test('catalog, canonical club links and legacy shares do not expose unscoped API
   assert.equal(head.status, 401);
   assert.equal(await head.text(), '');
   assert.match(publicHtml, /property="og:url" content="https:\/\/clubs.test\/clubs\/first-club\/notice\//);
+  // A club other than 썬콕19 still reaches the chat with an image: the shared 콕콕콕! card (worker/index.mjs shareTags).
+  assert(publicHtml.includes('<meta property="og:image" content="https://clubs.test/assets/kakao-notice-common.png">'));
+  assert.match(publicHtml, /property="og:image:alt" content="가상 첫 모임 공지"/);
   const otherPage = await receive('/clubs/second-club/notice/' + notice.id);
   assert.equal(otherPage.status, 200);
   assert.doesNotMatch(await otherPage.text(), /가상 공지|공개할 예시 문장/);

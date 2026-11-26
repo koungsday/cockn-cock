@@ -3,7 +3,7 @@ import {
   esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen, organizerForm,
-  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
+  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, sharePreview, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 
@@ -497,7 +497,7 @@ async function showSaved(notice, motion = '') {
   }
 }
 
-// Focus stays on the same control inside the redrawn part (the vote panel has its own 카톡 링크 복사 with the same id).
+// Focus stays on the same control inside the redrawn part (the vote panel has its own 카톡 공유 with the same id).
 function replaceKeepingFocus(selector, html) {
   const current = main.querySelector(selector);
   if (!current) return;
@@ -544,6 +544,24 @@ function findRoster(personId) {
 
 function shareLink(kind, itemId) {
   return new URL(`${club.home}${kind}/${id(itemId)}`, location.origin).href;
+}
+
+// 카톡 공유: the preview is read from the share page's own tags, fetched without this session's cookie as KakaoTalk
+// fetches it, so it shows what the chat will show rather than a copy of the server's wording (worker/index.mjs shareTags).
+async function openSharePreview(kind, itemId) {
+  const link = shareLink(kind, itemId);
+  let preview = null;
+  try {
+    const response = await fetch(link, { credentials: 'omit' });
+    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const tag = key => page.querySelector(`meta[property="${key}"]`)?.content ?? '';
+    if (response.ok && tag('og:title')) {
+      preview = { title: tag('og:title'), description: tag('og:description'), image: tag('og:image'), alt: tag('og:image:alt') };
+    }
+  } catch {
+    preview = null;
+  }
+  openDialog(kind === 'vote' ? '참석 투표 공유' : '공지 공유', sharePreview(link, preview), 'share-preview-dialog');
 }
 
 function showLoginStep(motion) {
@@ -682,10 +700,13 @@ async function doAction(action, itemId, tab) {
       break;
     }
     case 'copy-vote':
-      await copy(shareLink('vote', itemId || state.selectedEvent));
+      await openSharePreview('vote', itemId || state.selectedEvent);
       break;
     case 'copy-notice':
-      await copy(shareLink('notice', itemId));
+      await openSharePreview('notice', itemId);
+      break;
+    case 'copy-share-link':
+      await copy(itemId);
       break;
     case 'attendance':
       openDialog('출석 상세 기록', attendanceForm(findRoster(itemId)));

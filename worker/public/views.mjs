@@ -406,6 +406,20 @@ const adminSections = [
   ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'],
 ];
 
+// 카톡 공유 (운영 화면): the chat preview members will see, read from the share page's own tags (app.mjs
+// openSharePreview), then the link to paste. The same parts as the demo's share dialog (share.js renderShare).
+export function sharePreview(link, preview) {
+  const chat = preview ? `<div class="share-chat"><div class="share-chat-head"><strong>카카오톡 미리보기</strong><span>단체방에 이렇게 보여요</span></div>
+      <div class="share-chat-thread"><img class="share-brand-mark" width="35" height="35" src="/assets/shuttlecock-icon-96.png" alt="">
+        <div class="share-chat-message">${preview.image ? `<img class="share-chat-image" src="${esc(preview.image)}" width="1200" height="630" alt="${esc(preview.alt)}">` : ''}
+          <div class="share-chat-caption"><strong>${esc(preview.title)}</strong><span>${esc(preview.description)}</span><small>${esc(new URL(link).host)}</small></div></div></div></div>`
+    : '<p class="form-note">미리보기를 불러오지 못했어요. 링크는 그대로 복사할 수 있어요.</p>';
+  return `<div class="share-preview">${chat}
+    <label class="share-link-field"><span>단체방에 붙여 넣을 링크</span><input type="text" value="${esc(link)}" readonly></label>
+    <div class="share-dialog-actions"><a class="share-button share-button--secondary" href="${esc(link)}" target="_blank" rel="noopener">받는 화면 보기</a>
+      <button type="button" class="share-button share-button--primary" data-action="copy-share-link" data-id="${esc(link)}">링크 복사</button></div></div>`;
+}
+
 export function brand(club) {
   return `<a class="brand" href="${esc(club.admin)}"><img class="brand-mark" width="43" height="43" src="/assets/shuttlecock-icon-96.png" alt="">
     <span><strong>${esc(club.name)}</strong>${club.subtitle ? `<small>${esc(club.subtitle)}</small>` : ''}</span></a>`;
@@ -523,7 +537,7 @@ function pollPanel(detail) {
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="panel poll-dashboard" aria-labelledby="home-vote-title"><div id="home-vote-counts">${homeVoteCounts(detail)}</div>
     <div class="poll-footer"><span>${icon('clock', 16)} ${esc(deadlineLabel(event.deadline))} 마감</span>
-      <span ${hidden}>${button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { id: event.id, css: 'secondary small' })}</span></div></section>`;
+      <span ${hidden}>${button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })}</span></div></section>`;
 }
 
 function metric(section, glyph, tone, label, value, unit) {
@@ -552,7 +566,7 @@ export function homeTodo(events, upcoming, last) {
         button('회차 열기', 'open-event', { id: event.id, css: 'secondary small', tab: 'poll' })));
     } else if (event.canVote && waiting) {
       items.push(todoRow('users', 'mint', `미응답 ${waiting}명`, `${esc(deadlineLabel(event.deadline))} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
-        button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { id: event.id, css: 'secondary small' })));
+        button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })));
     }
   }
   if (last && !last.failed && !last.settlement?.confirmed) {
@@ -589,7 +603,7 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
     <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}<span>${esc(notice.title)}</span></button>
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
-    ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 링크 복사" title="카톡 링크 복사">${icon('link', 17)}</button>` : ''}
+    ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 공유" title="카톡 공유">${icon('link', 17)}</button>` : ''}
   </div>`);
   return `<div class="dashboard">
     <header class="dashboard-heading">
@@ -681,7 +695,7 @@ export function eventScreen(events, detail, club, tab = null) {
     + button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary small' })
     // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
     + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || (!event.open && deadlinePassed(event)) })
-    + button(`${icon('link', 16)} 카톡 링크 복사`, 'copy-vote', { css: 'primary small', disabled: !event.published });
+    + button(`${icon('link', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
     ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
@@ -843,7 +857,7 @@ export function noticesScreen(notices) {
     <h3>${esc(notice.title)}</h3>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
     <div class="notice-actions">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary small' })}
-      ${button(`${icon('link', 17)} 카톡 링크 복사`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
+      ${button(`${icon('link', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
   </article>`);
   return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
