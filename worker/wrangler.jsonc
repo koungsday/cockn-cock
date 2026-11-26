@@ -9,7 +9,7 @@
     "directory": "./site",
     "binding": "ASSETS",
     "html_handling": "none",
-    "run_worker_first": ["/", "/index.html", "/admin-shell.html", "/clubs", "/clubs/*", "/api", "/api/*", "/vote/*", "/notice/*"]
+    "run_worker_first": ["/", "/index.html", "/admin-shell.html", "/club-ui/*", "/clubs", "/clubs/*", "/api", "/api/*", "/vote/*", "/notice/*"]
   },
   "d1_databases": [
     {

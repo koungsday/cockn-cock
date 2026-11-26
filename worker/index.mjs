@@ -148,6 +148,13 @@ export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = 
         target.search = url.search;
         return new Response(null, { status: 308, headers: { Location: target.href, 'Cache-Control': 'no-store' } });
       }
+      // The UI files of a release (worker/prepare.mjs club-ui/<hash>/). While a deploy spreads, a page from one Worker
+      // version can ask another for a release it does not have; _headers would mark that 404 immutable and the browser
+      // would keep it for a year, so a missing one is never cached (2026-11-27, measured on the live address).
+      if (path.startsWith('/club-ui/')) {
+        const asset = await env.ASSETS.fetch(request);
+        return asset.status === 404 ? new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } }) : asset;
+      }
       if (path === '/console' || path.startsWith('/console/')) {
         // 총괄 콘솔 (PLATFORM.md). Not linked from any public page; noindex and never cached.
         const result = await consolePage(request, env, url, oldClubs);
