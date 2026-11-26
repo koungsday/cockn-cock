@@ -496,6 +496,48 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   assert.equal(await settled(afterBoundary), false);
 });
 
+test('members see vote counts without names and their own half-year record', async t => {
+  const {client} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const profiles = [{name:'가상 회원 가', birthday:'19800101'}, {name:'가상 회원 나', birthday:'19800202'}];
+  const members = [];
+  for (const profile of profiles) {
+    members.push((await admin.request('/api/admin/members', {method:'POST', expect:201, body:profile})).member);
+  }
+  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()});
+  const first = client('203.0.113.21');
+  const second = client('203.0.113.22');
+  await first.login(profiles[0].name, '800101');
+  await second.login(profiles[1].name, '800202');
+  const votePath = '/api/votes/' + event.id;
+  assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:false}})).counts, {early:1, late:0, no:0});
+  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}})).counts, {early:1, late:0, no:1});
+
+  const home = await first.request('/api/public');
+  assert.deepEqual(home.events.find(item => item.id === event.id).counts, {early:1, late:0, no:1});
+  const shown = await first.request('/api/public/vote/' + event.id);
+  assert.deepEqual(shown.event.counts, {early:1, late:0, no:1});
+  assert.doesNotMatch(JSON.stringify([home, shown]), /가상 회원 나/);
+
+  // 내 기록 is this member's row of this half's 반기 집계: an event today, finalized with a recognition.
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [year, month] = today.split('-').map(Number);
+  const half = month <= 6 ? 1 : 2;
+  assert.deepEqual(home.record, {year, half, first:0, second:0, rewarded:false});
+  const {event: done} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
+    ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', earlyTime:'00:01', lateTime:'00:02'
+  }});
+  const donePath = '/api/admin/events/' + done.id;
+  await admin.request(donePath + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:'direct'}});
+  await admin.request(donePath + '/settlement', {method:'PUT', body:{priorSingles:1, priorTubes:0, remainingSingles:0, courtDonation:0, confirmed:true}});
+  await admin.request('/api/admin/progress', {method:'PUT', body:{year, half, memberId:members[0].id, rewarded:true}});
+  const firstPeriod = month % 6 >= 1 && month % 6 <= 3;
+  assert.deepEqual((await first.request('/api/public')).record,
+    {year, half, first:firstPeriod ? 1 : 0, second:firstPeriod ? 0 : 1, rewarded:true});
+  assert.deepEqual((await second.request('/api/public')).record, {year, half, first:0, second:0, rewarded:false});
+});
+
 test('published notices and KST deadlines are respected without exposing drafts', async t => {
   const {client} = setup(t);
   const admin = client();

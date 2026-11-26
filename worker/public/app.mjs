@@ -371,8 +371,9 @@ async function openSignedInPage() {
     if (error.name === 'AbortError' || error.status === 401) throw error;
     failedPage(error);
   }
-  if (route.kind === 'admin') window.scrollTo(0, 0);
-  main.focus({ preventScroll: route.kind === 'admin' });
+  // Focusing main would scroll its top under the sticky header (the member home lost its first 50px), so open at the top.
+  window.scrollTo(0, 0);
+  main.focus({ preventScroll: true });
 }
 
 async function checkAdminSession() {
@@ -822,7 +823,7 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'vote':
-      ({ vote: state.vote } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') }));
+      ({ vote: state.vote, counts: state.event.counts } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') }));
       render({ voteSaved: true });
       main.querySelector('[data-form="vote"] button[type="submit"]')?.focus({ preventScroll: true });
       showMessage('응답을 저장했어요.', false, { visuallyHidden: true });

@@ -147,6 +147,16 @@
       </form>`;
   }
 
+  // 응답 현황, as the live countsFact (worker/public/views.mjs) draws it: counts on the event's roster, never names.
+  function countsFact(event) {
+    const count = slot => event.roster.filter(id => event.votes[id] === slot).length;
+    const counts = [['선발', count('early')], ['후발', count('late')], ['불참', count('no')]];
+    const line = counts.some(([, n]) => n)
+      ? counts.map(([word, n]) => `<span class="nowrap">${word} ${n}명</span>`).join(' · ')
+      : '아직 응답이 없어요';
+    return `<div><dt>응답 현황</dt><dd>${line}</dd></div>`;
+  }
+
   function renderPublic(route, state, helpers) {
     const kind = route.page === 'public-vote' ? 'vote' : 'notice';
     const item = content(kind, route.id, state);
@@ -171,9 +181,10 @@
 
     const description = kind === 'vote'
       ? `<dl class="public-event-facts">
-          <div><dt>일시</dt><dd>${escape(summary(kind, item, helpers))}–${escape(item.endTime)}</dd></div>
+          <div><dt>일시</dt><dd>${escape(helpers.dateLabel(item.date))} <span class="nowrap">${escape(item.time)}–${escape(item.endTime)}</span></dd></div>
           <div><dt>장소</dt><dd>${escape(item.place)}</dd></div>
           <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))} ${escape(item.deadlineTime)}</dd></div>
+          ${countsFact(item)}
         </dl>
         ${item.notes ? `<p class="public-share-body">${escape(item.notes)}</p>` : ''}
         ${voteForm(item, state, helpers)}`

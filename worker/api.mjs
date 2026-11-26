@@ -20,6 +20,12 @@ const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
 const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published';
 const noticeFields = 'id, title, body, date, published';
+// 참석 현황 on the member screens: how many on the event's roster chose each slot, counted as the organisers count
+// them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
+const countColumns = table => ['early', 'late', 'no'].map(slot => `(SELECT COUNT(*) FROM roster cr
+  JOIN votes cv ON cv.event_id = cr.event_id AND cv.member_id = cr.member_id
+  WHERE cr.event_id = ${table}.id AND cv.slot = '${slot}') AS ${slot}_count`).join(', ');
+const readCounts = row => ({ early: row.early_count, late: row.late_count, no: row.no_count });
 
 function json(body, status = 200, cookie) {
   const headers = new Headers({
@@ -222,21 +228,26 @@ function eventParams(event) {
     event.earlyTime, event.lateTime, event.notes, +event.open, +event.published];
 }
 
-async function fetchEvent(db, club, id, publicOnly = false) {
-  const row = await sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ? ${publicOnly ? 'AND published = 1' : ''}`, id, club).first();
+async function fetchEvent(db, club, id) {
+  const row = await sql(db, `SELECT ${eventFields} FROM events WHERE id = ? AND club_id = ?`, id, club).first();
   if (!row) missing();
   return serializeEvent(row);
 }
 
 async function fetchPublic(db, club, kind, id) {
-  if (kind === 'vote') return { event: await fetchEvent(db, club, id, true) };
+  if (kind === 'vote') {
+    const row = await sql(db, `SELECT ${eventFields}, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
+    if (!row) missing();
+    return { event: { ...serializeEvent(row), counts: readCounts(row) } };
+  }
   const row = await sql(db, `SELECT ${noticeFields} FROM notices WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
   if (!row) missing();
   return { notice: serializeNotice(row) };
 }
 
 // The member home: published upcoming events with this member's own place on the roster and answer
-// (never anyone else's), so the home can show 투표하기 / 응답 완료 without one request per event.
+// (never anyone else's; others only as counts), so the home can show 투표하기 / 응답 완료 without one request per
+// event, and 내 기록: this member's row of this half's 반기 집계.
 async function listPublic(db, club, memberId) {
   const now = kstNow();
   const date = now.slice(0, 10);
@@ -244,7 +255,7 @@ async function listPublic(db, club, memberId) {
   const [events, notices] = await db.batch([
     sql(db, `
       SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open,
-        r.member_id IS NOT NULL AS eligible, v.slot AS my_slot
+        r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}
       FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
@@ -258,13 +269,17 @@ async function listPublic(db, club, memberId) {
     `, club, date)
   ]);
   const seconds = currentSeconds();
+  const year = Number(date.slice(0, 4));
+  const half = Number(date.slice(5, 7)) <= 6 ? 1 : 2;
+  const [mine] = (await progress(db, club, year, half, memberId)).members;
   return {
     events: events.results.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
       place: row.place, deadline: row.deadline, canVote: Boolean(row.open) && row.deadline_at > seconds,
-      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null
+      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
-    notices: notices.results
+    notices: notices.results,
+    record: { year, half, first: mine?.first ?? 0, second: mine?.second ?? 0, rewarded: mine?.rewarded ?? false }
   };
 }
 
@@ -291,7 +306,8 @@ async function memberVote(db, club, method, id, user, body = {}) {
     ON CONFLICT (event_id, member_id) DO UPDATE SET slot = excluded.slot, lunch = excluded.lunch
   `, slot, +lunch, id, user.id, club, user.version).run();
   if (!result.meta.changes) throw new ApiError(409, '투표가 마감되었거나 회원 정보가 바뀌었어요. 새로고침해 주세요.');
-  return { vote: { slot, lunch } };
+  const counts = await sql(db, `SELECT ${countColumns('events')} FROM events WHERE id = ? AND club_id = ?`, id, club).first();
+  return { vote: { slot, lunch }, counts: readCounts(counts) };
 }
 
 async function listAdmin(db, club) {
@@ -594,7 +610,8 @@ function parsePeriod(year, half) {
   return { year: fullYear, half: period };
 }
 
-async function progress(db, club, year, half) {
+// memberId: one member's row only (the member home's 내 기록), with the same counting as the organisers' table.
+async function progress(db, club, year, half, memberId = null) {
   const start = year + (half === 1 ? '-01-01' : '-07-01');
   const mid = year + (half === 1 ? '-04-01' : '-10-01');
   const end = half === 1 ? year + '-07-01' : (year + 1) + '-01-01';
@@ -612,9 +629,9 @@ async function progress(db, club, year, half) {
     FROM members m
     LEFT JOIN marks p ON p.member_id = m.id
     LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
-    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)
+    WHERE m.club_id = ? AND (m.active = 1 OR p.member_id IS NOT NULL OR r.member_id IS NOT NULL)${memberId ? ' AND m.id = ?' : ''}
     ORDER BY m.name, m.id
-  `, mid, mid, club, start, end, year, half, club).all();
+  `, mid, mid, club, start, end, year, half, club, ...(memberId ? [memberId] : [])).all();
   return {
     members: results.map(row => ({
       id: row.id, name: row.name, first: row.first_count, second: row.second_count, rewarded: Boolean(row.rewarded)

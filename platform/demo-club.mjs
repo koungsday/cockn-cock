@@ -7,8 +7,18 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({
 const courtLines = '<div class="share-art-decoration" aria-hidden="true"><span></span><span></span><span></span></div>';
 const chevron = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
 
+// 응답 현황, as the live countsFact (worker/public/views.mjs) draws it: counts on the event's roster, never names.
+function countsFact(event) {
+  const count = slot => event.roster.filter(id => event.votes[id] === slot).length;
+  const counts = [['선발', count('early')], ['후발', count('late')], ['불참', count('no')]];
+  const line = counts.some(([, n]) => n)
+    ? counts.map(([word, n]) => `<span class="nowrap">${word} ${n}명</span>`).join(' · ')
+    : '아직 응답이 없어요';
+  return `<div><dt>응답 현황</dt><dd>${line}</dd></div>`;
+}
+
 // The demo member home uses the live member home's markup (worker/public/views.mjs homeScreen) and the same share.css.
-// The demo has no sign-in, so the next event always offers 투표하기 with an example member.
+// The demo has no sign-in, so the next event always offers 투표하기 with an example member, and there is no 내 기록.
 export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
   const base = basePath.endsWith('/') ? basePath : basePath + '/';
   if (!base.startsWith('/') || base.startsWith('//') || /[\\?#]/.test(base)) {
@@ -55,7 +65,7 @@ export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
       <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">참석 투표</span>
         <h2 id="member-next-title" class="public-title">${escape(vote.title)}</h2><time datetime="${escape(vote.date)}">${escape(dateLabel(vote.date))} ${escape(vote.time)}–${escape(vote.endTime)}</time></header>
       <div class="public-share-content">
-        <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(vote.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(dateLabel(vote.deadline))} ${escape(vote.deadlineTime)}</dd></div></dl>
+        <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(vote.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(dateLabel(vote.deadline))} ${escape(vote.deadlineTime)}</dd></div>${countsFact(vote)}</dl>
         <p class="member-answer">예시 회원을 골라 응답해 볼 수 있어요.</p>
         <a class="share-button share-button--primary member-next-action" href="${route('vote', vote.id)}">투표하기</a>
       </div>
