@@ -727,12 +727,14 @@ async function doAction(action, itemId, tab) {
       break;
     case 'reset-organizer': {
       const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
       openDialog('운영진 번호 재발급', `<p>재발급하면 ${esc(organizer.name)}님의 지금 번호와 로그인이 바로 끊겨요. 새 임시 번호를 전달할 사람이 맞는지 확인해 주세요.</p>`
         + button('새 임시 번호 만들기', 'confirm-reset-organizer', { id: itemId }));
       break;
     }
     case 'confirm-reset-organizer': {
       const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
       const result = await request(`/api/admin/organizers/${id(itemId)}/reset`, 'POST', {});
       await load();
       render();
@@ -741,6 +743,7 @@ async function doAction(action, itemId, tab) {
     }
     case 'remove-organizer': {
       const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
       openDialog('운영진 해지', `<p>${esc(organizer.name)}님의 운영 화면 로그인이 바로 끊기고, 다시 들어오려면 새로 추가해야 해요.</p>`
         + button('해지하기', 'confirm-remove-organizer', { id: itemId }));
       break;

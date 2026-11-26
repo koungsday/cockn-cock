@@ -478,8 +478,11 @@ test('an organiser issues, reissues and retires other organisers of their club, 
   assert.equal((await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again } })).status, 200);
 
   const other = await made('other-club', '가상 다른 운영진');
+  const secondNow = cookieOf(await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.41' }));
   assert.equal((await other.api(`/admin/organizers/${second.id}/reset`, { method: 'POST', json: {}, cookie: other.own })).status, 404, 'another club');
   assert.equal((await other.api(`/admin/organizers/${second.id}`, { method: 'PATCH', json: { active: false }, cookie: other.own })).status, 404);
+  assert.equal((await (await api('/admin/session', { cookie: secondNow })).json()).user.id, second.id,
+    'a refused attempt from another club leaves their sign-in alone');
 
   assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: true })).status, 400);
   assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: false })).status, 200);

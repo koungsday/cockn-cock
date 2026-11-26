@@ -46,7 +46,8 @@ export async function reissueOrganizer(scope, id) {
   const [updated] = await scope.DB.batch([
     sql(scope.DB, `UPDATE organizers SET credential_salt = ?, credential_hash = ?, credential_version = ?, must_change = 1
       WHERE id = ? AND club_id = ? AND active = 1`, salt, hash, version, id, scope.CLUB_SCOPE),
-    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id),
+    // Every statement names the club: an id from another club must change nothing there, sessions included.
+    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ? AND club_id = ?', id, scope.CLUB_SCOPE),
     sql(scope.DB, 'DELETE FROM attempts WHERE key = ?', 'pin-organizer:' + id)
   ]);
   if (!updated.meta.changes) throw new ApiError(409, '운영진 정보가 바뀌었어요. 목록을 다시 열어 주세요.');
@@ -56,7 +57,7 @@ export async function reissueOrganizer(scope, id) {
 export async function retireOrganizer(scope, id) {
   const [removed, , row] = await scope.DB.batch([
     sql(scope.DB, 'UPDATE organizers SET active = 0 WHERE id = ? AND club_id = ? AND active = 1', id, scope.CLUB_SCOPE),
-    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id),
+    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ? AND club_id = ?', id, scope.CLUB_SCOPE),
     sql(scope.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ?', id, scope.CLUB_SCOPE)
   ]);
   if (!removed.meta.changes) throw new ApiError(404, '운영진을 찾을 수 없어요.');
