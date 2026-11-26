@@ -440,3 +440,58 @@ test('the change log keeps one year: older rows go as new ones are written', asy
   const ages = env.DB.sqlite.prepare('SELECT unixepoch() - at AS age FROM audit_log ORDER BY id').all().map(row => Math.round(row.age / 86400));
   assert.deepEqual(ages, [364, 0], 'the 366-day row is gone, the 364-day row and the new one stay');
 });
+
+test('an organiser issues, reissues and retires other organisers of their club, never themselves or another club', async t => {
+  const { receive, signIn } = await setup(t);
+  const cookie = cookieOf(await signIn({ id: 'console-fixture', password }));
+  const made = async (slug, organizer) => {
+    const pin = issuedPin(await (await receive('/console/clubs', { method: 'POST', cookie,
+      form: { slug, name: '가상 ' + slug, subtitle: '', schedule: '', place: '', organizer } })).text());
+    const api = (path, options = {}) => receive(`/clubs/${slug}/api${path}`, options);
+    const first = cookieOf(await api('/login', { method: 'POST', json: { name: organizer, credential: pin } }));
+    const own = cookieOf(await api('/admin/pin', { method: 'POST', cookie: first, json: { currentPin: pin, newPin: '615293' } }));
+    return { api, own };
+  };
+  const { api, own } = await made('invite-club', '가상 첫 운영진');
+  const as = (path, method, json, who = own) => api(path, { method, json, cookie: who });
+
+  const listed = await (await as('/admin', 'GET')).json();
+  assert.deepEqual(listed.organizers.map(row => [row.name, row.mustChange]), [['가상 첫 운영진', false]]);
+  const me = listed.organizers[0].id;
+
+  const added = await as('/admin/organizers', 'POST', { name: '가상 둘째 운영진' });
+  assert.equal(added.status, 201);
+  const { organizer: second, temporaryPin } = await added.json();
+  assert.match(temporaryPin, /^\d{6}$/);
+  assert.equal((await as('/admin/organizers', 'POST', { name: '가상 둘째 운영진' })).status, 409);
+  assert.equal((await as('/admin/organizers', 'POST', { name: ' ' })).status, 400);
+  const secondLogin = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: temporaryPin } });
+  assert.equal((await secondLogin.json()).user.mustChange, true);
+  assert.equal((await as('/admin/organizers', 'POST', { name: '가상 셋째' }, cookieOf(secondLogin))).status, 403, 'a temporary PIN opens nothing else');
+
+  assert.equal((await as(`/admin/organizers/${me}/reset`, 'POST', {})).status, 409, 'not one’s own');
+  assert.equal((await as(`/admin/organizers/${me}`, 'PATCH', { active: false })).status, 409);
+  const reissued = await as(`/admin/organizers/${second.id}/reset`, 'POST', {});
+  assert.equal(reissued.status, 200);
+  const again = (await reissued.json()).temporaryPin;
+  assert.equal((await (await api('/admin/session', { cookie: cookieOf(secondLogin) })).json()).user, null, 'their sign-in ended');
+  assert.equal((await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again } })).status, 200);
+
+  const other = await made('other-club', '가상 다른 운영진');
+  const secondNow = cookieOf(await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.41' }));
+  assert.equal((await other.api(`/admin/organizers/${second.id}/reset`, { method: 'POST', json: {}, cookie: other.own })).status, 404, 'another club');
+  assert.equal((await other.api(`/admin/organizers/${second.id}`, { method: 'PATCH', json: { active: false }, cookie: other.own })).status, 404);
+  assert.equal((await (await api('/admin/session', { cookie: secondNow })).json()).user.id, second.id,
+    'a refused attempt from another club leaves their sign-in alone');
+
+  assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: true })).status, 400);
+  assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: false })).status, 200);
+  assert.equal((await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.40' })).status, 401);
+  assert.deepEqual((await (await as('/admin', 'GET')).json()).organizers.map(row => row.name), ['가상 첫 운영진']);
+
+  const log = await (await receive('/console/clubs/invite-club/log', { cookie })).text();
+  for (const what of ['운영진 해지', '운영진 번호 재발급', '운영진 추가']) {
+    assert.match(log, new RegExp(`가상 첫 운영진</td>\\s*<td>${what}</td><td>가상 둘째 운영진</td>`), what);
+  }
+  assert(!log.includes(temporaryPin) && !log.includes(again), 'no PIN in the log');
+});

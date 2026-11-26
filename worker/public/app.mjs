@@ -2,7 +2,7 @@ import {
   adminHome, adminMenu, adminShell, attendanceForm, attendanceRow, attendanceSubtitle, brand, button, countEvent, deadlinePassed,
   esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
-  guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
+  guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen, organizerForm,
   noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
@@ -286,7 +286,7 @@ function render({ voteSaved = false, motion = '' } = {}) {
   } else if (isAdmin) {
     let body;
     if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club, state.last);
-    else if (state.section === 'members') body = membersScreen(state.admin.members);
+    else if (state.section === 'members') body = membersScreen(state.admin.members, state.admin.organizers, state.user.id);
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
     else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
@@ -454,10 +454,13 @@ function matchingControl(control) {
     candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id && !candidate.disabled);
 }
 
-function credentialDialog(name, temporaryPin) {
-  const text = `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
-  openDialog('회원에게 보낼 접속 안내', `<p>${esc(name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요.</p>
-    <textarea class="copy-text" readonly rows="6" aria-label="회원 접속 안내">${esc(text)}</textarea>
+function credentialDialog(name, temporaryPin, organizer = false) {
+  const text = organizer
+    ? `${club.name} 운영진 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n운영 화면 ${new URL(club.admin, location.origin).href}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`
+    : `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
+  const who = organizer ? '운영진' : '회원';
+  openDialog(`${who}에게 보낼 접속 안내`, `<p>${esc(name)} ${who}에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
+    <textarea class="copy-text" readonly rows="6" aria-label="${who} 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
 }
 
@@ -719,6 +722,35 @@ async function doAction(action, itemId, tab) {
       credentialDialog(member.name, result.temporaryPin);
       break;
     }
+    case 'new-organizer':
+      openDialog('운영진 추가', organizerForm());
+      break;
+    case 'reset-organizer': {
+      const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
+      openDialog('운영진 번호 재발급', `<p>재발급하면 ${esc(organizer.name)}님의 지금 번호와 로그인이 바로 끊겨요. 새 임시 번호를 전달할 사람이 맞는지 확인해 주세요.</p>`
+        + button('새 임시 번호 만들기', 'confirm-reset-organizer', { id: itemId }));
+      break;
+    }
+    case 'confirm-reset-organizer': {
+      const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
+      const result = await request(`/api/admin/organizers/${id(itemId)}/reset`, 'POST', {});
+      await load();
+      render();
+      credentialDialog(organizer.name, result.temporaryPin, true);
+      break;
+    }
+    case 'remove-organizer': {
+      const organizer = state.admin.organizers.find(person => person.id === itemId);
+      if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
+      openDialog('운영진 해지', `<p>${esc(organizer.name)}님의 운영 화면 로그인이 바로 끊기고, 다시 들어오려면 새로 추가해야 해요.</p>`
+        + button('해지하기', 'confirm-remove-organizer', { id: itemId }));
+      break;
+    }
+    case 'confirm-remove-organizer':
+      await update(`/api/admin/organizers/${id(itemId)}`, 'PATCH', { active: false }, '운영진을 해지했어요.');
+      break;
     case 'copy-invitation':
       await copy(dialog.querySelector('.copy-text').value);
       break;
@@ -854,6 +886,13 @@ async function doSubmit(kind, itemId, data) {
         await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
         await showSaved('회원을 등록했어요.');
       }
+      break;
+    }
+    case 'organizer': {
+      const result = await request('/api/admin/organizers', 'POST', { name: read(data, 'name') });
+      await load();
+      render();
+      credentialDialog(result.organizer.name, result.temporaryPin, true);
       break;
     }
     case 'notice': {

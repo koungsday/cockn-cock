@@ -3,11 +3,13 @@ import {
   matchingCredentials, membersNamed, organizerUses, readSession, sql, temporaryPin
 } from './auth.mjs';
 import { audit, organizerActor } from './audit.mjs';
+import { issueOrganizer, listOrganizers, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const publicPath = new RegExp(`^/api/public/(vote|notice)/(${identifier})$`);
 const votePath = new RegExp(`^/api/votes/(${identifier})$`);
 const memberPath = new RegExp(`^/api/admin/members/(${identifier})(/reset)?$`);
+const organizerPath = new RegExp(`^/api/admin/organizers/(${identifier})(/reset)?$`);
 const eventPath = new RegExp(`^/api/admin/events/(${identifier})(?:/(attendance|votes|guests|settlement)(?:/(${identifier}))?)?$`);
 const recordId = new RegExp(`^${identifier}$`);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -667,7 +669,29 @@ async function routeAdmin(db, env, url, method, body, user) {
   const path = url.pathname;
   const club = env.CLUB_SCOPE;
   const record = (action, target, describe) => audit(db, club, organizerActor(user), action, target, describe);
-  if (path === '/api/admin' && method === 'GET') return json(await listAdmin(db, club));
+  if (path === '/api/admin' && method === 'GET') return json({ ...await listAdmin(db, club), organizers: await listOrganizers(env) });
+  // 운영진 초대 (PLATFORM.md 인증): an organiser issues, reissues or retires the others; their own PIN is 번호 바꾸기.
+  if (path === '/api/admin/organizers' && method === 'POST') {
+    const issued = await issueOrganizer(env, organizerName(body.name));
+    await record('organizer.add', issued.id, () => issued.name);
+    return json({ organizer: { id: issued.id, name: issued.name, mustChange: true }, temporaryPin: issued.pin }, 201);
+  }
+  const organizer = organizerPath.exec(path);
+  if (organizer) {
+    if (organizer[1] === user.id) throw new ApiError(409, '내 계정은 메뉴의 번호 바꾸기를 써 주세요.');
+    if (method === 'POST' && organizer[2]) {
+      const issued = await reissueOrganizer(env, organizer[1]);
+      await record('organizer.reset', issued.id, () => issued.name);
+      return json({ temporaryPin: issued.pin });
+    }
+    if (method === 'PATCH' && !organizer[2]) {
+      if (body.active !== false) bad('운영진 상태를 확인해 주세요.');
+      const retired = await retireOrganizer(env, organizer[1]);
+      await record('organizer.remove', retired.id, () => retired.name);
+      return json({ organizer: { id: retired.id, name: retired.name, active: false } });
+    }
+    methodNotAllowed();
+  }
   if (path === '/api/admin/members' && method === 'POST') {
     const result = await addMember(env, body);
     await record('member.add', result.member.id, () => result.member.name);
