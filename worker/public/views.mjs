@@ -1008,29 +1008,37 @@ function organizersPanel(organizers, me) {
   const rows = organizers.map(organizer => {
     const self = organizer.id === me;
     return `<tr><td><div class="member-name">${avatar(organizer.name)}<strong>${esc(organizer.name)}</strong></div></td>
-    <td>${self ? pill('나', 'green') : pill(organizer.mustChange ? '임시 번호 전달 대기' : '사용 중', organizer.mustChange ? 'warm' : 'green')}</td>
+    <td>${self ? pill('나', 'green') : pill(organizer.mustChange ? '자기 번호 정하기 전' : '사용 중', organizer.mustChange ? 'warm' : 'green')}</td>
     <td class="table-actions">${self ? '<small>메뉴의 번호 바꾸기</small>'
       : button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })
         + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
   </tr>`;
   });
   return panel('운영진', table(['이름', '상태', '<span class="sr-only">운영진 관리</span>'], rows, '운영진이 없습니다.', 'stack-table'), {
-    subtitle: '운영 화면에 들어오는 사람이에요. 추가하면 임시 번호가 한 번 보여요.',
+    subtitle: '운영 메뉴를 쓰는 사람이에요. 회원 명단에서 고르거나, 명단에 없으면 새로 추가해요.',
     actions: button('운영진 추가', 'new-organizer', { css: 'secondary small' }),
   });
 }
 
-export function organizerForm() {
-  return form('organizer', `<div class="form-grid">${field('성함', 'name', '', {
-    wide: true, attrs: 'maxlength="60" autocomplete="off" required', help: '이 성함과 임시 번호로 운영 화면에 처음 들어와요.',
+// 운영진 추가 (ROLES.md 2단계): someone on the 회원 명단 (candidates: active, without the 운영 권한) keeps their account
+// and number; only someone not on it is added by name with a temporary number.
+export function organizerForm(candidates = []) {
+  const issue = form('organizer', `<div class="form-grid">${field(candidates.length ? '명단에 없는 사람의 성함' : '성함', 'name', '', {
+    wide: true, attrs: 'maxlength="60" autocomplete="off" required', help: '새 계정을 만들어요. 이 성함과 임시 번호로 처음 로그인해요.',
   })}</div>`, '임시 번호 발급');
+  if (!candidates.length) return issue;
+  return form('organizer-grant', `<div class="form-grid">${select('회원 명단에서', 'member',
+    [['', '회원을 고르세요'], ...candidates.map(member => [member.id, member.name])], '', 'required')}</div>`
+    + note('지금 쓰는 계정과 번호 그대로 운영 메뉴가 열려요. 생년월일로 로그인하는 회원은 자기 번호를 정한 뒤에 열려요.'), '운영 권한 켜기')
+    + issue;
 }
 
 export function membersScreen(members, organizers = [], me = null) {
   const active = members.filter(member => member.active).length;
+  const organizerIds = new Set(organizers.map(organizer => organizer.id));
   const rows = members.map(member => `<tr data-search="${esc(member.name)}">
     <td><div class="member-name">${avatar(member.name)}<strong>${esc(member.name)}</strong></div></td>
-    <td>${pill(member.active ? '활동 중' : '비활성', member.active ? 'green' : 'muted')}</td>
+    <td>${pill(member.active ? '활동 중' : '비활성', member.active ? 'green' : 'muted')}${organizerIds.has(member.id) ? ` ${pill('운영진', 'green')}` : ''}</td>
     <td class="table-actions">${button('회원 수정', 'edit-member', { id: member.id, css: 'text small', label: `${member.name} 회원 수정` })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'text small', disabled: !member.active, label: `${member.name} 접속 재설정` })}</td>
   </tr>`);
   return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}

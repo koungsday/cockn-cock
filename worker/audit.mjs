@@ -4,7 +4,7 @@
 export const keepSeconds = 365 * 24 * 60 * 60;
 export const actionLabels = {
   'club.create': '모임 만들기', 'club.suspend': '모임 정지', 'club.resume': '모임 다시 열기',
-  'organizer.add': '운영진 추가', 'organizer.reset': '운영진 번호 재발급', 'organizer.remove': '운영진 해지',
+  'organizer.add': '운영진 추가', 'organizer.grant': '운영 권한 켜기', 'organizer.reset': '운영진 번호 재발급', 'organizer.remove': '운영진 해지',
   'organizer.pin': '운영진 번호 변경', 'organizer.adopt': '기존 운영진 계정 옮김',
   'member.add': '회원 등록', 'member.update': '회원 수정', 'member.reset': '회원 접속 재설정',
   'event.add': '회차 만들기', 'event.update': '회차 수정', 'event.pin': '일정 상단 고정', 'event.cancel': '일정 취소', 'notice.pin': '공지 상단 고정',

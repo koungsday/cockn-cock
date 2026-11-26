@@ -3,7 +3,7 @@ import {
   matchingCredentials, membersNamed, readSession, rosterOpenEvents, sql, temporaryPin
 } from './auth.mjs';
 import { audit, organizerActor } from './audit.mjs';
-import { issueOrganizer, listOrganizers, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
+import { grantOrganizer, issueOrganizer, listOrganizers, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const publicPath = new RegExp(`^/api/public/(vote|notice)/(${identifier})$`);
@@ -911,7 +911,8 @@ async function routeAdmin(db, env, url, method, body, user) {
   const club = env.CLUB_SCOPE;
   const record = (action, target, describe) => audit(db, club, organizerActor(user), action, target, describe);
   if (path === '/api/admin' && method === 'GET') return json({ ...await listAdmin(db, club), organizers: await listOrganizers(env) });
-  // 운영진 초대 (PLATFORM.md 인증): an organiser issues, reissues or retires the others; their own PIN is 번호 바꾸기.
+  // 운영진 초대 (PLATFORM.md 인증): an organiser issues, reissues or retires the others, or turns the 운영 권한 on for a
+  // member already on the 회원 명단 (ROLES.md 2단계); their own PIN is 번호 바꾸기.
   if (path === '/api/admin/organizers' && method === 'POST') {
     const issued = await issueOrganizer(env, organizerName(body.name));
     await record('organizer.add', issued.id, () => issued.name);
@@ -926,6 +927,11 @@ async function routeAdmin(db, env, url, method, body, user) {
       return json({ temporaryPin: issued.pin });
     }
     if (method === 'PATCH' && !organizer[2]) {
+      if (body.active === true) {
+        const granted = await grantOrganizer(env, organizer[1]);
+        await record('organizer.grant', granted.id, () => granted.name);
+        return json({ organizer: { id: granted.id, name: granted.name, active: true } });
+      }
       if (body.active !== false) bad('운영진 상태를 확인해 주세요.');
       const retired = await retireOrganizer(env, organizer[1]);
       await record('organizer.remove', retired.id, () => retired.name);

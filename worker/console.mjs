@@ -265,7 +265,7 @@ function confirmAction(summary, action, note, label, fields = '') {
 function organizerRows(club) {
   const base = `/console/clubs/${escape(club.slug)}/organizers`;
   const rows = club.organizers.map(row => `<tr><td>${escape(row.name)}</td>
-      <td><span class="pill ${row.must_change ? 'pill-warm' : 'pill-green'}">${row.must_change ? '임시 번호 전달 대기' : '사용 중'}</span></td>
+      <td><span class="pill ${row.must_change ? 'pill-warm' : 'pill-green'}">${row.must_change ? '자기 번호 정하기 전' : '사용 중'}</span></td>
       <td class="table-actions">${postButton(`${base}/${row.id}/reset`, '번호 재발급')}
         <a class="btn btn-text btn-small" href="${base}/${row.id}/remove">해지</a></td></tr>`);
   if (club.pending) {
