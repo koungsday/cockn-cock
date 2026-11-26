@@ -1,3 +1,5 @@
+import { audit, organizerActor } from './audit.mjs';
+
 const encoder = new TextEncoder();
 const memberSessionAge = 12 * 60 * 60;
 const adminSessionAge = 30 * 24 * 60 * 60;
@@ -320,7 +322,11 @@ export async function login(request, env, body) {
   const matching = await matchingCredentials(env, candidates, credential, true);
   // The same name and credential for an organiser and a member (or two organisers) is never resolved by guessing.
   if (adminMatch && !matching.length && organizerMatches.length <= 1) {
-    const organizer = organizerMatches[0] ?? await adoptLegacyAdmin(env, legacy);
+    let organizer = organizerMatches[0];
+    if (!organizer) {
+      organizer = await adoptLegacyAdmin(env, legacy);
+      if (organizer) await audit(env.DB, env.CLUB_SCOPE, organizerActor(organizer), 'organizer.adopt', organizer.id, () => organizer.name);
+    }
     if (organizer) return startSession(request, env, organizerUser(organizer), limits);
   }
   if (adminMatch || matching.length !== 1) {

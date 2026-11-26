@@ -370,3 +370,73 @@ test('/go opens a club from its address, and only an open one', async t => {
   assert.match(await paused.text(), /이 모임은 지금 쉬고 있어요/, 'the same words as the club page');
   assert.equal(env.DB.sqlite.prepare("SELECT status FROM clubs WHERE id = 'second-club'").get().status, 'suspended');
 });
+
+test('changes are recorded per club with who and what, never birthdays or PINs, and a failed record never blocks a save', async t => {
+  const { env, receive, signIn } = await setup(t);
+  const cookie = cookieOf(await signIn({ id: 'console-fixture', password }));
+  const club = { slug: 'log-club', name: '가상 기록 모임', subtitle: '', schedule: '', place: '', organizer: '가상 기록 운영진' };
+  const pin = issuedPin(await (await receive('/console/clubs', { method: 'POST', form: club, cookie })).text());
+  const api = (path, options = {}) => receive('/clubs/log-club/api' + path, options);
+  const temporary = cookieOf(await api('/login', { method: 'POST', json: { name: club.organizer, credential: pin } }));
+  const own = cookieOf(await api('/admin/pin', { method: 'POST', cookie: temporary, json: { currentPin: pin, newPin: '615293' } }));
+  const as = (path, method, json) => api(path, { method, json, cookie: own });
+
+  const { member } = await (await as('/admin/members', 'POST', { name: '가상 기록 회원', birthday: '19900517' })).json();
+  const date = new Date(Date.now() + (9 + 3 * 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { event } = await (await as('/admin/events', 'POST', {
+    title: '가상 기록 회차', date, time: '10:00', endTime: '13:00', place: '가상 체육관',
+    deadline: date + 'T09:00', earlyTime: '09:30', lateTime: '09:50', published: false, open: false
+  })).json();
+  assert.equal((await as(`/admin/events/${event.id}`, 'PATCH', { published: true, open: true, place: '가상 둘째 체육관' })).status, 200);
+  assert.equal((await as(`/admin/events/${event.id}/votes/${member.id}`, 'PUT', { slot: 'early', lunch: true })).status, 200);
+  assert.equal((await as(`/admin/events/${event.id}/attendance/${member.id}`, 'PUT', { present: true, recognition: 'direct' })).status, 200);
+  assert.equal((await as(`/admin/events/${event.id}/guests`, 'POST', { name: '가상 기록 게스트', status: 'arrived', paid: true })).status, 201);
+  assert.equal((await as(`/admin/events/${event.id}/settlement`, 'PUT', { priorSingles: 1, priorTubes: 0, remainingSingles: 0, courtDonation: 0, confirmed: false })).status, 200);
+  assert.equal((await as('/admin/notices', 'POST', { title: '가상 기록 공지', body: '본문', published: true })).status, 201);
+  assert.equal((await as('/admin/progress', 'PUT', { year: 2026, half: 2, memberId: member.id, rewarded: true })).status, 200);
+  const reset = await (await as(`/admin/members/${member.id}/reset`, 'POST', {})).json();
+  assert.equal((await as(`/admin/members/${member.id}`, 'PATCH', { active: false })).status, 200);
+  await receive('/console/clubs/log-club/status', { method: 'POST', form: { status: 'suspended' }, cookie });
+  await receive('/console/clubs/log-club/status', { method: 'POST', form: { status: 'active' }, cookie });
+
+  const log = await receive('/console/clubs/log-club/log', { cookie });
+  assert.equal(log.status, 200);
+  const html = await log.text();
+  const rows = [...html.matchAll(/<tr><td>[^<]+<\/td><td>([^<]+)<\/td>\s*<td>([^<]+)<\/td><td>([^<]*)<\/td><\/tr>/g)].map(([, who, what, summary]) => [who, what, summary]);
+  assert.deepEqual(rows.map(([who, what]) => `${who}: ${what}`), [
+    '총괄: 모임 다시 열기', '총괄: 모임 정지',
+    '가상 기록 운영진: 회원 수정', '가상 기록 운영진: 회원 접속 재설정', '가상 기록 운영진: 콕 수령 기록', '가상 기록 운영진: 공지 작성',
+    '가상 기록 운영진: 마무리', '가상 기록 운영진: 게스트 추가', '가상 기록 운영진: 출석 기록', '가상 기록 운영진: 대신 응답',
+    '가상 기록 운영진: 회차 수정', '가상 기록 운영진: 회차 만들기', '가상 기록 운영진: 회원 등록',
+    '가상 기록 운영진: 운영진 번호 변경', '총괄: 운영진 추가', '총괄: 모임 만들기',
+  ]);
+  const summary = what => rows.find(row => row[1] === what)[2];
+  assert.match(summary('회차 수정'), /가상 기록 회차 · 장소, 공개, 투표 열기$/);
+  assert.match(summary('대신 응답'), /가상 기록 회원 · 선발, 점심$/);
+  assert.match(summary('출석 기록'), /가상 기록 회원 · 출석 \(직접 인정\)$/);
+  assert.match(summary('회원 수정'), /^가상 기록 회원 · 활동 중지$/);
+  for (const secret of ['19900517', '900517', pin, '615293', reset.temporaryPin]) assert(!html.includes(secret), 'no birthday or PIN in the log');
+  assert.equal((await receive('/console/clubs/log-club/log', { method: 'POST', form: {}, cookie })).status, 405);
+  assert.match(await (await receive('/console/clubs/log-club/log')).text(), /console-login/, 'the log needs the console login');
+  assert.doesNotMatch(await (await receive('/console/clubs/first-club/log', { cookie })).text(), /가상 기록/, 'each club sees its own');
+
+  // The organiser in Worker secrets moving into an account is recorded as that organiser.
+  await receive('/clubs/first-club/api/login', { method: 'POST', json: { name: env.FIRST_ID, credential: env.FIRST_ADMIN } });
+  assert.match(await (await receive('/console/clubs/first-club/log', { cookie })).text(), /fixture-first-admin<\/td>\s*<td>기존 운영진 계정 옮김/);
+
+  env.DB.sqlite.exec('DROP TABLE audit_log');
+  const saved = await as('/admin/members', 'POST', { name: '가상 기록 없는 회원', birthday: '19910101' });
+  assert.equal(saved.status, 201, 'a failed record never undoes or blocks the save');
+});
+
+test('the change log keeps one year: older rows go as new ones are written', async t => {
+  const { env, receive, signIn } = await setup(t);
+  const cookie = cookieOf(await signIn({ id: 'console-fixture', password }));
+  const old = env.DB.sqlite.prepare(`INSERT INTO audit_log (club_id, at, actor, actor_id, actor_name, action, target_id, summary)
+    VALUES ('first-club', unixepoch() - ?, 'console', NULL, '총괄', 'club.suspend', 'first-club', '')`);
+  old.run(366 * 24 * 60 * 60);
+  old.run(364 * 24 * 60 * 60);
+  await receive('/console/clubs/second-club/status', { method: 'POST', form: { status: 'suspended' }, cookie });
+  const ages = env.DB.sqlite.prepare('SELECT unixepoch() - at AS age FROM audit_log ORDER BY id').all().map(row => Math.round(row.age / 86400));
+  assert.deepEqual(ages, [364, 0], 'the 366-day row is gone, the 364-day row and the new one stay');
+});
