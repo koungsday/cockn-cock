@@ -70,3 +70,51 @@ test('0003 moves every existing row into the one-database shape as 썬콕19 with
     db.close();
   }
 });
+
+// ROLES.md 1단계: an organiser becomes a member with the 운영 권한, keeping their id and PIN; their old sessions go.
+test('0010 moves each active organiser into members with the organiser permission and the same PIN', () => {
+  const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: true });
+  try {
+    const before = files.indexOf('0010_member_organizers.sql');
+    assert(before > 0, 'the member organisers migration exists');
+    for (const file of files.slice(0, before)) db.exec(sources[file]);
+    const organizer = (id, name, active, mustChange) => db.prepare(`
+      INSERT INTO organizers (id, club_id, name, active, credential_salt, credential_hash, credential_version, must_change, created_at)
+      VALUES (?, 'suncok19', ?, ?, 'salt-' || ?, 'hash-' || ?, 'version-' || ?, ?, 1)
+    `).run(id, name, active, id, id, id, mustChange);
+    organizer('o1', '가상 운영진', 1, 0);
+    organizer('o2', '가상 해지 운영진', 0, 0);
+    db.prepare(`INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version, must_change)
+      VALUES ('m1', 'suncok19', '가상 운영진', 'salt-m1', 'hash-m1', 'version-m1', 1)`).run();
+    const event = (id, deadlineAt) => db.prepare(`
+      INSERT INTO events (id, club_id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, open, published)
+      VALUES (?, 'suncok19', '가상 회차', '2099-01-04', '10:00', '13:00', '가상 체육관', '2099-01-03T09:00', ?, '09:30', '09:50', 1, 1)
+    `).run(id, deadlineAt);
+    event('open', 4102444800);
+    event('closed', 1);
+    db.prepare(`INSERT INTO sessions (token_hash, club_id, role, member_id, organizer_id, credential_version, expires_at)
+      VALUES ('t-admin', 'suncok19', 'admin', NULL, 'o1', 'version-o1', 9999999999),
+             ('t-member', 'suncok19', 'member', 'm1', NULL, 'version-m1', 9999999999)`).run();
+
+    db.exec(sources['0010_member_organizers.sql']);
+
+    assert.deepEqual(
+      db.prepare('SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change, organizer FROM members ORDER BY id').all()
+        .map(row => ({ ...row })),
+      [
+        { id: 'm1', name: '가상 운영진', active: 1, credential_salt: 'salt-m1', credential_hash: 'hash-m1', credential_version: 'version-m1', must_change: 1, organizer: 0 },
+        { id: 'o1', name: '가상 운영진', active: 1, credential_salt: 'salt-o1', credential_hash: 'hash-o1', credential_version: 'version-o1', must_change: 0, organizer: 1 },
+      ],
+      'the active organiser is a new member row with its own id and PIN; a member of the same name is not merged into it'
+    );
+    assert.deepEqual(db.prepare('SELECT event_id, member_id FROM roster ORDER BY event_id').all().map(row => ({ ...row })),
+      [{ event_id: 'open', member_id: 'o1' }], 'they join the roster of events still open, like a new member');
+    assert.deepEqual(db.prepare('SELECT token_hash FROM sessions').all().map(row => row.token_hash), ['t-member'],
+      'organiser sessions go (one more sign-in); member sessions stay');
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM organizers').get().count, 2, 'the organiser table stays as the way back');
+    assert.throws(() => db.prepare("UPDATE members SET organizer = 2 WHERE id = 'm1'").run(), /CHECK/);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  } finally {
+    db.close();
+  }
+});
