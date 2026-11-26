@@ -7,14 +7,16 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({
 const courtLines = '<div class="share-art-decoration" aria-hidden="true"><span></span><span></span><span></span></div>';
 const chevron = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
 
-// 응답 현황, as the live countsFact (worker/public/views.mjs) draws it: counts on the event's roster, never names.
-function countsFact(event) {
+// 응답 현황, as the live countsBlock (worker/public/views.mjs) draws it: counts on the event's roster, never names.
+function countsBlock(event) {
   const count = slot => event.roster.filter(id => event.votes[id] === slot).length;
-  const counts = [['선발', count('early')], ['후발', count('late')], ['불참', count('no')]];
-  const line = counts.some(([, n]) => n)
-    ? counts.map(([word, n]) => `<span class="nowrap">${word} ${n}명</span>`).join(' · ')
-    : '아직 응답이 없어요';
-  return `<div><dt>응답 현황</dt><dd>${line}</dd></div>`;
+  const counts = { early: count('early'), late: count('late'), no: count('no'), lunch: event.roster.filter(id => event.lunch?.[id]).length };
+  const total = counts.early + counts.late + counts.no;
+  if (!total) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+  const rows = [[`${event.earlyTime} 선발`, counts.early, 'slot'], [`${event.lateTime} 후발`, counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
+  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>응답 ${total}명</span></p>
+  <ul>${rows.map(([label, n, tone]) => `<li><span>${escape(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${total} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
+  <p class="member-counts-note">불참 ${counts.no}명 · 누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
 // The demo member home uses the live member home's markup (worker/public/views.mjs homeScreen) and the same share.css.
@@ -65,7 +67,7 @@ export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
       <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">참석 투표</span>
         <h2 id="member-next-title" class="public-title">${escape(vote.title)}</h2><time datetime="${escape(vote.date)}">${escape(dateLabel(vote.date))} ${escape(vote.time)}–${escape(vote.endTime)}</time></header>
       <div class="public-share-content">
-        <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(vote.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(dateLabel(vote.deadline))} ${escape(vote.deadlineTime)}</dd></div>${countsFact(vote)}</dl>
+        <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(vote.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(dateLabel(vote.deadline))} ${escape(vote.deadlineTime)}</dd></div></dl>${countsBlock(vote)}
         <p class="member-answer">예시 회원을 골라 응답해 볼 수 있어요.</p>
         <a class="share-button share-button--primary member-next-action" href="${route('vote', vote.id)}">투표하기</a>
       </div>

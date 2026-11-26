@@ -510,7 +510,7 @@
   overflow-wrap: anywhere;
 }
 
-/* A time range ("07:00–11:00") or one count ("선발 5명") breaks only before or after, never inside. */
+/* A time range ("07:00–11:00") breaks only before or after, never inside. */
 .public-event-facts .nowrap {
   white-space: nowrap;
 }
@@ -678,6 +678,28 @@
 .member-record-card .public-share-content { display: grid; gap: 10px; }
 .member-record-card .public-share-content > * { margin: 0; }
 .member-record-card .public-form-note { word-break: keep-all; }
+/* 응답 현황 bars (views.mjs countsBlock): colours of the organisers' .poll-track, track #e9eee7 and 참석 #458563. */
+.member-counts { display: grid; gap: 10px; }
+.public-event-facts + .member-counts { margin-top: 16px; }
+.member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; }
+.member-counts-head span, .member-counts-note { color: #496354; font-size: .875rem; }
+.member-counts ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.member-counts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; align-items: baseline; }
+.member-counts li > span { color: #344b3b; font-size: .94rem; }
+.member-counts li > strong { color: #193b27; font-variant-numeric: tabular-nums; }
+.member-count-bar { grid-column: 1 / -1; display: block; width: 100%; height: 8px; border-radius: 8px; background: #e9eee7; overflow: hidden; }
+.member-count-slot { fill: #458563; }
+.member-count-lunch { fill: var(--field-line); }
+.member-counts-note { margin: 0; word-break: keep-all; }
+/* 내 기록 date slots (views.mjs markSlots), like the club's 출석완료자 명단 sheet. */
+.member-marks { display: grid; gap: 7px; }
+.member-marks-head { display: flex; align-items: baseline; gap: 6px; margin: 0; }
+.member-marks-head span { color: #496354; font-size: .875rem; }
+.member-marks-head .member-marks-count { margin-left: auto; color: #193b27; font-weight: 750; font-variant-numeric: tabular-nums; }
+.member-mark-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: 6px 4px; border-radius: 8px; background: #e2efdc; box-shadow: inset 0 0 0 1px #458563; color: #193b27; font-weight: 750; font-variant-numeric: tabular-nums; text-align: center; }
+.member-mark small { color: #28583e; font-size: .75rem; font-weight: 700; word-break: keep-all; }
+.member-mark-empty { background: #f1f5ef; box-shadow: none; }
 .member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
 .member-pin h2 { font-size: 1.05rem; }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }

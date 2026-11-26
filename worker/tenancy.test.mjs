@@ -370,11 +370,12 @@ test('member overview requires login and limits records to published upcoming ev
   assert.match(list.headers.get('Cache-Control'), /no-store/);
   assert.equal(list.headers.get('Set-Cookie'), null);
   const result = await list.json();
-  assert.deepEqual(result.events, published.slice(0, 12).map(({ id, title, date, time, endTime, place, deadline }) =>
-    ({ id, title, date, time, endTime, place, deadline, canVote: true, open: true, eligible: true, mySlot: null,
-      counts: { early: 0, late: 0, no: 0 } })
+  assert.deepEqual(result.events, published.slice(0, 12).map(({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime }) =>
+    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: true, open: true, eligible: true, mySlot: null,
+      counts: { early: 0, late: 0, no: 0, lunch: 0 } })
   ));
-  assert.doesNotMatch(JSON.stringify(result.events), /lunch|roster|가상 첫 모임 회원/);
+  // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.
+  assert.doesNotMatch(JSON.stringify(result.events.map(({ counts, ...event }) => event)), /lunch|roster|가상 첫 모임 회원/);
   assert.deepEqual(result.notices, notices.slice(1, 9).reverse().map(({ id, title, date }) => ({ id, title, date })));
   assert.ok(result.events.every(event => event.id !== draft.id && event.id !== previous.id));
   assert.equal((await request(second, '/public', {cookie:memberCookie})).status, 401);
