@@ -482,5 +482,8 @@ html.menu-locked body {
 @keyframes menu-bottom-in { from { transform: none; } }
 @keyframes menu-top-out { to { transform: none; } }
 @keyframes menu-bottom-out { to { transform: none; } }
-/* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. */
+/* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. The body keeps --paper:
+   it has no background of its own, so without this the --ink root showed through every gap between cards and the page
+   behind the dim turned green (사용자 지적, 2026-11-26). */
 html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); }
+html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--paper); }
