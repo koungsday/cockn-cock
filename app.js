@@ -508,8 +508,16 @@
     } else if (action === 'reopen-attendance' && event.finalized) {
       event.finalized = false;
       persist('출석 기록을 다시 수정할 수 있어요.');
+    } else if (action === 'cancel-public-vote' && pollIsOpen(event) && ui.publicReceipts[id]) {
+      // 응답 취소 on the member vote screen, as the live one (worker/public/app.mjs cancel-vote).
+      const {member: own} = ui.publicReceipts[id];
+      delete event.votes[own];
+      delete event.lunch[own];
+      delete ui.publicReceipts[id];
+      persist('응답을 취소했어요.');
     } else return;
     renderPage();
+    if (action === 'cancel-public-vote') return app.querySelector('[data-form="public-vote"] select[name="member"]')?.focus({preventScroll:true});
     Array.from(app.querySelectorAll('[data-action]')).find(button => button.dataset.action === action
       && button.dataset.id === id && button.dataset.member === member
       && button.getAttribute('aria-label') === controlLabel)?.focus({preventScroll:true});

@@ -111,7 +111,7 @@
     const receipt = helpers.publicReceipts?.[event.id];
     const receiptMember = receipt && names.find(member => member.id === receipt.member);
     const {escape} = helpers;
-    const slots = [['early', `${event.earlyTime} 선발`], ['late', `${event.lateTime} 후발`], ['no', '불참']];
+    const slots = [['early', `${event.earlyTime} 선발`], ['late', `${event.lateTime} 후발`]];
     const ownVote = receiptMember ? event.votes[receiptMember.id] : null;
     const ownLunch = Boolean(receiptMember && event.lunch[receiptMember.id]);
     const receiptVote = slots.find(([key]) => key === ownVote)?.[1] || '기존';
@@ -135,7 +135,7 @@
         ${receiptMember ? '' : '<p class="public-form-note" id="demo-pin-help">예시 공용 번호는 190019입니다.</p>'}
         <fieldset class="public-choices">
           <legend>운동 참석</legend>
-          <div class="public-choice-row public-choice-slots">
+          <div class="public-choice-row">
             ${slots.map(([key, label]) => `<label class="public-choice">
               <input type="radio" name="vote" value="${key}" required${ownVote === key ? ' checked' : ''}>
               <span>${escape(label)}</span>
@@ -144,19 +144,20 @@
         </fieldset>
         <label class="public-lunch"><input type="checkbox" name="lunch"${ownLunch ? ' checked' : ''}> 점심 함께해요</label>
         <button class="share-button share-button--primary" type="submit">${receiptMember ? '내 응답 변경' : '응답 보내기'}</button>
+        ${receiptMember ? `<button class="share-button share-button--secondary" type="button" data-action="cancel-public-vote" data-id="${escape(event.id)}">응답 취소</button>` : ''}
       </form>`;
   }
 
   // 응답 현황, as the live countsBlock (worker/public/views.mjs) draws it: counts on the event's roster, never names.
   function countsBlock(event, escape) {
     const count = slot => event.roster.filter(id => event.votes[id] === slot).length;
-    const counts = { early: count('early'), late: count('late'), no: count('no'), lunch: event.roster.filter(id => event.lunch?.[id]).length };
-    const total = counts.early + counts.late + counts.no;
-    if (!total) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+    const counts = { early: count('early'), late: count('late'), lunch: event.roster.filter(id => event.lunch?.[id]).length };
+    const coming = counts.early + counts.late;
+    if (!coming && !counts.lunch) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
     const rows = [[`${event.earlyTime} 선발`, counts.early, 'slot'], [`${event.lateTime} 후발`, counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
-    return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>응답 ${total}명</span></p>
-    <ul>${rows.map(([label, n, tone]) => `<li><span>${escape(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${total} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
-    <p class="member-counts-note">불참 ${counts.no}명 · 누가 응답했는지는 보이지 않아요</p></div>`;
+    return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명</span></p>
+    <ul>${rows.map(([label, n, tone]) => `<li><span>${escape(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
+    <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
   }
 
   function renderPublic(route, state, helpers) {

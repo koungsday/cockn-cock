@@ -517,15 +517,26 @@ test('members see vote counts without names and their own half-year record', asy
   await second.login(profiles[1].name, '800202');
   const votePath = '/api/votes/' + event.id;
   assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:true}})).counts, {early:1, late:0, no:0, lunch:1});
-  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}})).counts, {early:1, late:0, no:1, lunch:1});
+  // Members answer 선발 or 후발 only; 불참 is the organisers' record.
+  await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}, expect:400});
+  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'late', lunch:false}})).counts, {early:1, late:1, no:0, lunch:1});
 
   const home = await first.request('/api/public');
   const listed = home.events.find(item => item.id === event.id);
-  assert.deepEqual(listed.counts, {early:1, late:0, no:1, lunch:1});
+  assert.deepEqual(listed.counts, {early:1, late:1, no:0, lunch:1});
   assert.deepEqual([listed.earlyTime, listed.lateTime], [event.earlyTime, event.lateTime]);
   const shown = await first.request('/api/public/vote/' + event.id);
-  assert.deepEqual(shown.event.counts, {early:1, late:0, no:1, lunch:1});
+  assert.deepEqual(shown.event.counts, {early:1, late:1, no:0, lunch:1});
   assert.doesNotMatch(JSON.stringify([home, shown]), /가상 회원 나/);
+  // 응답 취소 removes the answer; cancelling again is harmless, and after the deadline the answer stays.
+  assert.deepEqual(await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}}), {vote:null, counts:{early:1, late:0, no:0, lunch:1}});
+  assert.equal((await second.request(votePath)).vote, null);
+  assert.equal((await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}})).vote, null);
+  await second.request(votePath, {method:'PUT', body:{slot:null, lunch:true}, expect:400});
+  await admin.request('/api/admin/events/' + event.id, {method:'PATCH', body:{open:false}});
+  await first.request(votePath, {method:'PUT', body:{slot:null, lunch:false}, expect:409});
+  assert.deepEqual((await first.request(votePath)).vote, {slot:'early', lunch:true});
+  await admin.request('/api/admin/events/' + event.id, {method:'PATCH', body:{open:true}});
 
   // 내 기록 is this member's row of this half's 반기 집계: an event today, finalized with a recognition.
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);

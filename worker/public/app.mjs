@@ -692,6 +692,13 @@ async function doAction(action, itemId, tab) {
     case 'vote-override':
       openDialog('회원 응답 변경', overrideForm(state.detail.event, findRoster(itemId)));
       break;
+    // 응답 취소 on the member vote screen: the answer goes, the form stays for a new one.
+    case 'cancel-vote':
+      ({ vote: state.vote, counts: state.event.counts } = await request(votePath(), 'PUT', { slot: null, lunch: false }));
+      render();
+      main.querySelector('[data-form="vote"] input[name="slot"]')?.focus({ preventScroll: true });
+      showMessage('응답을 취소했어요.');
+      break;
     case 'clear-vote':
       await update(`${adminEventPath()}/votes/${id(itemId)}`, 'PUT', { slot: null, lunch: false }, '응답을 삭제했어요.');
       break;
