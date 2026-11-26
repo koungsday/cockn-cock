@@ -456,7 +456,10 @@ test('the root is the intro home and lists no clubs; a club page remembers itsel
   const api = await receive('/clubs/first-club/api/session');
   assert.equal(api.headers.get('Set-Cookie'), null);
   assert.match(html, /한 회차가 이렇게 이어져요/);
-  assert.doesNotMatch(html, /FIRST_DB|FIRST_ADMIN|FIRST_PEPPER|id="try"/);
+  assert.doesNotMatch(html, /FIRST_DB|FIRST_ADMIN|FIRST_PEPPER/);
+  // The live home links to no club; its one 가상 체험 link opens the public demo's own intro (platform/catalog.mjs).
+  assert.doesNotMatch(html, /href="[^"]*\/clubs\//);
+  assert.match(html, /<a class="try-link" href="https:\/\/koungsday\.github\.io\/cockn-cock\/">가상 체험 열기<\/a>/);
 });
 
 test('a configured address move preserves paths without redirecting credential requests', async t => {

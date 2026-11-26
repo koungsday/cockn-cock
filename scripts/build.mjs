@@ -117,6 +117,7 @@ await rm(dist, { recursive: true, force: true });
 const staticFiles = [
   'share.css', 'state.js', 'screens.js', 'share.js', 'app.js',
   'assets/court.webp', 'assets/kakao-notice.png', 'assets/kakao-vote.png', 'assets/shuttlecock-icon-96.png',
+  'assets/intro-member.webp', 'assets/intro-admin.webp',
 ];
 for (const source of staticFiles) {
   const destination = join(dist, source);
