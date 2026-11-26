@@ -68,21 +68,51 @@ export function isSixDigitPin(value) {
   return typeof value === 'string' && value.length === 6 && /^\d{6}$/.test(value);
 }
 
-async function adminVersion(env, id, pin) {
-  return sha256('admin-login-pin\0' + pepper(env) + '\0' + id + '\0' + pin);
-}
-
-function adminSettings(env) {
+// Organisers (PLATFORM.md 인증): each has a name and a six-digit PIN in D1, hashed like member PINs.
+// A club from before the console also has one organiser in Worker secrets (CLUB_ADMIN_ID/PIN). The first sign-in
+// with those moves it into organizers; once any row has that name, the secrets no longer sign anyone in.
+function legacyAdmin(env, name, rows) {
   const id = env.CLUB_ADMIN_ID;
   const pin = env.CLUB_ADMIN_PIN;
-  if (!isAdminId(id) || !isSixDigitPin(pin)) {
-    throw new ApiError(503, '운영진 인증 설정을 확인해 주세요.');
-  }
-  return { id, pin };
+  return !rows.length && isAdminId(id) && isSixDigitPin(pin) && name === id ? { id, pin } : null;
 }
 
-export function matchesAdminPin(env, name, credential) {
-  return name === env.CLUB_ADMIN_ID && equalDigest(env.CLUB_ADMIN_PIN, credential);
+// Active and retired rows with this name; the caller filters on `active`.
+async function organizersNamed(env, name, input = name) {
+  const { results } = await sql(env.DB, `
+    SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
+    FROM organizers WHERE club_id = ? AND name IN (?, ?, ?)
+  `, env.CLUB_SCOPE, name, name.normalize('NFD'), input).all();
+  return results;
+}
+
+async function matchingOrganizers(env, rows, credential) {
+  const matches = await Promise.all(rows.map(async row =>
+    equalDigest(row.credential_hash, await credentialHash(env, credential, row.credential_salt)) ? row : null));
+  return matches.filter(Boolean);
+}
+
+// True when an organiser of this club signs in with this name and credential: a member must not get the same login.
+export async function organizerUses(env, name, credential) {
+  const rows = await organizersNamed(env, name);
+  const legacy = legacyAdmin(env, name, rows);
+  if (legacy) return equalDigest(legacy.pin, credential);
+  return (await matchingOrganizers(env, rows.filter(row => row.active), credential)).length > 0;
+}
+
+function organizerUser(row) {
+  return { id: row.id, name: row.name, role: 'admin', mustChange: Boolean(row.must_change), version: row.credential_version };
+}
+
+async function adoptLegacyAdmin(env, legacy) {
+  const { hash, salt, version } = await makeMemberCredential(env, legacy.pin);
+  await sql(env.DB, `
+    INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
+    SELECT ?, ?, ?, ?, ?, ?, 0, ? WHERE NOT EXISTS (SELECT 1 FROM organizers WHERE club_id = ? AND name = ?)
+  `, crypto.randomUUID(), env.CLUB_SCOPE, legacy.id, salt, hash, version, currentSeconds(), env.CLUB_SCOPE, legacy.id).run();
+  return sql(env.DB, `
+    SELECT id, name, credential_version, must_change FROM organizers WHERE club_id = ? AND name = ? AND active = 1
+  `, env.CLUB_SCOPE, legacy.id).first();
 }
 
 function cookieName(request, env, role) {
@@ -122,18 +152,22 @@ export async function readSession(request, env, role) {
   if (!token) return null;
   const tokenHash = await sessionHash(env, role, token);
   const found = await sql(env.DB, `
-    SELECT s.role, s.member_id, s.credential_version AS session_version,
-      m.name, m.active, m.must_change, m.credential_version AS member_version
-    FROM sessions s LEFT JOIN members m ON s.member_id = m.id
+    SELECT s.role, s.member_id, s.organizer_id, s.credential_version AS session_version,
+      m.name, m.active, m.must_change, m.credential_version AS member_version,
+      o.name AS organizer_name, o.active AS organizer_active, o.must_change AS organizer_must_change,
+      o.credential_version AS organizer_version
+    FROM sessions s LEFT JOIN members m ON s.member_id = m.id LEFT JOIN organizers o ON s.organizer_id = o.id
     WHERE s.token_hash = ? AND s.role = ? AND s.club_id = ? AND s.expires_at > ?
   `, tokenHash, role, env.CLUB_SCOPE, currentSeconds()).first();
   if (!found) return null;
 
   if (found.role === 'admin') {
-    const { id, pin } = adminSettings(env);
-    const version = await adminVersion(env, id, pin);
-    if (!equalDigest(version, found.session_version)) return null;
-    return { id: 'admin', name: '운영진', role: 'admin', mustChange: false, tokenHash, version: found.session_version };
+    // Admin sessions from before organiser accounts name no organiser: signing in again moves the account.
+    if (!found.organizer_id || !found.organizer_active || found.organizer_version !== found.session_version) return null;
+    return {
+      id: found.organizer_id, name: found.organizer_name, role: 'admin',
+      mustChange: Boolean(found.organizer_must_change), tokenHash, version: found.session_version
+    };
   }
   if (!found.active || found.member_version !== found.session_version) return null;
   return {
@@ -149,9 +183,10 @@ async function sessionInsert(env, user) {
   const expiresAt = currentSeconds() + age;
   const statement = user.role === 'admin'
     ? sql(env.DB, `
-      INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
-      VALUES (?, ?, 'admin', NULL, ?, ?)
-    `, hash, env.CLUB_SCOPE, user.version, expiresAt)
+      INSERT INTO sessions (token_hash, club_id, role, member_id, organizer_id, credential_version, expires_at)
+      SELECT ?, club_id, 'admin', NULL, id, credential_version, ?
+      FROM organizers WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+    `, hash, expiresAt, user.id, env.CLUB_SCOPE, user.version)
     : sql(env.DB, `
       INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
       SELECT ?, club_id, 'member', id, credential_version, ?
@@ -215,7 +250,7 @@ async function startSession(request, env, user, limits) {
       await sessionHash(env, user.role, previous), user.role, env.CLUB_SCOPE));
   }
   const results = await env.DB.batch(statements);
-  if (!results[0].meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
+  if (!results[0].meta.changes) throw new ApiError(409, '로그인 정보가 변경됐어요. 다시 로그인해 주세요.');
   return { user: clientUser(user), cookie: sessionCookie(request, env, user.role, token) };
 }
 
@@ -268,22 +303,25 @@ export async function login(request, env, body) {
   const source = await ipLimit(env, request, loginNamespace);
   const namedSource = await ipLimit(env, request, loginNamespace, name);
   const limits = [source, namedSource];
-  const { id, pin } = adminSettings(env);
-  if (name === id) {
-    // A six-digit administrator PIN also needs a budget shared across source IPs.
-    const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + id);
+  const named = await organizersNamed(env, name, input);
+  const organizers = named.filter(row => row.active);
+  const legacy = legacyAdmin(env, name, named);
+  if (organizers.length || legacy) {
+    // A six-digit organiser PIN also needs a budget shared across source IPs.
+    const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + name);
     limits.push({ key, expiresAt: await reserveAttempt(env, key, 20) });
   }
 
-  const adminMatch = matchesAdminPin(env, name, credential);
+  const organizerMatches = await matchingOrganizers(env, organizers, credential);
+  const adminMatch = organizerMatches.length > 0 || Boolean(legacy && equalDigest(legacy.pin, credential));
   // A retired member can still know their credential after a secret rotation.
   const candidates = (await membersNamed(env, name, input)).filter(row => adminMatch || row.active);
-  if (!candidates.length && !adminMatch) await credentialHash(env, credential, '00000000000000000000000000000000');
+  if (!candidates.length && !organizers.length) await credentialHash(env, credential, '00000000000000000000000000000000');
   const matching = await matchingCredentials(env, candidates, credential, true);
-  if (adminMatch && !matching.length) {
-    const version = await adminVersion(env, id, pin);
-    const user = { id: 'admin', name: '운영진', role: 'admin', mustChange: false, version };
-    return startSession(request, env, user, limits);
+  // The same name and credential for an organiser and a member (or two organisers) is never resolved by guessing.
+  if (adminMatch && !matching.length && organizerMatches.length <= 1) {
+    const organizer = organizerMatches[0] ?? await adoptLegacyAdmin(env, legacy);
+    if (organizer) return startSession(request, env, organizerUser(organizer), limits);
   }
   if (adminMatch || matching.length !== 1) {
     await env.DB.batch(cleanExpired(env));
@@ -330,7 +368,7 @@ export async function changePin(request, env, user, body) {
   }
   const name = row.name.normalize('NFC');
   const candidates = await membersNamed(env, name, row.name);
-  if (matchesAdminPin(env, name, newPin) ||
+  if (await organizerUses(env, name, newPin) ||
       (await matchingCredentials(env, candidates.filter(candidate => candidate.id !== user.id), newPin, true)).length) {
     throw new ApiError(409, '같은 이름으로 사용 중인 번호예요. 다른 번호를 입력해 주세요.');
   }
@@ -362,6 +400,50 @@ export async function changePin(request, env, user, body) {
     throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
   }
   return { user: clientUser(updated), cookie: sessionCookie(request, env, 'member', token) };
+}
+
+// An organiser sets their own PIN; after a console-issued temporary PIN nothing else opens until they do (api.mjs).
+export async function changeOrganizerPin(request, env, user, body) {
+  const { currentPin, newPin } = body;
+  if (typeof currentPin !== 'string' || !currentPin || currentPin.length > 128
+    || !isSixDigitPin(newPin) || weakPin(newPin)) {
+    throw new ApiError(400, '반복이나 연속 숫자를 피해서 새 번호를 숫자 6자리로 입력해 주세요.');
+  }
+  if (currentPin === newPin) throw new ApiError(400, '지금 번호와 다른 번호를 입력해 주세요.');
+  const source = await ipLimit(env, request, 'pin');
+  const limitKey = 'pin-organizer:' + user.id;
+  const expiresAt = await reserveAttempt(env, limitKey, 5);
+  const row = await sql(env.DB, `
+    SELECT name, credential_salt, credential_hash FROM organizers
+    WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+  `, user.id, env.CLUB_SCOPE, user.version).first();
+  if (!row) throw new ApiError(401, '다시 로그인해 주세요.');
+  if (!equalDigest(row.credential_hash, await credentialHash(env, currentPin, row.credential_salt))) {
+    throw new ApiError(400, '지금 번호가 맞지 않아요.');
+  }
+  if ((await matchingCredentials(env, await membersNamed(env, row.name.normalize('NFC'), row.name), newPin, true)).length) {
+    throw new ApiError(409, '같은 이름의 회원이 쓰는 번호예요. 다른 번호를 입력해 주세요.');
+  }
+  const { hash, salt, version } = await makeMemberCredential(env, newPin);
+  const updated = { ...user, version, mustChange: false };
+  const { token, statement } = await sessionInsert(env, updated);
+  const results = await env.DB.batch([
+    sql(env.DB, `
+      UPDATE organizers SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
+      WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+    `, version, salt, hash, user.id, env.CLUB_SCOPE, user.version),
+    sql(env.DB, `
+      DELETE FROM sessions WHERE role = 'admin' AND organizer_id = ? AND credential_version = ?
+        AND EXISTS (SELECT 1 FROM organizers WHERE id = ? AND credential_version = ?)
+    `, user.id, user.version, user.id, version),
+    statement,
+    ...releaseAttempt(env, source.key, source.expiresAt),
+    ...releaseAttempt(env, limitKey, expiresAt),
+  ]);
+  if (!results[0].meta.changes || !results[2].meta.changes) {
+    throw new ApiError(409, '운영진 정보가 변경됐어요. 다시 로그인해 주세요.');
+  }
+  return { user: clientUser(updated), cookie: sessionCookie(request, env, 'admin', token) };
 }
 
 export async function makeMemberCredential(env, activationSecret) {

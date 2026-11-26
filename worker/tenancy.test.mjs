@@ -22,7 +22,8 @@ const second = {
 function database(t) {
   const sqlite = new DatabaseSync(':memory:');
   for (const migration of migrations) sqlite.exec(migration);
-  sqlite.exec(`INSERT INTO clubs (id) VALUES ('${first.slug}'), ('${second.slug}')`);
+  const club = sqlite.prepare('INSERT INTO clubs (id, name, subtitle, schedule) VALUES (?, ?, ?, ?)');
+  for (const { slug, name, subtitle, schedule } of [first, second]) club.run(slug, name, subtitle, schedule);
   t.after(() => sqlite.close());
   return {
     prepare(query) {
@@ -204,8 +205,12 @@ test('missing or shared club secrets are rejected instead of serving a club with
 
   env.DB = db;
   assert.equal((await request(first, '/session')).status, 200);
-  env.SECOND_ADMIN = env.FIRST_ADMIN;
+  // Organisers are D1 accounts now; what keeps two older clubs apart is their pepper (PLATFORM.md 인증).
+  env.SECOND_PEPPER = env.FIRST_PEPPER;
   assert.equal((await request(first, '/session')).status, 503);
+  assert.equal((await request(second, '/session')).status, 503);
+  delete env.SECOND_PEPPER;
+  assert.equal((await request(first, '/session')).status, 200);
   assert.equal((await request(second, '/session')).status, 503);
 });
 
@@ -438,6 +443,8 @@ test('the root is the intro home and lists no clubs; a club page remembers itsel
   assert.match(html, /콕콕콕!/);
   assert.doesNotMatch(html, /first-club|second-club|가상 첫 모임|가상 둘째 모임/);
   assert.match(html, /<p id="recent-club" class="recent-club" data-base="\/" hidden>/);
+  assert.match(html, /<form class="club-entry" action="\/go" method="get">/);
+  assert.match(html, /<a class="header-link" href="#login">로그인<\/a>/);
   assert.match(html, /<script src="\/recent-club\.js" defer><\/script>/);
   const memberPage = await receive('/clubs/first-club/');
   assert.equal(memberPage.status, 200);

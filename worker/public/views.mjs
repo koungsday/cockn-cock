@@ -90,6 +90,7 @@ const paths = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3m-5-3 5-5-5-5m5 5H3"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   refresh: '<path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4m-4 5a8 8 0 0 0 14.9 4M20 20v-4h-4"/>',
 };
 
@@ -219,17 +220,31 @@ function memberPage(club, content, { back = true } = {}) {
     ${back ? `<a class="member-back" href="${esc(club.home)}">${icon('arrow-left', 18)} 모임 홈</a>` : ''}${content}</main>`;
 }
 
-export function pinForm() {
+// organizer: the organiser's own number (PLATFORM.md 인증). inline: the form stands on a page, not in a dialog.
+export function pinForm({ organizer = false, inline = false } = {}) {
   const pin = 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required';
-  return form('pin', field('현재 로그인 번호', 'currentPin', '', {
+  const word = organizer ? '번호' : 'PIN';
+  return form('pin', (inline ? '<p class="inline-error form-field-full" role="alert" hidden></p>' : '') + field(organizer ? '지금 번호' : '현재 로그인 번호', 'currentPin', '', {
     type: 'password', wide: true, attrs: `autocomplete="off" enterkeyhint="next" ${pin}`,
-    help: '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
-  }) + field('새 PIN', 'newPin', '', {
+    help: organizer ? '받은 임시 번호나 지금 쓰는 번호를 입력해 주세요.' : '지금 로그인할 때 쓰는 생년월일, PIN 또는 임시 번호를 입력해 주세요.',
+  }) + field(`새 ${word}`, 'newPin', '', {
     type: 'password', wide: true, attrs: `autocomplete="new-password" enterkeyhint="next" ${pin}`,
     help: '숫자 6자리를 사용해 주세요. 생년월일과 연속·반복 숫자는 피해주세요.',
-  }) + field('새 PIN 확인', 'confirmPin', '', {
+  }) + field(`새 ${word} 확인`, 'confirmPin', '', {
     type: 'password', wide: true, attrs: `autocomplete="new-password" enterkeyhint="done" ${pin}`,
-  }), '새 PIN 저장', '', 'form-grid');
+  }), `새 ${word} 저장`, '', 'form-grid');
+}
+
+// An organiser who signed in with a temporary number from the console sets their own before anything else opens.
+export function organizerPinScreen(club, user) {
+  return `<main id="main-content" class="login-page" tabindex="-1"><div class="login-stack">
+    <div class="hero"><p class="tagline">first login</p><h1>${esc(club.name)}</h1><div class="hero-meta"><span>${esc(user.name)}님, 내 번호를 정해 주세요</span></div></div>
+    <section class="login-card organizer-pin" aria-labelledby="organizer-pin-title">
+      <h2 id="organizer-pin-title">내 번호 정하기</h2>
+      <p class="form-note">총괄 관리자가 보낸 임시 번호는 처음 한 번만 써요. 운영 화면을 열기 전에 나만 아는 숫자 6자리로 바꿔 주세요.</p>
+      ${pinForm({ organizer: true, inline: true })}
+    </section>
+  </div></main>`;
 }
 
 export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
@@ -372,18 +387,18 @@ function adminTabBar(section) {
   </nav>`;
 }
 
-export function adminShell(section, contents, club) {
+export function adminShell(section, contents, club, user) {
   const title = adminSections.find(([name]) => name === section)?.[1] ?? '운영 홈';
   return `<div class="admin-app">
     <aside class="sidebar">${brand(club)}${adminMenu(section)}
-      <div class="sidebar-footer"><span class="operator-mark">${icon('user', 18)}</span><span><strong>이 모임 운영진</strong><small>운영 화면</small></span></div>
+      <div class="sidebar-footer"><span class="operator-mark">${icon('user', 18)}</span><span><strong>${esc(user?.name ?? '운영진')}</strong><small>운영진</small></span></div>
     </aside>
     <div class="main-shell">
       <header class="topbar">
         <div class="breadcrumb">
           <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
-        <div class="topbar-actions">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small topbar-logout' })}
+        <div class="topbar-actions">${button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: 'text small topbar-logout' })}${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small topbar-logout' })}
           <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${menuIcon}</button></div>
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>

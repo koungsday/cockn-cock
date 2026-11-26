@@ -1,6 +1,6 @@
 import {
-  ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  matchesAdminPin, matchingCredentials, membersNamed, readSession, sql, temporaryPin
+  ApiError, changeOrganizerPin, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
+  matchingCredentials, membersNamed, organizerUses, readSession, sql, temporaryPin
 } from './auth.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -322,7 +322,7 @@ async function addMember(env, body) {
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
-  if (matchesAdminPin(env, name, birthday) || (await matchingCredentials(env, candidates, birthday, true)).length) {
+  if (await organizerUses(env, name, birthday) || (await matchingCredentials(env, candidates, birthday, true)).length) {
     throw new ApiError(409, '같은 이름과 로그인 번호를 사용하는 회원이 있어요. 회원 목록을 확인해 주세요.');
   }
   const { hash, salt, version } = await makeMemberCredential(env, birthday);
@@ -347,26 +347,16 @@ async function updateMember(env, id, body) {
   const { DB: db, CLUB_SCOPE: club } = env;
   const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
-  let version = null;
-  if (name === env.CLUB_ADMIN_ID) {
-    const target = await sql(db, `
-      SELECT credential_salt, credential_hash, credential_version, must_change FROM members WHERE id = ? AND club_id = ?
-    `, id, club).first();
-    if (!target) missing();
-    if ((await matchingCredentials(env, [target], env.CLUB_ADMIN_PIN, true)).length) {
-      throw new ApiError(409, '같은 이름과 로그인 번호가 이미 사용 중이에요. 회원의 번호를 재설정해 주세요.');
-    }
-    version = target.credential_version;
-  }
+  // Organiser PINs are stored hashed, so a rename cannot be compared with them; a name and credential shared by an
+  // organiser and a member is refused at sign-in instead (auth.mjs login).
   const statements = [sql(db, `
-    UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active)
-    WHERE id = ? AND club_id = ? AND (? IS NULL OR credential_version = ?)
-  `, name, active, id, club, version, version)];
+    UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ? AND club_id = ?
+  `, name, active, id, club)];
   if (active === 0) statements.push(sql(db, `
     DELETE FROM sessions WHERE member_id = ?
-      AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0 AND (? IS NULL OR credential_version = ?))
-  `, id, id, club, version, version));
-  if (active === 1) statements.push(rosterOpenEvents(db, club, id, version));
+      AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0)
+  `, id, id, club));
+  if (active === 1) statements.push(rosterOpenEvents(db, club, id));
   statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ? AND club_id = ?', id, club));
   const results = await db.batch(statements);
   const row = results.at(-1).results[0];
@@ -384,7 +374,7 @@ async function resetMember(env, id) {
   let temporary;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = temporaryPin();
-    if (!matchesAdminPin(env, name, code) && !(await matchingCredentials(env, candidates, code, true)).length) {
+    if (!await organizerUses(env, name, code) && !(await matchingCredentials(env, candidates, code, true)).length) {
       temporary = code;
       break;
     }
@@ -719,6 +709,13 @@ async function route(request, env) {
   }
   if (adminRoute) {
     requireUser(user, 'admin');
+    if (path === '/api/admin/pin') {
+      if (method !== 'POST') methodNotAllowed();
+      const session = await changeOrganizerPin(request, env, user, body);
+      return json({ user: session.user }, 200, session.cookie);
+    }
+    // A temporary PIN from the console opens only the PIN change (PLATFORM.md 인증).
+    if (user.mustChange) throw new ApiError(403, '먼저 임시 번호를 내 번호로 바꿔 주세요.');
     return routeAdmin(env.DB, env, url, method, body);
   }
   const vote = votePath.exec(path);

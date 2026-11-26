@@ -167,6 +167,9 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
 .login-pending { display: flex; align-items: center; color: var(--muted); font-size: .9rem; font-weight: 650; }
 .login-pending .shuttle-inline { color: var(--court); }
+/* 내 번호 정하기 (views.mjs organizerPinScreen): the sign-in card holding the PIN form; title at the panel size (DESIGN.md 2). */
+.organizer-pin { display: grid; gap: 12px; padding-top: 16px; }
+.organizer-pin h2 { font-size: 1.13rem; }
 
 /* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
 .console-login input[name] { width: 100%; min-height: 46px; }
@@ -175,7 +178,18 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 @media (pointer: coarse) { .console-login .login-label-row { min-height: var(--touch-target); } }
 .console-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(18px, 3vw, 30px) 0 calc(48px + var(--safe-bottom)); display: grid; gap: 12px; }
 .console-page .page-head { margin-bottom: 4px; }
-.console-page .page-head p { word-break: keep-all; }
+.console-page .page-description { word-break: keep-all; }
+.console-page .summary-grid.console-issued { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* 운영진 추가: the name and its button share a line where they fit. 해지·정지 open a confirm step without script. */
+.console-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.console-inline-form .form-field { flex: 1 1 12rem; }
+.table-actions form { display: inline-block; vertical-align: top; }
+.table-actions form + .btn { margin-left: 5px; }
+.console-confirm { display: inline-grid; justify-items: end; vertical-align: top; }
+.console-confirm > summary { list-style: none; cursor: pointer; }
+.console-confirm > summary::-webkit-details-marker { display: none; }
+.console-confirm-body { display: grid; justify-items: end; gap: 8px; max-width: 16rem; margin-top: 6px; white-space: normal; text-align: left; }
+.console-club-status { display: flex; justify-content: flex-end; }
 /* Four numbers per club: one row on wide screens, two by two on a phone so a date never splits. */
 .console-page .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 520px) { .console-page .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

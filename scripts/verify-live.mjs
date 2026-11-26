@@ -31,7 +31,7 @@ const introHtml = await intro.text();
 assert(!introHtml.includes(`href="${home}"`) && !introHtml.includes(club.name), 'the intro home lists no clubs');
 assert(introHtml.includes('<script src="/recent-club.js" defer></script>'), 'the intro home loads the recent-club script');
 assert.doesNotMatch(introHtml, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|_DB\b/);
-// PLATFORM.md 총괄 콘솔: the login form, never cached or indexed, and the intro does not link it.
+// PLATFORM.md 총괄 콘솔: the login form, never cached or indexed; the intro's 로그인 section links it and opens clubs by address.
 // Before npm run console:password sets its secrets, only the explicit 'not set up' page may answer 503.
 const consolePage = await get('/console/');
 const consoleHtml = await consolePage.text();
@@ -39,7 +39,10 @@ assert(consolePage.status === 200 ? consoleHtml.includes('console-login')
   : consolePage.status === 503 && consoleHtml.includes('총괄 로그인을 준비 중이에요'), `the console login page (${consolePage.status})`);
 assert.equal(consolePage.headers.get('cache-control'), 'no-store');
 assert.equal(consolePage.headers.get('x-robots-tag'), 'noindex, nofollow');
-assert(!introHtml.includes('/console'), 'the intro home does not link the console');
+assert(introHtml.includes('href="/console/"') && introHtml.includes('action="/go"'), 'the intro home has the 로그인 section');
+const entry = await get(`/go?club=${club.slug}`);
+assert.equal(entry.status, 303, 'the club address opens the club');
+assert.equal(entry.headers.get('location'), new URL(home, origin).href);
 const recentScript = await get('/recent-club.js');
 assert.equal(recentScript.status, 200, 'the recent-club script is served');
 assert.match(recentScript.headers.get('content-type') ?? '', /javascript/);
