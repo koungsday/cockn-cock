@@ -131,6 +131,12 @@ for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platfor
   await writeFile(join(dist, output), theme + '\n' + css);
 }
 await copyFile(join(root, 'platform/shuttlecock.mjs'), join(dist, 'shuttlecock.js'));
+// 일정 흐름 (FLOW.md): the demo's classic scripts read the live rules from window.clubFlow, so the demo and the live
+// club order and name events the same way. worker/public/flow.mjs has no imports, so dropping its exports is enough.
+const flowSource = await readFile(join(root, 'worker/public/flow.mjs'), 'utf8');
+const flowNames = [...flowSource.matchAll(/^export function (\w+)/gm)].map(match => match[1]);
+if (!flowNames.includes('flowOrder') || !flowNames.includes('memberOrder')) throw new Error('The flow rules are missing.');
+await writeFile(join(dist, 'flow.js'), `(() => {\n${flowSource.replace(/^export function /gm, 'function ')}\nwindow.clubFlow = { ${flowNames.join(', ')} };\n})();\n`);
 await copyFile(join(root, 'platform/recent-club.js'), join(dist, 'recent-club.js'));
 await writeFile(join(dist, 'index.html'), renderCatalog({ basePath: site.pathname, mode: 'demo', demo: {
   member: clubUrl.pathname, admin: `${adminUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
@@ -151,9 +157,10 @@ const clubIndex = index
   .replace(/(href|src)="([a-z.-]+\.(?:js|css))"/g, (_, attribute, file) => `${attribute}="${escape(site.pathname)}${file}"`)
   .replace('</head>', `  <meta name="platform-home" content="${escape(site.pathname)}">\n</head>`);
 await mkdir(join(dist, adminPath), { recursive: true });
+const { today, demoNow } = window.clubModel;
 await writeFile(join(dist, clubPath, 'index.html'), renderDemoClub({
-  club: demoClub, basePath: site.pathname, vote: event, dateLabel,
-  notices: [...seed.notices].sort((a, b) => b.date.localeCompare(a.date)),
+  club: demoClub, basePath: site.pathname, events: seed.events, notices: seed.notices, dateLabel,
+  now: { day: today, minute: demoNow },
 }));
 await writeFile(join(dist, adminPath, 'index.html'), clubIndex);
 const publishedShares = Object.fromEntries(entries.map(({ kind, item, publicFields }) => [

@@ -53,7 +53,7 @@ assert.equal(redirect, basePath + adminPath + oldHash);
 redirect = undefined;
 runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
 assert.equal(redirect, undefined);
-const required = ['styles.css', 'share.css', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
+const required = ['styles.css', 'share.css', 'flow.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
   assert(home.includes(`="${basePath}${file}"`), `${file} is referenced by the demo`);
@@ -74,9 +74,11 @@ for (const file of ['styles.css', 'platform.css']) {
 }
 
 const window = { localStorage: { getItem: () => null } };
-for (const file of ['state.js', 'share.js']) {
+assert(home.indexOf(`src="${basePath}flow.js"`) < home.indexOf(`src="${basePath}app.js"`), 'the flow rules load before the demo');
+for (const file of ['flow.js', 'state.js', 'share.js']) {
   runInNewContext(runtime.get(file), { URL, window }, { filename: file });
 }
+assert.equal(typeof window.clubFlow.flowOrder, 'function', 'flow.js gives the demo the live flow rules');
 const seed = window.clubModel.load();
 const { linkFor } = window.clubShare;
 
@@ -105,6 +107,12 @@ assert.equal(joinedVote.hash, oldHash, 'recover the vote from two pasted demo UR
 assert.match(joinedVote.html, /<h1>일요 정기 운동<\/h1>/);
 assert.match(joinedVote.html, /data-route="home">운영 화면으로/);
 assert.match(openDemo(() => '#home').html, /<h1>운영 홈<\/h1>/);
+// 일정 흐름 (FLOW.md): the demo home lists the 진행 중인 일정 in the live order (flow.js), the member home bundles the
+// votes still to answer.
+const demoHome = openDemo(() => '#home').html;
+assert.match(demoHome, /진행 중인 일정 \d+개/);
+assert.match(demoHome, /<h2 id="home-todo-title">진행 중인 일정<\/h2>/);
+assert.match((await read(clubPath)).toString(), /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/);
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);
 
 for (const [kind, id, title] of [

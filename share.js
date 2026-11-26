@@ -101,6 +101,10 @@
   }
 
   function voteForm(event, state, helpers) {
+    // 일정 취소 (FLOW.md 10), as the live memberVoteScreen: no form, and the notes above say why.
+    if (event.cancelled) {
+      return `<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? ' 위 안내를 확인해 주세요.' : ''}</p>`;
+    }
     if (!event.pollOpen || event.finalized || (helpers.deadlinePassed ? helpers.deadlinePassed(event) : event.deadline < helpers.today)) {
       return '<p class="public-status">현재는 참석 투표를 받고 있지 않아요.</p>';
     }
@@ -198,7 +202,7 @@
         ${masthead}
         <article class="public-share-card">
           <header class="public-story-head share-art--${kind}">
-            <span class="public-share-type">${kind === 'vote' ? '참석 투표' : '모임 공지'}</span>
+            <span class="public-share-type">${kind === 'vote' ? (item.cancelled ? '취소된 일정' : '참석 투표') : '모임 공지'}</span>
             <h1>${escape(item.title)}</h1>
             ${kind === 'notice' ? `<time datetime="${escape(item.date)}">${escape(helpers.dateLabel(item.date))}</time>` : ''}
             ${decoration()}
