@@ -103,7 +103,7 @@
   function voteForm(event, state, helpers) {
     // 일정 취소 (FLOW.md 10), as the live memberVoteScreen: no form, and the notes above say why.
     if (event.cancelled) {
-      return `<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? ' 위 안내를 확인해 주세요.' : ''}</p>`;
+      return `<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? '위 안내를 확인해 주세요.' : ''}</p>`;
     }
     if (!event.pollOpen || event.finalized || (helpers.deadlinePassed ? helpers.deadlinePassed(event) : event.deadline < helpers.today)) {
       return '<p class="public-status">현재는 참석 투표를 받고 있지 않아요.</p>';
