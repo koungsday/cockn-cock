@@ -813,3 +813,34 @@ test('organisers cancel an event and undo it; a cancelled event keeps its answer
   assert.match(log[0], / · 취소$/);
   assert.match(log[1], / · 취소 풀기$/);
 });
+
+// 상단 고정 under two organisers (verification note, 2026-11-26): while one asks to pin a fourth event in place of
+// the oldest, another frees a place and pins that same event first. The first request must not also let go of the
+// oldest pin for nothing.
+test('a pin another organiser made first lets go of nothing', async t => {
+  const {client, DB} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const other = client('203.0.113.20');
+  await other.adminLogin();
+  const events = [];
+  for (let index = 0; index < 4; index += 1) {
+    events.push((await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...futureEvent(), title:'가상 동시 ' + index}})).event);
+  }
+  const path = event => '/api/admin/events/' + event.id;
+  for (const event of events.slice(0, 3)) await admin.request(path(event), {method:'PATCH', body:{pinned:true}});
+  let raced = false;
+  DB.onRead(async statement => {
+    if (raced || !statement.startsWith('SELECT id, title, pinned_at FROM events')) return;
+    raced = true;
+    await other.request(path(events[1]), {method:'PATCH', body:{pinned:false}});
+    await other.request(path(events[3]), {method:'PATCH', body:{pinned:true}});
+  });
+  const result = await admin.request(path(events[3]), {method:'PATCH', body:{pinned:true, replaceOldest:true}});
+  assert.equal(raced, true);
+  assert.ok(result.pinnedAt);
+  assert.equal(result.released, null);
+  const pinned = (await admin.request('/api/admin')).events.filter(event => event.pinnedAt)
+    .sort((a, b) => a.pinnedAt - b.pinnedAt).map(event => event.title);
+  assert.deepEqual(pinned, ['가상 동시 0', '가상 동시 2', '가상 동시 3']);
+});
