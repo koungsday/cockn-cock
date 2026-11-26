@@ -20,7 +20,7 @@
 ## 동작 규칙
 
 - **로그인** `POST /api/login {name, credential, as}`: 활동 회원 중 성함·번호가 맞는 사람이 정확히 한 명이면 세션을 만든다. `as`는 화면이 보낸 페이지(`'admin'`·`'member'`). 응답 `user.role`은 `as === 'admin'`이고 운영 권한이 있으면 `'admin'`, 아니면 `'member'`.
-- **세션 수명:** 운영 권한이 있으면 30일(지금 운영진과 같음), 없으면 12시간(지금 회원과 같음).
+- **세션 수명:** 운영 권한이 있으면 30일(지금 운영진과 같음), 없으면 회원 수명(구현 중 #44가 12시간 → 180일로 바꿔 그대로 따름).
 - **`GET /api/session`:** 로그인했으면 `role: 'member'`(운영진도 회원 화면을 쓴다).
 - **`GET /api/admin/session`:** 운영 권한이 있으면 `role: 'admin'`, 없으면 `user: null`.
 - **운영 API(`/api/admin/*`):** 운영 권한이 없으면 403. `must_change`면 `/api/admin/pin`만 열린다(지금과 같은 문).
