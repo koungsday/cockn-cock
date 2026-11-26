@@ -51,9 +51,25 @@ const remembered = (await get(home)).headers.get('set-cookie') ?? '';
 const secure = origin.protocol === 'https:' ? '; Secure' : '';
 assert.match(remembered, new RegExp(`^cockcockcock-recent=[^;]+; Path=/; Max-Age=15552000; SameSite=Lax${secure}$`), 'a club page remembers itself');
 
-const [memberPage, adminPage, privateApi, manifest] = await Promise.all([
-  shell(home), shell(admin), get(`${home}api/admin`), get(`${admin}manifest.webmanifest`),
-]);
+const [privateApi, manifest] = await Promise.all([get(`${home}api/admin`), get(`${admin}manifest.webmanifest`)]);
+// Right after wrangler deploy the new Worker version takes a while to reach every edge (#46 on 2026-11-26: about 35 s),
+// so the two pages can briefly come from different releases. Fetch both again until they match, for at most 60 s;
+// a mismatch that outlasts that still fails the assert below.
+let [memberPage, adminPage] = await Promise.all([shell(home), shell(admin)]);
+const settleStart = Date.now();
+let waits = 0;
+while (memberPage.style !== adminPage.style && Date.now() - settleStart < 60000) {
+  waits++;
+  console.log(`회원·운영 페이지의 화면 묶음이 다릅니다 (회원 ${memberPage.style} / 운영 ${adminPage.style}). 5초 뒤 다시 받습니다 (${waits}번째).`);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  [memberPage, adminPage] = await Promise.all([shell(home), shell(admin)]);
+}
+if (waits) {
+  const seconds = Math.round((Date.now() - settleStart) / 1000);
+  console.log(memberPage.style === adminPage.style
+    ? `${waits}번 기다린 뒤(${seconds}초) 두 페이지가 같은 화면 묶음이 됐습니다.`
+    : `${waits}번 기다렸지만(${seconds}초) 여전히 달라 실패합니다.`);
+}
 assert.equal(memberPage.style, adminPage.style);
 assert.equal(memberPage.script, adminPage.script);
 assert(!memberPage.html.includes('rel="manifest"'));
