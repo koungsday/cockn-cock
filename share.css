@@ -715,3 +715,6 @@
 .member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
 .member-pin h2 { font-size: 1.05rem; }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }
+
+/* 로그인 없이 보기: what waits for sign-in reads quieter than what is shown. */
+.member-locked { color: var(--muted); font-weight: 600; }

@@ -270,16 +270,21 @@ function countsBlock(counts, event) {
     <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
-export function memberVoteScreen(event, vote, eligible, club, voteSaved = false) {
+// 로그인 없이 보기 (사용자 결정, 2026-11-26): before sign-in (signedIn false) the place reads 로그인 후 보여요, there are no
+// notes, and answering offers sign-in instead of the form.
+export function memberVoteScreen(event, vote, eligible, club, voteSaved = false, signedIn = true) {
   const facts = `<dl class="public-event-facts">
     <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
-    <div><dt>장소</dt><dd>${esc(event.place)}</dd></div>
+    <div><dt>장소</dt><dd>${placeText(event)}</dd></div>
     <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>${countsBlock(event.counts, event)}`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
   if (event.cancelled) {
-    response = `<div class="public-form">${current}<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? ' 위 안내를 확인해 주세요.' : ''}</p></div>`;
+    response = `<div class="public-form">${current}<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? '위 안내를 확인해 주세요.' : ''}</p></div>`;
+  } else if (event.canVote && !signedIn) {
+    response = `<div class="public-form"><p class="public-status"><strong>투표하려면 로그인해 주세요.</strong>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 계속 바로 투표할 수 있어요.</p>
+      <button class="share-button share-button--primary" type="button" data-action="sign-in">로그인하고 투표하기</button></div>`;
   } else if (event.canVote && eligible) {
     response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요', ['early', 'late'])}
       <p class="inline-error" role="alert" hidden></p>
@@ -291,16 +296,28 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
   return memberPage(club, memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes + response));
 }
 
+// Before sign-in the body is null and only its start (preview) shows, with the way to the whole notice when the start
+// was cut (worker/api.mjs noticePreview ends it with …); a short notice is whole in its preview.
 export function noticeScreen(notice, club) {
   const date = `<time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>`;
-  return memberPage(club, memberCard('notice', '모임 공지', notice.title, date, `<p class="public-share-body">${esc(notice.body)}</p>`));
+  const more = notice.body === null && notice.preview.endsWith('…');
+  const body = `<p class="public-share-body">${esc(notice.body ?? notice.preview)}</p>${more ? `
+      <div class="public-form"><p class="public-status"><strong>전체 내용은 로그인 후 볼 수 있어요.</strong></p>
+      <button class="share-button share-button--primary" type="button" data-action="sign-in">로그인하고 전체 보기</button></div>` : ''}`;
+  return memberPage(club, memberCard('notice', '모임 공지', notice.title, date, body));
+}
+
+// The place before sign-in (worker/api.mjs listPublic, fetchPublic give null).
+function placeText(event) {
+  return event.place === null ? '<span class="member-locked">로그인 후 보여요</span>' : esc(event.place);
 }
 
 const slotWords = { early: '선발', late: '후발', no: '불참' };
 
 // What the member can do with one event: 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it.
-function memberEventState(event) {
+function memberEventState(event, signedIn = true) {
   if (event.cancelled) return { action: '일정 확인', primary: false, row: '취소됨', note: '이 일정은 취소됐어요.' };
+  if (event.canVote && !signedIn) return { action: '투표하기', primary: true, row: '투표하기', note: '로그인하면 투표할 수 있어요.' };
   if (event.canVote && event.eligible) {
     return event.mySlot
       ? { action: '응답 변경', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong> · 마감 전까지 바꿀 수 있어요.` }
@@ -311,15 +328,15 @@ function memberEventState(event) {
   return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
-function nextEventCard(event, club) {
-  const state = memberEventState(event);
+function nextEventCard(event, club, signedIn) {
+  const state = memberEventState(event, signedIn);
   const kind = event.cancelled ? '취소된 일정' : event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
   const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
   return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}${pinMark(event)}</span>
       <h2 id="member-next-title" class="public-title">${esc(event.title)}</h2><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time></header>
     <div class="public-share-content">
-      <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}</dl>${countsBlock(event.counts, event)}
+      <dl class="public-event-facts"><div><dt>장소</dt><dd>${placeText(event)}</dd></div>${deadline}</dl>${countsBlock(event.counts, event)}
       <p class="member-answer">${state.note}</p>
       <a class="share-button ${state.primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">${state.action}</a>
     </div></article>`;
@@ -378,8 +395,9 @@ export function homeScreen({ events, notices, record }, club, user = null) {
   const [next, ...others] = memberOrder(events, koreanNow());
   const waiting = others.filter(awaitingVote);
   const later = others.filter(event => !awaitingVote(event));
+  const signedIn = Boolean(user);
   const eventRow = event => {
-    const state = memberEventState(event);
+    const state = memberEventState(event, signedIn);
     const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
     return `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
     <span><strong>${pinMark(event)}${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(kindPrefix(event) + dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
@@ -390,18 +408,23 @@ export function homeScreen({ events, notices, record }, club, user = null) {
     <span class="member-record-arrow" aria-hidden="true">${icon('chevron-right', 18)}</span></a></li>`);
   const listCard = (id, title, rows, empty) => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
     <h2 id="${id}">${title}</h2>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
-  const first = next ? nextEventCard(next, club)
+  const first = next ? nextEventCard(next, club, signedIn)
     : listCard('member-events', '일정', [], '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.');
+  // Before sign-in: what signing in adds, in the place of 내 기록 (the same card as the PIN 안내).
+  const signInCard = signedIn ? '' : `<section class="member-pin" aria-labelledby="member-sign-in-title"><h2 id="member-sign-in-title">로그인</h2>
+    <p>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 6개월 동안 유지돼요. 장소와 안내, 공지 전체, 내 기록을 보고 투표할 수 있어요.</p>
+    <button type="button" class="share-button share-button--secondary" data-action="sign-in">로그인</button></section>`;
   const pin = user?.mustChange ? `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 로그인</h2>
     <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
     <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
   return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
     ${waiting.length ? listCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(eventRow), '') : ''}
     ${later.length ? listCard('member-events', '이후 일정', later.map(eventRow), '') : ''}
-    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${pin}`, { back: false });
+    ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${signInCard}${pin}`, { back: false });
 }
 
-export function loginScreen(club, name, numberStep) {
+// browse: a member page asked for sign-in (worker/public/app.mjs sign-in), so 로그인 없이 보기 goes back to it.
+export function loginScreen(club, name, numberStep, browse = false) {
   const label = numberStep ? '번호 6자리' : '성함';
   const input = !numberStep
     ? `<input id="login-value" name="name" type="text" value="${esc(name)}" autocomplete="off" autocapitalize="off"
@@ -426,6 +449,7 @@ export function loginScreen(club, name, numberStep) {
       </div>
       <button type="submit" class="btn btn-primary login-submit"${numberStep ? ' hidden' : ''}>${numberStep ? 'login' : '다음'}</button>
     </form>
+    ${browse ? `<p class="login-browse">${button('로그인 없이 보기', 'sign-in-cancel', { css: 'text small' })}</p>` : ''}
   </div></main>`;
 }
 

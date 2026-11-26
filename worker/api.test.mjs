@@ -128,14 +128,21 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   assert.deepEqual(Object.keys(member), ['member']);
   assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM members').first()).count, 1);
   const {event} = await admin.request('/api/admin/events', {method:'POST', body:futureEvent(), expect:201});
-  await visitor.request('/api/public', {expect:401});
-  await visitor.request('/api/public/vote/' + event.id, {expect:401});
+  // Before sign-in (사용자 결정, 2026-11-26): when it is and its deadline show; the place, the notes, the member's own
+  // answer and 내 기록 wait for sign-in, and answering needs it.
+  const before = await visitor.request('/api/public');
+  assert.deepEqual([before.events[0].title, before.events[0].deadline, before.events[0].place, before.events[0].eligible, before.record],
+    [event.title, event.deadline, null, false, null]);
+  const anonymousEvent = (await visitor.request('/api/public/vote/' + event.id)).event;
+  assert.deepEqual([anonymousEvent.date, anonymousEvent.canVote, anonymousEvent.place, anonymousEvent.notes], [event.date, true, null, null]);
   await visitor.request('/api/votes/' + event.id, {expect:401});
+  await visitor.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'early', lunch:false}, expect:401});
   const name = member.member.name;
   assert.equal((await visitor.login(name.normalize('NFD'), '19880517')).user.mustChange, true);
   const publicEvent = (await visitor.request('/api/public/vote/' + event.id)).event;
   assert.equal(publicEvent.title, event.title);
   assert.equal(publicEvent.canVote, true);
+  assert.deepEqual([publicEvent.place, publicEvent.notes], [event.place, event.notes]);
   // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.
   const {counts, ...shownEvent} = publicEvent;
   assert.deepEqual(Object.keys(counts), ['early', 'late', 'no', 'lunch']);
@@ -257,7 +264,8 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   assert.ok(lifetime <= 2592000 && lifetime >= 2591999);
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
   assert.equal((await admin.request('/api/session')).user, null);
-  await admin.request('/api/public', {expect:401});
+  // An organiser's session is no member's: the member home opens as it does before sign-in (no 내 기록).
+  assert.equal((await admin.request('/api/public')).record, null);
   await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPin}, expect:404});
   const sharedName = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:adminId, birthday:'19890810'}
@@ -274,9 +282,10 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
     method:'POST', body:{name:member.name, credential:'19890810', role:'admin', remember:true}
   });
   assert.match(memberClient.setCookie, /^__Host-suncok19-member=/);
-  assert.doesNotMatch(memberClient.setCookie, /Max-Age/);
+  // Members stay signed in on the phone for half a year (사용자 결정, 2026-11-26).
+  assert.match(memberClient.setCookie, /Max-Age=15552000/);
   const memberLifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='member'").first()).seconds;
-  assert.ok(memberLifetime <= 43200 && memberLifetime >= 43199);
+  assert.ok(memberLifetime <= 15552000 && memberLifetime >= 15551999);
   const both = admin.cookie + '; ' + memberClient.cookie;
   assert.equal((await admin.request('/api/admin/session', {headerCookie:both})).user.role, 'admin');
   assert.equal((await admin.request('/api/session', {headerCookie:both})).user.id, member.id);
@@ -610,13 +619,22 @@ test('published notices and KST deadlines are respected without exposing drafts'
   await admin.adminLogin();
   const draft = {title:'가상 공지', body:'가상 공지 본문', published:false};
   const {notice} = await admin.request('/api/admin/notices', {method:'POST', expect:201, body:draft});
-  await visitor.request('/api/public/notice/' + notice.id, {expect:401});
+  // A draft stays hidden before sign-in too.
+  await visitor.request('/api/public/notice/' + notice.id, {expect:404});
   const profile = {name:'가상 공지 열람 회원', birthday:'19870204'};
   await admin.request('/api/admin/members', {method:'POST', expect:201, body:profile});
   await visitor.login(profile.name, profile.birthday);
   await visitor.request('/api/public/notice/' + notice.id, {expect:404});
   await admin.request('/api/admin/notices', {method:'POST', body:{...draft, id:notice.id, published:true}});
   assert.deepEqual((await visitor.request('/api/public/notice/' + notice.id)).notice, {...notice, published:true});
+  // Before sign-in a published notice shows its title, date and the start of its body; the whole body waits.
+  const long = '가상 공지 본문 '.repeat(10);
+  await admin.request('/api/admin/notices', {method:'POST', body:{...draft, id:notice.id, body:long, published:true}});
+  const anonymousNotice = (await client('203.0.113.30').request('/api/public/notice/' + notice.id)).notice;
+  assert.deepEqual([anonymousNotice.title, anonymousNotice.date, anonymousNotice.body], [draft.title, notice.date, null]);
+  assert.ok(anonymousNotice.preview.endsWith('…') && [...anonymousNotice.preview].length <= 61);
+  assert.ok(long.startsWith(anonymousNotice.preview.slice(0, -1)));
+  assert.equal((await visitor.request('/api/public/notice/' + notice.id)).notice.body, long.trim());
 
   const inKorea = offset => new Date(Date.now() + (9 * 60 + offset) * 60 * 1000).toISOString().slice(0, 16);
   const date = inKorea(24 * 60).slice(0, 10);
