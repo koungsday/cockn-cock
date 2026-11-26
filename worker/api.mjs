@@ -806,25 +806,33 @@ async function setPinned(db, club, table, id, body) {
     return { pinnedAt: null, released: null };
   }
   if (row.pinned_at !== null) return { pinnedAt: row.pinned_at, released: null };
-  const others = (await sql(db, `SELECT id, title FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live}
+  const pinnedNow = async () => (await sql(db, `SELECT id, title FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live}
     ORDER BY pinned_at, rowid`, club).all()).results;
-  const release = others.slice(0, Math.max(0, others.length - pinLimit + 1));
-  if (release.length && !replaceOldest) {
-    throw new ApiError(409, `상단 고정은 ${pinLimit}개까지예요. 가장 오래 고정한 "${release[0].title}"의 고정을 풀고 다시 시도해 주세요.`);
+  const others = await pinnedNow();
+  if (others.length >= pinLimit && !replaceOldest) {
+    throw new ApiError(409, `상단 고정은 ${pinLimit}개까지예요. 가장 오래 고정한 "${others[0].title}"의 고정을 풀고 다시 시도해 주세요.`);
   }
-  // Strictly after every other pin, so two pins in the same second keep the order they were made in.
-  const results = await db.batch([
-    ...release.map(other => sql(db, `UPDATE ${table} SET pinned_at = NULL WHERE id = ? AND club_id = ?`, other.id, club)),
-    sql(db, `UPDATE ${table} SET pinned_at = MAX(?, COALESCE((SELECT MAX(pinned_at) FROM ${table} WHERE club_id = ?), 0) + 1)
-      WHERE id = ? AND club_id = ? AND pinned_at IS NULL
-        AND (SELECT COUNT(*) FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live}) < ?`,
-    currentSeconds(), club, id, club, club, pinLimit)
-  ]);
-  if (!results.at(-1).meta.changes) {
+  // Pin first, then let go of whatever is over the limit, oldest first, in the same batch: when the pin does not
+  // happen (another organiser changed the pins in between), nothing is let go either. The new pin comes strictly after
+  // every other one, so two pins in the same second keep the order they were made in, and the newest is never let go.
+  const count = `(SELECT COUNT(*) FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live})`;
+  const statements = [sql(db, `UPDATE ${table} SET pinned_at = MAX(?, COALESCE((SELECT MAX(pinned_at) FROM ${table} WHERE club_id = ?), 0) + 1)
+      WHERE id = ? AND club_id = ? AND pinned_at IS NULL ${live} AND (? = 1 OR ${count} < ?)`,
+  currentSeconds(), club, id, club, +replaceOldest, club, pinLimit)];
+  if (replaceOldest) {
+    statements.push(sql(db, `UPDATE ${table} SET pinned_at = NULL WHERE club_id = ? AND id IN (
+        SELECT id FROM ${table} WHERE club_id = ? AND pinned_at IS NOT NULL ${live} ORDER BY pinned_at, rowid
+        LIMIT MAX(0, ${count} - ?))`, club, club, club, pinLimit));
+  }
+  const [pin] = await db.batch(statements);
+  const saved = await sql(db, `SELECT pinned_at FROM ${table} WHERE id = ? AND club_id = ?`, id, club).first();
+  // Someone else pinned this one first: it is pinned, as asked.
+  if (!pin.meta.changes && !saved?.pinned_at) {
     throw new ApiError(409, '다른 곳에서 고정이 바뀌었어요. 새로고침한 뒤 다시 시도해 주세요.');
   }
-  const saved = await sql(db, `SELECT pinned_at FROM ${table} WHERE id = ? AND club_id = ?`, id, club).first();
-  return { pinnedAt: saved.pinned_at, released: release[0] ? { id: release[0].id, title: release[0].title } : null };
+  const kept = new Set((await pinnedNow()).map(item => item.id));
+  const released = pin.meta.changes ? others.find(other => !kept.has(other.id)) : null;
+  return { pinnedAt: saved.pinned_at, released: released ? { id: released.id, title: released.title } : null };
 }
 
 async function setReward(db, club, body) {
