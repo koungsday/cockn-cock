@@ -160,10 +160,11 @@ test('catalog, canonical club links and legacy shares do not expose unscoped API
 test('a club administrator and a member cannot use their roles or credentials in another club', async t => {
   const { env, request, login, adminLogin } = setup(t);
   const { cookie: firstCookie } = await adminLogin(first);
-  assert.match(firstCookie, /^__Host-first-club-admin=/);
+  // One cookie per person and club (ROLES.md 1단계): the club is in its name and in the session row.
+  assert.match(firstCookie, /^__Host-first-club-member=/);
   assert.equal((await request(second, '/admin', { cookie: firstCookie })).status, 401);
   assert.equal((await request(second, '/admin', {
-    cookie: firstCookie.replace('__Host-first-club-admin=', '__Host-second-club-admin=')
+    cookie: firstCookie.replace('__Host-first-club-member=', '__Host-second-club-member=')
   })).status, 401);
   await adminLogin(second, env.FIRST_ADMIN, 401);
 
@@ -175,24 +176,26 @@ test('a club administrator and a member cannot use their roles or credentials in
   await login(second, member.name, '19890124', 401);
   const { user, cookie: memberCookie } = await login(first, member.name, '19890124');
   assert.equal(user.role, 'member');
-  assert.equal((await request(first, '/admin', { cookie: memberCookie })).status, 401);
+  // Signed in to the first club without the 운영 권한; not signed in to the second at all.
+  assert.equal((await request(first, '/admin', { cookie: memberCookie })).status, 403);
   assert.equal((await request(second, '/admin', { cookie: memberCookie })).status, 401);
 
   const { cookie: secondCookie } = await adminLogin(second);
   const secondAdmin = await request(second, '/admin', { cookie: firstCookie + '; ' + secondCookie });
   assert.equal(secondAdmin.status, 200);
-  assert.deepEqual((await secondAdmin.json()).members, []);
+  // Each club's organiser is a member of that club only.
+  assert.deepEqual((await secondAdmin.json()).members.map(row => row.name), [env.SECOND_ID]);
   assert.equal((await request(second, '/admin/members/' + member.id, {
     method: 'PATCH', cookie: secondCookie, body: { active: false }
   })).status, 404);
   const firstAdmin = await request(first, '/admin', { cookie: firstCookie + '; ' + secondCookie });
   assert.equal(firstAdmin.status, 200);
-  assert.deepEqual((await firstAdmin.json()).members.map(row => row.name), ['가상 회원']);
+  assert.deepEqual((await firstAdmin.json()).members.map(row => row.name).sort(), [env.FIRST_ID, '가상 회원'].sort());
   const firstLogout = await request(first, '/admin/logout', {
     method: 'POST', cookie: firstCookie + '; ' + secondCookie, body: {}
   });
   assert.equal(firstLogout.status, 200);
-  assert.match(firstLogout.headers.get('Set-Cookie'), /^__Host-first-club-admin=;.*Max-Age=0/);
+  assert.match(firstLogout.headers.get('Set-Cookie'), /^__Host-first-club-member=;.*Max-Age=0/);
   assert.equal((await request(first, '/admin', { cookie: firstCookie })).status, 401);
   assert.equal((await request(second, '/admin', { cookie: secondCookie })).status, 200);
 
@@ -202,7 +205,7 @@ test('a club administrator and a member cannot use their roles or credentials in
     body: { name: env.SECOND_ID, credential: env.SECOND_ADMIN }
   });
   assert.equal(localLogin.status, 200);
-  assert.match(localLogin.headers.get('Set-Cookie'), /^second-club-admin-dev=/);
+  assert.match(localLogin.headers.get('Set-Cookie'), /^second-club-member-dev=/);
 });
 
 test('missing or shared club secrets are rejected instead of serving a club with the wrong settings', async t => {
@@ -281,15 +284,19 @@ test('two clubs in the one database never read or change each other\'s records',
   }
 
   const listB = await (await b.admin('/admin')).json();
-  assert.deepEqual(listB.members.map(row => row.id), [b.member.id]);
+  // B's own organiser is a member of B too (ROLES.md 1단계); nothing of A's shows.
+  const organizersB = listB.organizers.map(row => row.id);
+  assert.equal(organizersB.length, 1);
+  assert.deepEqual(listB.members.map(row => row.id).sort(), [b.member.id, ...organizersB].sort());
   assert.deepEqual(listB.events.map(row => row.id), [b.event.id]);
   assert.deepEqual(listB.notices.map(row => row.id), [b.notice.id]);
   const progressB = await (await b.admin('/admin/progress?year=2026&half=2')).json();
-  assert.deepEqual(progressB.members.map(row => row.id), [b.member.id]);
-  // Rosters are filled when an event or a member is added: only from the same club.
+  assert.deepEqual(progressB.members.map(row => row.id).sort(), [b.member.id, ...organizersB].sort());
+  // Rosters are filled when an event or a member is added: only from the same club (its organiser is a member there).
   for (const club of [a, b]) {
     const detail = await (await club.admin('/admin/events/' + club.event.id)).json();
-    assert.deepEqual(detail.roster.map(row => row.id), [club.member.id]);
+    const own = (await (await club.admin('/admin')).json()).organizers.map(row => row.id);
+    assert.deepEqual(detail.roster.map(row => row.id).sort(), [club.member.id, ...own].sort());
   }
 
   const memberApi = (path, options = {}) => request(second, path, { cookie: memberBCookie, ...options });
@@ -308,17 +315,21 @@ test('two clubs in the one database never read or change each other\'s records',
   // Nothing of the first club moved.
   const listA = await (await a.admin('/admin')).json();
   assert.deepEqual(listA.rules, { periods: 2, goal: 3, kinds: ['direct', 'substitute', 'approved'], reward: 'manual', eventKinds: ['regular', 'flash', 'match'] });
-  assert.deepEqual(listA.members, [a.member]);
+  // A's organiser is a member of A (ROLES.md 1단계); apart from them, only A's own member.
+  const ownA = listA.organizers.map(row => row.id);
+  const notOrganizer = row => !ownA.includes(row.id);
+  assert.equal(ownA.length, 1);
+  assert.deepEqual(listA.members.filter(notOrganizer), [a.member]);
   assert.deepEqual(listA.notices, [a.notice]);
   const detailA = await (await a.admin(eventA)).json();
   assert.deepEqual(detailA.event, a.event);
-  assert.deepEqual(detailA.roster, [{
+  assert.deepEqual(detailA.roster.filter(notOrganizer), [{
     id: a.member.id, name: a.member.name, active: true, slot: null, lunch: false, present: null, recognition: null
   }]);
   assert.deepEqual(detailA.guests, []);
   assert.equal(detailA.settlement, null);
   const progressA = await (await a.admin('/admin/progress?year=2026&half=2')).json();
-  assert.deepEqual(progressA.members.map(row => [row.id, row.rewarded]), [[a.member.id, false]]);
+  assert.deepEqual(progressA.members.filter(notOrganizer).map(row => [row.id, row.rewarded]), [[a.member.id, false]]);
   assert.equal((await request(first, '/public', { cookie: memberACookie })).status, 200, 'the first club member is still signed in');
   assert.equal((await login(first, '가상 같은 이름', '19900517')).user.id, a.member.id, 'the first club member PIN was not reset');
 });
@@ -338,9 +349,9 @@ test('sessions and name lookups stay in their club even with a shared pepper', a
     DB: env.DB, CLUB_SCOPE: first.slug, CLUB_ADMIN_ID: env.FIRST_ID, CLUB_ADMIN_PIN: env.FIRST_ADMIN, CLUB_AUTH_PEPPER: env.FIRST_PEPPER
   };
   const sameSecretsOtherClub = { ...firstEnv, CLUB_SCOPE: second.slug };
-  const signedIn = path => new Request(origin + path, { headers: { Cookie: `__Host-${path.split('/')[2]}-admin=${token}` } });
-  assert.equal((await readSession(signedIn('/clubs/first-club/api/admin'), firstEnv, 'admin')).role, 'admin');
-  assert.equal(await readSession(signedIn('/clubs/second-club/api/admin'), sameSecretsOtherClub, 'admin'), null);
+  const signedIn = path => new Request(origin + path, { headers: { Cookie: `__Host-${path.split('/')[2]}-member=${token}` } });
+  assert.equal((await readSession(signedIn('/clubs/first-club/api/admin'), firstEnv)).organizer, true);
+  assert.equal(await readSession(signedIn('/clubs/second-club/api/admin'), sameSecretsOtherClub), null);
   assert.equal((await membersNamed(firstEnv, '가상 같은 이름')).length, 1);
   assert.equal((await membersNamed(sameSecretsOtherClub, '가상 같은 이름')).length, 1);
   assert.notEqual((await membersNamed(firstEnv, '가상 같은 이름'))[0].id, (await membersNamed(sameSecretsOtherClub, '가상 같은 이름'))[0].id);

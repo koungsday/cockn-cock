@@ -174,8 +174,9 @@ async function createClub(env, legacy, form) {
     await env.DB.batch([
       sql(env.DB, `INSERT INTO clubs (id, name, subtitle, schedule, default_place, status, created_at)
         VALUES (?, ?, ?, ?, ?, 'active', ?)`, slug, club.name, club.subtitle, club.schedule, club.defaultPlace, now),
-      sql(env.DB, `INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?)`, organizerId, slug, organizer, salt, hash, version, now)
+      // The first organiser is a member with the 운영 권한 (ROLES.md 1단계); a new club has no events to join yet.
+      sql(env.DB, `INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, organizer)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 1)`, organizerId, slug, organizer, salt, hash, version)
     ]);
   } catch (error) {
     if (await findClub(env, slug) === null) throw error;
@@ -222,7 +223,7 @@ async function overview(env, legacy) {
       (SELECT MAX(date) FROM events WHERE club_id = c.id AND date <= ?) AS last_date,
       (SELECT MIN(date) FROM events WHERE club_id = c.id AND date > ?) AS next_date
       FROM clubs c`, today, today),
-    sql(env.DB, 'SELECT id, club_id, name, active, must_change FROM organizers ORDER BY created_at, name')
+    sql(env.DB, 'SELECT id, club_id, name, active, must_change FROM members WHERE organizer = 1 ORDER BY name, id')
   ])]);
   const counts = new Map(numbers.results.map(row => [row.id, row]));
   return {
@@ -230,9 +231,11 @@ async function overview(env, legacy) {
     clubs: await Promise.all(clubs.map(async club => {
       const scope = await scopeEnv(club, legacy, env);
       const rows = organizers.results.filter(row => row.club_id === club.slug);
-      // An older club's first organiser may still be in Worker secrets until their first sign-in (auth.mjs).
+      // An older club's first organiser may still be in Worker secrets until their first sign-in: the secrets count
+      // only while no member has that name (auth.mjs legacyAdmin).
       const pending = scope && isAdminId(scope.CLUB_ADMIN_ID) && isSixDigitPin(scope.CLUB_ADMIN_PIN)
-        && !rows.some(row => row.name === scope.CLUB_ADMIN_ID) ? scope.CLUB_ADMIN_ID : null;
+        && !await sql(env.DB, 'SELECT 1 FROM members WHERE club_id = ? AND name = ?', club.slug, scope.CLUB_ADMIN_ID).first()
+        ? scope.CLUB_ADMIN_ID : null;
       return { ...club, ...counts.get(club.slug), ready: Boolean(scope), pending, organizers: rows.filter(row => row.active) };
     }))
   };
@@ -324,10 +327,10 @@ async function logPage(env, slug) {
 
 // 해지 asks on its own page: a confirm step inside the table would push it sideways on a phone.
 async function removePage(env, slug, id) {
-  const row = await sql(env.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ? AND active = 1', id, slug).first();
+  const row = await sql(env.DB, 'SELECT name FROM members WHERE id = ? AND club_id = ? AND active = 1 AND organizer = 1', id, slug).first();
   if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
   return `<main id="main-content" class="console-page" tabindex="-1">
-    ${pageHead(`${escape(row.name)}님을 해지할까요?`, '운영 화면 로그인이 바로 끊겨요. 다시 맡기려면 운영진 추가로 새 임시 번호를 발급해요.')}
+    ${pageHead(`${escape(row.name)}님을 해지할까요?`, '운영 권한이 꺼지고 로그인이 바로 끊겨요. 회원으로는 남아 지금 번호로 다시 로그인해 투표할 수 있어요.')}
     <section class="panel"><div class="panel-body">
       <form method="post" action="/console/clubs/${escape(slug)}/organizers/${id}/remove">
         <div class="form-actions"><a class="btn btn-secondary" href="/console/#club-${escape(slug)}">취소</a><button type="submit" class="btn btn-primary">해지하기</button></div>

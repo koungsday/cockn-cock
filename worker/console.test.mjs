@@ -335,7 +335,11 @@ test('reissue, removal and a pause take effect at once', async t => {
   assert.equal(removed.status, 303);
   assert.equal(removed.headers.get('Location'), origin + '/console/#club-paused-club');
   assert.equal((await (await api('/admin/session', { cookie: cookieOf(secondLogin) })).json()).user, null);
-  assert.equal((await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: second }, ip: '198.51.100.31' })).status, 401);
+  // 해지 takes away the 운영 권한 only: they stay a member with the same PIN (ROLES.md 1단계).
+  const retiredLogin = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: second }, ip: '198.51.100.31' });
+  assert.equal(retiredLogin.status, 200);
+  assert.equal((await retiredLogin.json()).user.role, 'member');
+  assert.equal((await api('/admin', { cookie: cookieOf(retiredLogin) })).status, 403);
   assert.equal((await receive(`/console/clubs/paused-club/organizers/${secondId}/remove`, { method: 'POST', form: {} })).status, 401);
 
   assert.equal((await receive('/console/clubs/paused-club/status', { method: 'POST', form: { status: 'suspended' }, cookie })).status, 303);
@@ -486,7 +490,10 @@ test('an organiser issues, reissues and retires other organisers of their club, 
 
   assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: true })).status, 400);
   assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: false })).status, 200);
-  assert.equal((await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.40' })).status, 401);
+  // Retired: a member without the 운영 권한, signing in with the same PIN.
+  const retired = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.40' });
+  assert.equal((await retired.json()).user.role, 'member');
+  assert.equal((await api('/admin', { cookie: cookieOf(retired) })).status, 403);
   assert.deepEqual((await (await as('/admin', 'GET')).json()).organizers.map(row => row.name), ['가상 첫 운영진']);
 
   const log = await (await receive('/console/clubs/invite-club/log', { cookie })).text();

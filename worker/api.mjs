@@ -1,6 +1,6 @@
 import {
-  ApiError, changeOrganizerPin, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  matchingCredentials, membersNamed, organizerUses, readSession, sql, temporaryPin
+  ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
+  matchingCredentials, membersNamed, readSession, rosterOpenEvents, sql, temporaryPin
 } from './auth.mjs';
 import { audit, organizerActor } from './audit.mjs';
 import { issueOrganizer, listOrganizers, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
@@ -59,9 +59,14 @@ function methodNotAllowed() {
   throw new ApiError(405, '지원하지 않는 요청 방식이에요.');
 }
 
-function requireUser(user, role) {
+function requireUser(user) {
   if (!user) throw new ApiError(401, '먼저 로그인해 주세요.');
-  if (user.role !== role) throw new ApiError(403, '이 작업을 할 수 있는 권한이 없어요.');
+  return user;
+}
+
+// The 운영 화면 and its API: a signed-in member with the 운영 권한 (ROLES.md).
+function requireOrganizer(user) {
+  if (!requireUser(user).organizer) throw new ApiError(403, '이 작업을 할 수 있는 권한이 없어요.');
   return user;
 }
 
@@ -425,23 +430,13 @@ async function listAdmin(db, club) {
   };
 }
 
-function rosterOpenEvents(db, club, id, version = null) {
-  return sql(db, `
-    INSERT INTO roster (event_id, member_id)
-    SELECT e.id, m.id FROM events e CROSS JOIN members m
-    WHERE m.id = ? AND m.club_id = ? AND e.club_id = m.club_id AND m.active = 1 AND e.deadline_at > unixepoch()
-      AND (? IS NULL OR m.credential_version = ?)
-      AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = e.id AND s.confirmed = 1)
-    ON CONFLICT (event_id, member_id) DO NOTHING
-  `, id, club, version, version);
-}
-
 async function addMember(env, body) {
   const { DB: db, CLUB_SCOPE: club } = env;
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
   const candidates = await membersNamed(env, name);
-  if (await organizerUses(env, name, birthday) || (await matchingCredentials(env, candidates, birthday, true)).length) {
+  // Organisers are members too, so this also keeps a new member from an organiser's login (ROLES.md).
+  if ((await matchingCredentials(env, candidates, birthday, true)).length) {
     throw new ApiError(409, '같은 이름과 로그인 번호를 사용하는 회원이 있어요. 회원 목록을 확인해 주세요.');
   }
   const { hash, salt, version } = await makeMemberCredential(env, birthday);
@@ -466,8 +461,8 @@ async function updateMember(env, id, body) {
   const { DB: db, CLUB_SCOPE: club } = env;
   const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
-  // Organiser PINs are stored hashed, so a rename cannot be compared with them; a name and credential shared by an
-  // organiser and a member is refused at sign-in instead (auth.mjs login).
+  // PINs are stored hashed, so a rename cannot be compared with them; a name and credential shared by two members
+  // is refused at sign-in instead (auth.mjs login).
   const statements = [sql(db, `
     UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ? AND club_id = ?
   `, name, active, id, club)];
@@ -493,7 +488,7 @@ async function resetMember(env, id) {
   let temporary;
   for (let attempt = 0; attempt < 6; attempt++) {
     const code = temporaryPin();
-    if (!await organizerUses(env, name, code) && !(await matchingCredentials(env, candidates, code, true)).length) {
+    if (!(await matchingCredentials(env, candidates, code, true)).length) {
       temporary = code;
       break;
     }
@@ -1061,15 +1056,15 @@ async function route(request, env) {
   const method = request.method;
   if (!['GET', 'HEAD', 'POST', 'PUT', 'PATCH'].includes(method)) methodNotAllowed();
   const adminRoute = path === '/api/admin' || path.startsWith('/api/admin/');
-  const role = adminRoute ? 'admin' : 'member';
   const exposed = publicPath.exec(path);
   if (path === '/api/public' || exposed) {
     if (method !== 'GET' && method !== 'HEAD') methodNotAllowed();
-    // Open without sign-in (사용자 결정, 2026-11-26); a member's session adds what fetchPublic keeps for members.
-    const member = await readSession(request, env, 'member');
+    // Open without sign-in (사용자 결정, 2026-11-26); a signed-in person adds what fetchPublic keeps for members.
+    // Organisers are members too (ROLES.md 1단계), so every session counts.
+    const member = await readSession(request, env);
     const publicData = exposed
-      ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2], member?.role === 'member')
-      : await listPublic(env.DB, env.CLUB_SCOPE, member?.role === 'member' ? member.id : null);
+      ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2], Boolean(member))
+      : await listPublic(env.DB, env.CLUB_SCOPE, member ? member.id : null);
     return json(publicData);
   }
 
@@ -1081,25 +1076,27 @@ async function route(request, env) {
     const session = await login(request, env, body);
     return json({ user: session.user }, 200, session.cookie);
   }
+  // One session per person (ROLES.md): signing out of either screen signs out of both.
   if (path === authPath + '/logout') {
     if (method !== 'POST') methodNotAllowed();
-    return json({ user: null }, 200, await logout(request, env, role));
+    return json({ user: null }, 200, await logout(request, env));
   }
 
-  const user = await readSession(request, env, role);
+  const user = await readSession(request, env);
   if (path === authPath + '/session') {
     if (method !== 'GET') methodNotAllowed();
-    return json({ user: clientUser(user) });
+    // The 운영 화면 sees only someone with the 운영 권한; the member screens see everyone signed in.
+    return json({ user: adminRoute ? (user?.organizer ? clientUser(user, 'admin') : null) : clientUser(user) });
   }
   if (path === '/api/pin' && method === 'POST') {
-    const session = await changePin(request, env, requireUser(user, 'member'), body);
+    const session = await changePin(request, env, requireUser(user), body);
     return json({ user: session.user }, 200, session.cookie);
   }
   if (adminRoute) {
-    requireUser(user, 'admin');
+    requireOrganizer(user);
     if (path === '/api/admin/pin') {
       if (method !== 'POST') methodNotAllowed();
-      const session = await changeOrganizerPin(request, env, user, body);
+      const session = await changePin(request, env, user, body, 'admin');
       await audit(env.DB, env.CLUB_SCOPE, organizerActor(user), 'organizer.pin', user.id, () => user.name);
       return json({ user: session.user }, 200, session.cookie);
     }
@@ -1108,7 +1105,7 @@ async function route(request, env) {
     return routeAdmin(env.DB, env, url, method, body, user);
   }
   const vote = votePath.exec(path);
-  if (vote) return json(await memberVote(env.DB, env.CLUB_SCOPE, method, vote[1], requireUser(user, 'member'), body));
+  if (vote) return json(await memberVote(env.DB, env.CLUB_SCOPE, method, vote[1], requireUser(user), body));
   missing();
 }
 
