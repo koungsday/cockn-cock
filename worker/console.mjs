@@ -1,6 +1,11 @@
-// 총괄 콘솔 (PLATFORM.md): the one platform operator signs in at /console/ and sees each club as numbers only.
+// 총괄 콘솔 (PLATFORM.md): the one platform operator signs in at /console/, makes clubs and issues their organisers.
+// It sees each club as numbers and organiser names only, never members or answers.
 // The server draws every page with the live stylesheet; there is no script, and the forms post back here.
-import { ApiError, currentSeconds, equalDigest, isAdminId, randomHex, releaseAttempt, reserveAttempt, sql } from './auth.mjs';
+import {
+  ApiError, currentSeconds, equalDigest, isAdminId, isSixDigitPin, makeMemberCredential, matchingCredentials,
+  membersNamed, randomHex, releaseAttempt, reserveAttempt, sql, temporaryPin
+} from './auth.mjs';
+import { allClubs, findClub, scopeEnv, slugPattern } from './scope.mjs';
 
 const encoder = new TextEncoder();
 const sessionAge = 12 * 60 * 60;
@@ -10,6 +15,9 @@ const iterations = 24000;
 const secretPattern = /^pbkdf2-sha256:(\d{4,6}):([0-9a-f]{32}):([0-9a-f]{64})$/;
 const bodyLimit = 4096;
 const invalidLogin = '아이디나 비밀번호를 확인해 주세요.';
+const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const clubAction = new RegExp(`^/console/clubs/([a-z0-9-]{1,64})/(organizers|status)(?:/(${uuid})/(reset|remove))?$`);
+const plus = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 const escape = value => String(value).replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -87,8 +95,7 @@ async function readForm(request, url) {
   return new URLSearchParams(text);
 }
 
-async function login(request, env, url, config) {
-  const form = await readForm(request, url);
+async function login(request, env, url, config, form) {
   const id = (form.get('id') ?? '').trim().slice(0, 64);
   const password = (form.get('password') ?? '').slice(0, 256);
   // One source may try 10 times and everyone together 20 times in 15 minutes, as with the club administrator PIN.
@@ -115,22 +122,144 @@ async function login(request, env, url, config) {
 }
 
 async function logout(request, env, url) {
-  await readForm(request, url);
   const token = cookieToken(request, url);
   if (token) await sql(env.DB, 'DELETE FROM console_sessions WHERE token_hash = ?', await tokenHash(token)).run();
   return { status: 303, location: new URL('/console/', url.origin).href, cookie: sessionCookie(url) };
 }
 
-async function clubNumbers(env, clubs) {
-  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const results = await env.DB.batch(clubs.map(club => sql(env.DB, `
-    SELECT EXISTS (SELECT 1 FROM clubs WHERE id = ?) AS registered,
-      (SELECT COUNT(*) FROM members WHERE club_id = ? AND active = 1) AS members,
-      (SELECT MAX(date) FROM events WHERE club_id = ? AND date <= ?) AS last_date,
-      (SELECT MIN(date) FROM events WHERE club_id = ? AND date > ?) AS next_date
-  `, club.slug, club.slug, club.slug, today, club.slug, today)));
-  return { today, clubs: clubs.map((club, index) => ({ ...club, ...results[index].results[0] })) };
+/* Clubs and organisers. */
+
+function kstToday() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
+
+function field(form, name, label, max, { required = true } = {}) {
+  const value = (form.get(name) ?? '').trim().normalize('NFC');
+  if ((required && !value) || value.length > max || value.includes('\0')) {
+    throw new ApiError(400, `${label}을(를) ${required ? '' : '비우거나 '}${max}자 이내로 입력해 주세요.`);
+  }
+  return value;
+}
+
+// A six-digit temporary PIN no member of the same name already signs in with (auth.mjs refuses such a pair).
+async function temporaryFor(scoped, name) {
+  const members = await membersNamed(scoped, name);
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const pin = temporaryPin();
+    if (!(await matchingCredentials(scoped, members, pin, true)).length) return pin;
+  }
+  throw new ApiError(409, '임시 번호를 만들지 못했어요. 다시 시도해 주세요.');
+}
+
+async function scoped(env, legacy, slug) {
+  const club = await findClub(env, slug);
+  if (!club) throw new ApiError(404, '모임을 찾을 수 없어요.');
+  const scope = await scopeEnv(club, legacy, env);
+  if (!scope) throw new ApiError(503, '이 모임의 인증 비밀값을 확인해 주세요.');
+  return { club, scope };
+}
+
+async function createClub(env, legacy, form) {
+  const slug = (form.get('slug') ?? '').trim().toLowerCase();
+  if (slug.length < 2 || slug.length > 40 || !slugPattern.test(slug)) {
+    throw new ApiError(400, '모임 주소는 영문 소문자·숫자와 가운데 하이픈(-)으로 2~40자예요.');
+  }
+  const club = {
+    slug, name: field(form, 'name', '모임 이름', 30),
+    subtitle: field(form, 'subtitle', '부제', 60, { required: false }),
+    schedule: field(form, 'schedule', '운동 요일', 20, { required: false }),
+    defaultPlace: field(form, 'place', '기본 장소', 60, { required: false })
+  };
+  const organizer = field(form, 'organizer', '첫 운영진 성함', 60);
+  if (legacy.has(slug) || await findClub(env, slug) !== null) throw new ApiError(409, '이미 쓰는 모임 주소예요. 다른 주소를 입력해 주세요.');
+  const scope = await scopeEnv(club, legacy, env);
+  if (!scope) throw new ApiError(503, '인증 비밀값(CLUB_AUTH_PEPPER)을 확인해 주세요.');
+  const pin = temporaryPin();
+  const { hash, salt, version } = await makeMemberCredential(scope, pin);
+  const now = currentSeconds();
+  try {
+    await env.DB.batch([
+      sql(env.DB, `INSERT INTO clubs (id, name, subtitle, schedule, default_place, status, created_at)
+        VALUES (?, ?, ?, ?, ?, 'active', ?)`, slug, club.name, club.subtitle, club.schedule, club.defaultPlace, now),
+      sql(env.DB, `INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)`, crypto.randomUUID(), slug, organizer, salt, hash, version, now)
+    ]);
+  } catch (error) {
+    if (await findClub(env, slug) === null) throw error;
+    throw new ApiError(409, '이미 쓰는 모임 주소예요. 다른 주소를 입력해 주세요.');
+  }
+  return { title: '모임을 만들었어요', club, organizer, pin };
+}
+
+async function addOrganizer(env, legacy, slug, form) {
+  const { club, scope } = await scoped(env, legacy, slug);
+  const name = field(form, 'organizer', '운영진 성함', 60);
+  const pin = await temporaryFor(scope, name);
+  const { hash, salt, version } = await makeMemberCredential(scope, pin);
+  const added = await sql(env.DB, `
+    INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
+    SELECT ?, ?, ?, ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM organizers WHERE club_id = ? AND name = ? AND active = 1)
+  `, crypto.randomUUID(), slug, name, salt, hash, version, currentSeconds(), slug, name).run();
+  if (!added.meta.changes) throw new ApiError(409, '같은 이름의 운영진이 이미 있어요. 번호 재발급을 써 주세요.');
+  return { title: '운영진을 추가했어요', club, organizer: name, pin };
+}
+
+async function resetOrganizer(env, legacy, slug, id) {
+  const { club, scope } = await scoped(env, legacy, slug);
+  const row = await sql(env.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ? AND active = 1', id, slug).first();
+  if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
+  const pin = await temporaryFor(scope, row.name);
+  const { hash, salt, version } = await makeMemberCredential(scope, pin);
+  const [updated] = await env.DB.batch([
+    sql(env.DB, `UPDATE organizers SET credential_salt = ?, credential_hash = ?, credential_version = ?, must_change = 1
+      WHERE id = ? AND club_id = ? AND active = 1`, salt, hash, version, id, slug),
+    sql(env.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id),
+    sql(env.DB, 'DELETE FROM attempts WHERE key = ?', 'pin-organizer:' + id)
+  ]);
+  if (!updated.meta.changes) throw new ApiError(409, '운영진 정보가 바뀌었어요. 목록을 다시 열어 주세요.');
+  return { title: '임시 번호를 다시 발급했어요', club, organizer: row.name, pin };
+}
+
+async function removeOrganizer(env, slug, id) {
+  const [removed] = await env.DB.batch([
+    sql(env.DB, 'UPDATE organizers SET active = 0 WHERE id = ? AND club_id = ? AND active = 1', id, slug),
+    sql(env.DB, 'DELETE FROM sessions WHERE organizer_id = ?', id)
+  ]);
+  if (!removed.meta.changes) throw new ApiError(404, '운영진을 찾을 수 없어요.');
+}
+
+async function setStatus(env, slug, form) {
+  const status = form.get('status');
+  if (!['active', 'suspended'].includes(status)) throw new ApiError(400, '모임 상태를 확인해 주세요.');
+  const result = await sql(env.DB, "UPDATE clubs SET status = ? WHERE id = ? AND name != ''", status, slug).run();
+  if (!result.meta.changes) throw new ApiError(404, '모임을 찾을 수 없어요.');
+}
+
+async function overview(env, legacy) {
+  const today = kstToday();
+  const [clubs, [numbers, organizers]] = await Promise.all([allClubs(env), env.DB.batch([
+    sql(env.DB, `SELECT c.id,
+      (SELECT COUNT(*) FROM members WHERE club_id = c.id AND active = 1) AS members,
+      (SELECT MAX(date) FROM events WHERE club_id = c.id AND date <= ?) AS last_date,
+      (SELECT MIN(date) FROM events WHERE club_id = c.id AND date > ?) AS next_date
+      FROM clubs c`, today, today),
+    sql(env.DB, 'SELECT id, club_id, name, active, must_change FROM organizers ORDER BY created_at, name')
+  ])]);
+  const counts = new Map(numbers.results.map(row => [row.id, row]));
+  return {
+    today,
+    clubs: await Promise.all(clubs.map(async club => {
+      const scope = await scopeEnv(club, legacy, env);
+      const rows = organizers.results.filter(row => row.club_id === club.slug);
+      // An older club's first organiser may still be in Worker secrets until their first sign-in (auth.mjs).
+      const pending = scope && isAdminId(scope.CLUB_ADMIN_ID) && isSixDigitPin(scope.CLUB_ADMIN_PIN)
+        && !rows.some(row => row.name === scope.CLUB_ADMIN_ID) ? scope.CLUB_ADMIN_ID : null;
+      return { ...club, ...counts.get(club.slug), ready: Boolean(scope), pending, organizers: rows.filter(row => row.active) };
+    }))
+  };
+}
+
+/* Pages. Markup follows the organiser screens (worker/public/views.mjs, DESIGN.md 5). */
 
 function shortDate(value, today) {
   if (!value) return '없음';
@@ -138,32 +267,124 @@ function shortDate(value, today) {
   return `${year === Number(today.slice(0, 4)) ? '' : year + '년 '}${month}월 ${day}일`;
 }
 
+function pageHead(title, description, actions = '') {
+  return `<header class="page-head"><div><h1>${title}</h1><div class="page-description">${description}</div></div>${
+    actions ? `<div class="page-actions">${actions}</div>` : ''}</header>`;
+}
+
+const postButton = (action, label, css = 'btn-secondary btn-small', fields = '') =>
+  `<form method="post" action="${action}">${fields}<button type="submit" class="btn ${css}">${label}</button></form>`;
+
+function confirmAction(summary, action, note, label, fields = '') {
+  return `<details class="console-confirm"><summary class="btn btn-text btn-small">${summary}</summary>
+    <div class="console-confirm-body"><p class="form-note">${note}</p>${postButton(action, label, 'btn-secondary btn-small', fields)}</div></details>`;
+}
+
+function organizerRows(club) {
+  const base = `/console/clubs/${escape(club.slug)}/organizers`;
+  const rows = club.organizers.map(row => `<tr><td>${escape(row.name)}</td>
+      <td><span class="pill ${row.must_change ? 'pill-warm' : 'pill-green'}">${row.must_change ? '임시 번호 전달 대기' : '사용 중'}</span></td>
+      <td class="table-actions">${postButton(`${base}/${row.id}/reset`, '번호 재발급')}
+        <a class="btn btn-text btn-small" href="${base}/${row.id}/remove">해지</a></td></tr>`);
+  if (club.pending) {
+    rows.unshift(`<tr><td>${escape(club.pending)}</td><td><span class="pill">기존 계정</span></td>
+      <td><small>처음 로그인하면 이 목록으로 옮겨져요</small></td></tr>`);
+  }
+  return rows.length ? `<div class="data-table-wrap"><table class="data-table"><thead><tr><th scope="col">운영진</th><th scope="col">상태</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
+      <tbody>${rows.join('')}</tbody></table></div>` : '<p class="form-note">운영진이 없어요. 아래에서 추가해 주세요.</p>';
+}
+
 function clubPanel(club, today) {
-  const registered = Boolean(club.registered);
-  const problem = !registered ? 'D1 clubs 표에 이 모임이 없어서 저장할 수 없어요.'
-    : !club.ready ? '운영진 계정이나 인증 비밀값이 비어 있거나 다른 모임과 겹쳐요.' : '';
   const heading = 'club-' + escape(club.slug);
+  const suspended = club.status !== 'active';
+  const problem = !club.ready ? '이 모임의 인증 비밀값이 비어 있거나 다른 모임과 겹쳐요.' : '';
+  const [pill, word] = problem ? ['pill-warm', '설정 확인 필요'] : suspended ? ['', '쉬는 중'] : ['pill-green', '운영 중'];
   const items = [
-    ['활동 회원', `${Number(club.members)}명`],
-    ['운영진 계정', `${club.ready ? 1 : 0}개`],
+    ['활동 회원', `${Number(club.members ?? 0)}명`],
+    ['운영진', `${club.organizers.length + (club.pending ? 1 : 0)}명`],
     ['최근 회차', shortDate(club.last_date, today)],
     ['다음 회차', shortDate(club.next_date, today)]
   ];
-  return `<section class="panel" aria-labelledby="${heading}">
-      <div class="panel-head"><div><h2 id="${heading}">${escape(club.name)}</h2>
+  const status = `/console/clubs/${escape(club.slug)}/status`;
+  return `<section class="panel" id="${heading}" aria-labelledby="${heading}-title">
+      <header class="panel-head"><div><h2 id="${heading}-title">${escape(club.name)}</h2>
         <p><a href="/clubs/${escape(club.slug)}/">/clubs/${escape(club.slug)}/</a></p></div>
-        <span class="pill ${problem ? 'pill-warm' : 'pill-green'}">${problem ? '설정 확인 필요' : '운영 중'}</span></div>
+        <div class="panel-actions"><span class="pill ${pill}">${word}</span></div></header>
       <div class="panel-body">${problem ? `<p class="form-note">${problem}</p>` : ''}
         <dl class="summary-grid">${items.map(([label, value]) =>
           `<div class="summary-item"><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>
+        ${organizerRows(club)}
+        <form class="form console-inline-form" method="post" action="/console/clubs/${escape(club.slug)}/organizers">
+          <label class="form-field"><span>운영진 추가</span><input name="organizer" type="text" maxlength="60" autocomplete="off" placeholder="성함" required></label>
+          <button type="submit" class="btn btn-secondary">임시 번호 발급</button>
+        </form>
+        <div class="console-club-status">${suspended
+          ? postButton(status, '다시 열기', 'btn-secondary btn-small', '<input type="hidden" name="status" value="active">')
+          : confirmAction('모임 정지', status, '회원과 운영진 화면이 "이 모임은 지금 쉬고 있어요"로 바뀌어요. 기록은 지우지 않고, 다시 열면 그대로예요.', '정지하기', '<input type="hidden" name="status" value="suspended">')}</div>
       </div>
     </section>`;
 }
 
+// 해지 asks on its own page: a confirm step inside the table would push it sideways on a phone.
+async function removePage(env, slug, id) {
+  const row = await sql(env.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ? AND active = 1', id, slug).first();
+  if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
+  return `<main id="main-content" class="console-page" tabindex="-1">
+    ${pageHead(`${escape(row.name)}님을 해지할까요?`, '운영 화면 로그인이 바로 끊겨요. 다시 맡기려면 운영진 추가로 새 임시 번호를 발급해요.')}
+    <section class="panel"><div class="panel-body">
+      <form method="post" action="/console/clubs/${escape(slug)}/organizers/${id}/remove">
+        <div class="form-actions"><a class="btn btn-secondary" href="/console/#club-${escape(slug)}">취소</a><button type="submit" class="btn btn-primary">해지하기</button></div>
+      </form>
+    </div></section>
+  </main>`;
+}
+
 function clubList({ today, clubs }) {
   return `<main id="main-content" class="console-page" tabindex="-1">
-    <div class="page-head"><div><h1>모임</h1><p>모임마다 숫자만 보여요. 회원 명단과 응답은 열지 않아요.</p></div></div>
-    ${clubs.map(club => clubPanel(club, today)).join('\n    ')}
+    ${pageHead('모임', '모임마다 숫자와 운영진만 보여요. 회원 명단과 응답은 열지 않아요.',
+      `<a class="btn btn-primary btn-icon" href="/console/new" aria-label="새 모임" title="새 모임">${plus}</a>`)}
+    ${clubs.length ? clubs.map(club => clubPanel(club, today)).join('\n    ') : '<p class="form-note">아직 모임이 없어요. + 버튼으로 첫 모임을 만들어 주세요.</p>'}
+  </main>`;
+}
+
+function newClubForm(form = new URLSearchParams(), error = '') {
+  const value = name => escape(form.get(name) ?? '');
+  const input = (name, label, attrs, help = '', wide = false) => `<label class="form-field${wide ? ' form-field-full' : ''}"><span>${label}</span><input name="${name}" type="text" value="${value(name)}" ${attrs}>${help ? `<small class="form-note">${help}</small>` : ''}</label>`;
+  return `<main id="main-content" class="console-page" tabindex="-1">
+    ${pageHead('새 모임', '만들면 배포 없이 바로 주소가 열리고, 첫 운영진의 임시 번호가 한 번 보여요.')}
+    <section class="panel"><div class="panel-body">
+      <form class="form" method="post" action="/console/clubs">
+        ${error ? `<p class="inline-error" role="alert">${escape(error)}</p>` : ''}
+        <div class="form-grid">
+          ${input('slug', '모임 주소', 'required maxlength="40" autocapitalize="off" spellcheck="false" pattern="[a-z0-9]+(-[a-z0-9]+)*" inputmode="url"', '/clubs/ 뒤에 붙는 영문 소문자·숫자·하이픈(-). 카톡 링크에 들어가니 만든 뒤에는 바꾸지 않아요.', true)}
+          ${input('name', '모임 이름', 'required maxlength="30"')}
+          ${input('subtitle', '부제 (선택)', 'maxlength="60"')}
+          ${input('schedule', '운동 요일 (선택)', 'maxlength="20"')}
+          ${input('place', '기본 장소 (선택)', 'maxlength="60"')}
+          ${input('organizer', '첫 운영진 성함', 'required maxlength="60" autocomplete="off"', '이 이름과 임시 번호로 운영 화면에 처음 들어가요.', true)}
+        </div>
+        <div class="form-actions"><a class="btn btn-secondary" href="/console/">취소</a><button type="submit" class="btn btn-primary">모임 만들기</button></div>
+      </form>
+    </div></section>
+  </main>`;
+}
+
+function issuedPage(url, { title, club, organizer, pin }) {
+  const admin = `${url.origin}/clubs/${club.slug}/admin/`;
+  const message = `[콕콕콕!] ${club.name} 운영진 로그인\n주소: ${admin}\n성함: ${organizer}\n임시 번호: ${pin}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`;
+  return `<main id="main-content" class="console-page" tabindex="-1">
+    ${pageHead(title, '임시 번호는 이 화면에서만 보여요. 닫기 전에 운영진에게 개인 메시지로 보내 주세요.')}
+    <section class="panel" aria-labelledby="issued-title">
+      <header class="panel-head"><div><h2 id="issued-title">${escape(club.name)}</h2>
+        <p><a href="/clubs/${escape(club.slug)}/admin/">/clubs/${escape(club.slug)}/admin/</a></p></div></header>
+      <div class="panel-body">
+        <dl class="summary-grid console-issued"><div class="summary-item"><dt>운영진</dt><dd>${escape(organizer)}</dd></div>
+          <div class="summary-item"><dt>임시 번호</dt><dd>${pin}</dd></div></dl>
+        <label class="form-field form-field-full"><span>보낼 문구</span><textarea class="copy-text" rows="5" readonly>${escape(message)}</textarea></label>
+        <p class="form-note">받은 사람이 이 번호로 처음 로그인하면 운영 화면보다 먼저 번호 바꾸기가 열려요.</p>
+        <div class="form-actions"><a class="btn btn-primary" href="/console/#club-${escape(club.slug)}">모임 목록으로</a></div>
+      </div>
+    </section>
   </main>`;
 }
 
@@ -184,9 +405,9 @@ function loginForm(id = '', error = '') {
   </div></main>`;
 }
 
-function notice(title, body) {
+function notice(title, body, link = '') {
   return `<main id="main-content" class="public-share-page" tabindex="-1"><div class="public-share-card"><h1>${escape(title)}</h1>
-    <p class="public-share-body">${escape(body)}</p></div></main>`;
+    <p class="public-share-body">${escape(body)}</p>${link}</div></main>`;
 }
 
 function page(style, main, signedInNow = false) {
@@ -227,37 +448,54 @@ async function stylesheet(env, url) {
   return (await shell.text()).match(/href="(\/club-ui\/[a-f0-9]{20}\/live\.css)"/)?.[1] ?? null;
 }
 
+const back = '<div class="form-actions message-actions"><a class="btn btn-secondary" href="/console/">모임 목록으로</a></div>';
+
 // Returns { status, html, allow? } or a redirect { status, location, cookie? }; worker/index.mjs adds the headers.
-export async function consolePage(request, env, url, clubs) {
-  if (url.pathname === '/console') return { status: 308, location: new URL('/console/', url.origin).href };
-  const route = { '/console/': 'home', '/console/login': 'login', '/console/logout': 'logout' }[url.pathname];
+// legacy: clubs from before the console and their secret names (scope.mjs).
+export async function consolePage(request, env, url, legacy) {
+  const path = url.pathname;
+  if (path === '/console') return { status: 308, location: new URL('/console/', url.origin).href };
+  const action = clubAction.exec(path);
+  const route = { '/console/': 'home', '/console/new': 'new', '/console/login': 'login', '/console/logout': 'logout',
+    '/console/clubs': 'create' }[path] ?? (action ? 'club' : null);
   const style = await stylesheet(env, url);
   if (!style) {
     return { status: 503, html: '<!doctype html><html lang="ko"><meta charset="utf-8"><title>총괄 · 콕콕콕!</title><p>화면을 불러올 수 없어요.</p></html>' };
   }
   if (!route) return { status: 404, html: page(style, notice('페이지를 찾을 수 없어요', '주소를 확인해 주세요.')) };
+  const reads = route === 'home' || route === 'new' || (route === 'club' && action[4] === 'remove' && request.method !== 'POST');
   const reading = request.method === 'GET' || request.method === 'HEAD';
-  if (route === 'home' ? !reading : request.method !== 'POST') {
-    return { status: 405, allow: route === 'home' ? 'GET, HEAD' : 'POST', html: page(style, notice('지원하지 않는 요청이에요', '총괄 화면에서 다시 시도해 주세요.')) };
+  if (reads ? !reading : request.method !== 'POST') {
+    return { status: 405, allow: reads ? 'GET, HEAD' : 'POST', html: page(style, notice('지원하지 않는 요청이에요', '총괄 화면에서 다시 시도해 주세요.')) };
   }
   const config = settings(env);
   if (!config) return { status: 503, html: page(style, notice('총괄 로그인을 준비 중이에요', '설정이 끝나면 이 주소에서 로그인할 수 있어요.')) };
+  let form = null;
   try {
-    if (route === 'home') {
-      return await signedIn(request, env, url, config)
-        ? { status: 200, html: page(style, clubList(await clubNumbers(env, clubs)), true) }
-        : { status: 200, html: page(style, loginForm()) };
+    if (!reads) form = await readForm(request, url);
+    if (route === 'login') {
+      const result = await login(request, env, url, config, form);
+      return result.location ? result : { status: result.status, html: page(style, loginForm(result.id, result.error)) };
     }
     if (route === 'logout') return await logout(request, env, url);
-    const result = await login(request, env, url, config);
-    return result.location ? result : { status: result.status, html: page(style, loginForm(result.id, result.error)) };
+    if (!await signedIn(request, env, url, config)) return { status: reads ? 200 : 401, html: page(style, loginForm()) };
+    if (route === 'home') return { status: 200, html: page(style, clubList(await overview(env, legacy)), true) };
+    if (route === 'new') return { status: 200, html: page(style, newClubForm(), true) };
+    if (route === 'club' && reads) return { status: 200, html: page(style, await removePage(env, action[1], action[3]), true) };
+    if (route === 'create') return { status: 201, html: page(style, issuedPage(url, await createClub(env, legacy, form)), true) };
+    const [, slug, kind, organizerId, verb] = action;
+    if (kind === 'status') await setStatus(env, slug, form);
+    else if (!organizerId) return { status: 201, html: page(style, issuedPage(url, await addOrganizer(env, legacy, slug, form)), true) };
+    else if (verb === 'reset') return { status: 200, html: page(style, issuedPage(url, await resetOrganizer(env, legacy, slug, organizerId)), true) };
+    else await removeOrganizer(env, slug, organizerId);
+    return { status: 303, location: new URL(`/console/#club-${slug}`, url.origin).href };
   } catch (error) {
     // Never print request bodies or credentials; ApiError messages are written for the operator.
     const known = error instanceof ApiError;
-    return {
-      status: known ? error.status : 500,
-      html: page(style, route === 'login' ? loginForm('', known ? error.message : '처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요.')
-        : notice('처리하지 못했어요', known ? error.message : '잠시 뒤에 다시 시도해 주세요.'))
-    };
+    const message = known ? error.message : '처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요.';
+    const status = known ? error.status : 500;
+    if (route === 'login') return { status, html: page(style, loginForm('', message)) };
+    if (route === 'create' && known && form) return { status, html: page(style, newClubForm(form, message), true) };
+    return { status, html: page(style, notice('처리하지 못했어요', message, back), route !== 'logout') };
   }
 }

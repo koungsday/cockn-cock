@@ -3,7 +3,7 @@ import {
   esc, eventDefaults, eventForm, eventScreen, homeSteps, homeTodo,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen,
-  noticesScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
+  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 
@@ -222,6 +222,8 @@ async function loadProgress(period = state.period) {
 
 async function load() {
   if (state.user?.role !== authRole) return;
+  // A temporary number from the console opens only 내 번호 정하기 (the API refuses the rest until then).
+  if (state.user.role === 'admin' && state.user.mustChange) return;
   if (route.kind === 'vote') {
     ({ event: state.event } = await request(`/api/public/vote/${id(route.id)}`));
     state.vote = null;
@@ -267,9 +269,12 @@ function render({ voteSaved = false, motion = '' } = {}) {
   const search = main.querySelector('input[data-filter]');
   renderAccount();
   const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
-  main.classList.toggle('narrow', !isAdmin);
+  const pinFirst = isAdmin && state.user.mustChange;
+  main.classList.toggle('narrow', !isAdmin || pinFirst);
   if (!state.user) {
     main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep);
+  } else if (pinFirst) {
+    main.innerHTML = organizerPinScreen(club, state.user);
   } else if (route.kind === 'vote') {
     main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved);
   } else if (route.kind === 'notice') {
@@ -283,7 +288,7 @@ function render({ voteSaved = false, motion = '' } = {}) {
     else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
     else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress);
     else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
-    main.innerHTML = adminShell(state.section, body, club);
+    main.innerHTML = adminShell(state.section, body, club, state.user);
     for (const memberId of checking) {
       const pendingButton = checkButton(memberId);
       if (pendingButton) {
@@ -405,7 +410,7 @@ function openAdminMenu() {
   showDialog(`<button type="button" class="icon-button menu-toggle" data-action="close" aria-label="메뉴 닫기">${menuIcon}</button>
     <div class="menu-panel"><header class="mobile-nav-header">${brand(club)}</header>
     <div class="mobile-nav-links"><h2 id="dialog-title" class="sr-only">운영 메뉴</h2>${adminMenu(state.section)}
-      <div class="mobile-nav-account">${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div></div>`,
+      <div class="mobile-nav-account">${button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: 'text small' })}${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div></div>`,
   'mobile-navigation admin-menu-dialog', '[aria-current="page"]');
 }
 
@@ -618,7 +623,7 @@ async function doAction(action, itemId, tab) {
       showMessage('로그아웃했어요.');
       break;
     case 'pin':
-      openDialog('PIN 설정·변경', pinForm());
+      openDialog(authRole === 'admin' ? '번호 바꾸기' : 'PIN 설정·변경', pinForm({ organizer: authRole === 'admin' }));
       break;
     case 'admin-menu':
       openAdminMenu();
@@ -767,10 +772,17 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'pin': {
+      const organizer = authRole === 'admin';
       const newPin = read(data, 'newPin');
-      if (newPin !== read(data, 'confirmPin')) throw new Error('새 PIN이 서로 달라요. 다시 확인해 주세요.');
-      ({ user: state.user } = await request('/api/pin', 'POST', { currentPin: raw(data, 'currentPin'), newPin }));
-      await showSaved(state.user ? 'PIN을 저장했어요.' : 'PIN을 저장했어요. 새 PIN으로 다시 로그인해 주세요.');
+      if (newPin !== read(data, 'confirmPin')) throw new Error(`새 ${organizer ? '번호' : 'PIN'}이 서로 달라요. 다시 확인해 주세요.`);
+      const firstPin = organizer && state.user?.mustChange;
+      ({ user: state.user } = await request(organizer ? '/api/admin/pin' : '/api/pin', 'POST', { currentPin: raw(data, 'currentPin'), newPin }));
+      if (firstPin) {
+        await openSignedInPage();
+        showMessage('내 번호를 저장했어요. 다음부터 이 번호로 로그인해요.');
+        break;
+      }
+      await showSaved(organizer ? '번호를 저장했어요.' : state.user ? 'PIN을 저장했어요.' : 'PIN을 저장했어요. 새 PIN으로 다시 로그인해 주세요.');
       break;
     }
     case 'vote':

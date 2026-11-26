@@ -124,6 +124,16 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 .recent-club { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; padding-top: clamp(1.1rem, 3vw, 1.6rem); color: var(--muted); font-size: .92rem; font-weight: 700; }
 .recent-club[hidden] { display: none; }
 
+/* 로그인 (PLATFORM.md): the club address opens that club's login; the 총괄 link opens the console. Inputs as DESIGN.md 3. */
+.entry-panel { display: grid; gap: 1rem; }
+.entry-panel .recent-club { padding-top: 0; }
+.club-entry { display: grid; gap: .45rem; }
+.club-entry label { font-weight: 750; }
+.club-entry-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+.club-entry input { flex: 1 1 12rem; min-width: 0; min-height: var(--touch-target); padding: .5rem .75rem; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+.club-entry-row .try-link { justify-content: center; }
+.console-entry a { display: inline-flex; align-items: center; min-height: var(--touch-target); text-decoration: underline; }
+
 /* Intro home (DESIGN.md: white panels on --paper, no cards inside cards, one accent-red in the hero). */
 .intro-section { padding-top: clamp(2.2rem, 5vw, 3.4rem); }
 .intro-lead { margin: -.35rem 0 1rem; color: var(--muted); font-size: .98rem; word-break: keep-all; }

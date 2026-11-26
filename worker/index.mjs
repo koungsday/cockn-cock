@@ -2,10 +2,8 @@ import { renderCatalog } from '../platform/catalog.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 import { handleApi } from './api.mjs';
 import { consolePage } from './console.mjs';
-import { isAdminId, isSixDigitPin } from './auth.mjs';
+import { findClub, legacyIndex, scopeEnv, slugPattern } from './scope.mjs';
 
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const bindingPattern = /^[A-Z][A-Z0-9_]*$/;
 const clubPath = /^\/clubs\/([a-z0-9][a-z0-9-]{0,63})(\/.*)?$/;
 const sharePath = /^\/(vote|notice)\/([a-zA-Z0-9_-]{1,100})\/?$/;
 const apiPath = /^\/(?:clubs\/[^/]+\/)?api(?:\/|$)/;
@@ -74,8 +72,8 @@ function htmlResponse(request, html, {
   return new Response(request.method === 'HEAD' ? null : html, { status, headers: pageHeaders(headers, cacheControl) });
 }
 
-function errorPage(request, status, title) {
-  return htmlResponse(request, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(title)} · ${escape(PLATFORM_NAME)}</title><body><main><h1>${escape(title)}</h1><p><a href="/">등록 모임 보기</a></p></main></body></html>`, { status });
+function errorPage(request, status, title, detail = '') {
+  return htmlResponse(request, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escape(title)} · ${escape(PLATFORM_NAME)}</title><body><main><h1>${escape(title)}</h1>${detail ? `<p>${escape(detail)}</p>` : ''}<p><a href="/#login">${escape(PLATFORM_NAME)} 홈으로</a></p></main></body></html>`, { status });
 }
 
 function apiError(request, status, error) {
@@ -89,50 +87,6 @@ function canView(request) {
 
 function methodNotAllowed() {
   return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
-}
-
-function registryIndex(clubs) {
-  const bySlug = new Map();
-  const bindings = new Set();
-  for (const club of clubs) {
-    if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
-      throw new Error('Each registered club must have a unique slug.');
-    }
-    const keys = [club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
-    for (const key of keys) {
-      if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
-        throw new Error('Each registered club must use distinct secret bindings.');
-      }
-      bindings.add(key);
-    }
-    bySlug.set(club.slug, club);
-  }
-  return bySlug;
-}
-
-// Every club shares the one D1 (PLATFORM.md). CLUB_SCOPE is the club's id there (its slug), and every query is limited to it.
-function scopeEnv(club, clubs, env) {
-  const db = env.DB;
-  const adminId = env[club.adminIdBinding];
-  const adminPin = env[club.adminPinBinding];
-  const authPepper = env[club.authPepperBinding];
-  if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function' ||
-      !isAdminId(adminId) || !isSixDigitPin(adminPin) ||
-      typeof authPepper !== 'string' || authPepper.length < 32) return null;
-
-  for (const other of clubs) {
-    if (other.slug === club.slug) continue;
-    if (env[other.adminPinBinding] === adminPin || env[other.authPepperBinding] === authPepper) {
-      return null;
-    }
-  }
-  return {
-    DB: db,
-    CLUB_ADMIN_ID: adminId,
-    CLUB_ADMIN_PIN: adminPin,
-    CLUB_AUTH_PEPPER: authPepper,
-    CLUB_SCOPE: club.slug
-  };
 }
 
 function adminManifest(request, club) {
@@ -178,8 +132,9 @@ async function clubPage(request, env, url, club, share, admin) {
   return response;
 }
 
-export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
-  const bySlug = registryIndex(clubs);
+// legacyClubs: clubs from before the console and the secret names they keep using (platform/clubs.mjs).
+export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
+  const oldClubs = legacyIndex(legacyClubs);
   return {
     async fetch(request, env) {
       const url = new URL(request.url);
@@ -193,8 +148,7 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       }
       if (path === '/console' || path.startsWith('/console/')) {
         // 총괄 콘솔 (PLATFORM.md). Not linked from any public page; noindex and never cached.
-        const result = await consolePage(request, env, url,
-          clubs.map(club => ({ ...club, ready: Boolean(scopeEnv(club, clubs, env)) })));
+        const result = await consolePage(request, env, url, oldClubs);
         const headers = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' };
         if (result.location) {
           return new Response(null, { status: result.status, headers: {
@@ -210,6 +164,18 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
         if (result.cookie) response.headers.append('Set-Cookie', result.cookie);
         return response;
       }
+      // The intro home's 로그인 form, and the lasting club entry: /go?club=<주소> or /go/<주소> opens that club.
+      if (path === '/go' || path.startsWith('/go/')) {
+        if (!canView(request)) return methodNotAllowed();
+        let typed = url.searchParams.get('club') ?? '';
+        if (path !== '/go') {
+          try { typed = decodeURIComponent(path.slice(4)); } catch { typed = ''; }
+        }
+        const slug = typed.trim().replace(/^\/+|\/+$/g, '').replace(/^clubs\//, '').toLowerCase();
+        const club = slug.length <= 64 && slugPattern.test(slug) ? await findClub(env, slug) : null;
+        if (club?.status === 'active') return Response.redirect(new URL(`/clubs/${slug}/`, url.origin), 303);
+        return errorPage(request, 404, '모임 주소를 찾을 수 없어요', '카톡으로 받은 링크에서 /clubs/ 뒤의 영문 주소를 다시 확인해 주세요.');
+      }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();
         // The root is the 콕콕콕! intro home with no club list (PLATFORM.md); members and organisers use their club's link.
@@ -221,7 +187,7 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       if (path === '/api' || path.startsWith('/api/')) return apiError(request, 404, 'API 주소를 찾을 수 없어요.');
 
       const legacy = sharePath.exec(path);
-      if (legacy && bySlug.has(legacyClub)) {
+      if (legacy && oldClubs.has(legacyClub)) {
         if (!canView(request)) return methodNotAllowed();
         url.pathname = `/clubs/${legacyClub}/${legacy[1]}/${legacy[2]}`;
         return Response.redirect(url, 308);
@@ -234,12 +200,20 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       }
 
       const [, slug, remainder = ''] = matched;
-      const club = bySlug.get(slug);
       const isApi = remainder === '/api' || remainder.startsWith('/api/');
+      const club = slugPattern.test(slug) ? await findClub(env, slug) : null;
+      if (club === undefined) {
+        return isApi ? apiError(request, 503, '모임 운영 설정을 확인해 주세요.') : errorPage(request, 503, '모임을 준비 중이에요');
+      }
       if (!club) {
         return isApi ? apiError(request, 404, '모임을 찾을 수 없어요.') : errorPage(request, 404, '모임을 찾을 수 없어요');
       }
-      const scoped = scopeEnv(club, clubs, env);
+      // A club the 총괄 paused keeps its records; its pages and API only say so (PLATFORM.md 모임 발급).
+      if (club.status !== 'active') {
+        return isApi ? apiError(request, 403, '이 모임은 지금 쉬고 있어요. 총괄 관리자에게 문의해 주세요.')
+          : errorPage(request, 403, '이 모임은 지금 쉬고 있어요', '총괄 관리자에게 문의해 주세요.');
+      }
+      const scoped = await scopeEnv(club, oldClubs, env);
       if (!scoped) {
         return isApi ? apiError(request, 503, '모임 운영 설정을 확인해 주세요.') : errorPage(request, 503, '모임을 준비 중이에요');
       }

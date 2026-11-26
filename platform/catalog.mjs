@@ -57,6 +57,24 @@ export function renderCatalog({ basePath, mode, demo = null }) {
   const isDemo = mode === 'demo';
   const root = escape(base);
   const brand = escape(PLATFORM_NAME);
+  const recent = `<p id="recent-club" class="recent-club" data-base="${root}" hidden><span>최근 들어간 모임</span><a class="try-link try-link-primary" href="${root}"></a></p>`;
+  // 로그인 (PLATFORM.md): there is no club list, so the live home asks for the club's address and opens its own login.
+  const entry = isDemo ? recent : `
+    <section id="login" class="intro-section" aria-labelledby="login-title">
+      <h2 id="login-title">로그인</h2>
+      <div class="intro-panel entry-panel">
+        ${recent}
+        <form class="club-entry" action="${root}go" method="get">
+          <label for="club-address">모임 주소</label>
+          <div class="club-entry-row">
+            <input id="club-address" name="club" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" maxlength="64" placeholder="영문 주소" required>
+            <button class="try-link try-link-primary" type="submit">들어가기</button>
+          </div>
+          <p class="intro-note">카톡으로 받은 모임 링크에서 /clubs/ 뒤의 영문이에요. 회원과 운영진 모두 여기서 들어가요.</p>
+        </form>
+        <p class="intro-note console-entry"><a href="${root}console/">총괄 관리자 로그인</a></p>
+      </div>
+    </section>`;
   const tryLinks = isDemo && demo ? `
     <section id="try" class="intro-section" aria-labelledby="try-title">
       <h2 id="try-title">가상 데이터로 먼저 둘러보세요</h2>
@@ -94,7 +112,7 @@ export function renderCatalog({ basePath, mode, demo = null }) {
   <header class="site-header">
     <div class="page-width header-inner">
       <a class="site-brand" href="${root}"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
-      ${isDemo ? '<span class="demo-label">가상 데이터 체험</span>' : ''}
+      ${isDemo ? '<span class="demo-label">가상 데이터 체험</span>' : '<a class="header-link" href="#login">로그인</a>'}
     </div>
   </header>
   <main id="content" class="page-width">
@@ -105,7 +123,7 @@ export function renderCatalog({ basePath, mode, demo = null }) {
         <p>카톡 단체방과 엑셀, 손으로 하던 집계를 링크 하나로 이어요.</p>
       </div>
     </section>
-    <p id="recent-club" class="recent-club" data-base="${root}" hidden><span>최근 들어간 모임</span><a class="try-link try-link-primary" href="${root}"></a></p>
+    ${entry}
     <section id="flow" class="intro-section" aria-labelledby="flow-title">
       <h2 id="flow-title">한 회차가 이렇게 이어져요</h2>
       <p class="intro-lead">단체방 공지부터 반기 집계까지 같은 화면에서 이어서 기록해요.</p>

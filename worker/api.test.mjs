@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { handleApi } from './api.mjs';
+import { createHash } from 'node:crypto';
 import { credentialHash } from './auth.mjs';
 
 const migrationFolder = new URL('./migrations/', import.meta.url);
@@ -278,12 +279,16 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   await memberClient.request('/api/logout', {method:'POST', body:{}, headerCookie:both});
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
 
-  env.CLUB_ADMIN_ID = 'rotated-fixture-operator';
-  assert.equal((await admin.request('/api/admin/session')).user, null);
-  await admin.adminLogin({id:env.CLUB_ADMIN_ID});
-  env.CLUB_ADMIN_PIN = '316794';
-  assert.equal((await admin.request('/api/admin/session')).user, null);
-  await admin.adminLogin({id:env.CLUB_ADMIN_ID, pin:env.CLUB_ADMIN_PIN});
+  // The organiser now has a D1 account (PLATFORM.md 인증): their own PIN change ends the old PIN and other sessions,
+  // and the Worker secrets that seeded the account sign no one in any more.
+  const otherBrowser = client('203.0.113.12');
+  await otherBrowser.adminLogin();
+  const changed = await admin.request('/api/admin/pin', {method:'POST', body:{currentPin:adminPin, newPin:'316794'}});
+  assert.deepEqual(changed.user, {id:changed.user.id, name:adminId, role:'admin', mustChange:false});
+  assert.equal((await otherBrowser.request('/api/admin/session')).user, null);
+  await client('203.0.113.13').adminLogin({expect:401});
+  assert.equal(env.CLUB_ADMIN_PIN, adminPin);
+  await admin.adminLogin({pin:'316794'});
   const expiredCookie = admin.cookie;
   await DB.prepare("UPDATE sessions SET expires_at = unixepoch() WHERE role='admin'").run();
   await admin.request('/api/admin', {headerCookie:expiredCookie, expect:401});
@@ -316,9 +321,9 @@ test('member changes cannot create the same login as the administrator', async t
   const {member: alias} = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:'가상 관리자와 같은 번호', birthday:'19580724'}
   });
-  await admin.request('/api/admin/members/' + alias.id, {
-    method:'PATCH', expect:409, body:{name:adminId}
-  });
+  // Organiser PINs are hashed, so a rename cannot be compared with them; the shared pair is refused at sign-in.
+  await admin.request('/api/admin/members/' + alias.id, {method:'PATCH', body:{name:adminId}});
+  await client('203.0.113.14').login(adminId, env.CLUB_ADMIN_PIN, 401);
   const {member: sameName} = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:adminId, birthday:'780925'}
   });
@@ -337,7 +342,7 @@ test('member changes cannot create the same login as the administrator', async t
   assert.equal((await member.login(adminId, reset)).user.id, sameName.id);
 });
 
-test('rotating an administrator PIN to a member credential grants neither role', async t => {
+test('an organiser cannot take a same-named member credential, and secrets stop counting once the account moved', async t => {
   const { DB, client, env } = setup(t);
   const operator = client();
   await operator.adminLogin();
@@ -346,19 +351,16 @@ test('rotating an administrator PIN to a member credential grants neither role',
   });
   const memberPin = '780925';
   assert.equal((await client().login(adminId, memberPin)).user.id, member.id);
+  await operator.request('/api/admin/pin', {method:'POST', expect:409, body:{currentPin:adminPin, newPin:memberPin}});
 
   env.CLUB_ADMIN_PIN = memberPin;
+  assert.equal((await operator.request('/api/admin/session')).user.role, 'admin');
+  assert.equal((await client('203.0.113.15').login(adminId, memberPin)).user.role, 'member');
+  await DB.prepare('UPDATE organizers SET active = 0').run();
+  await client('203.0.113.16').adminLogin({pin:memberPin, expect:200}).then(({user}) => assert.equal(user.role, 'member'));
+  await client('203.0.113.17').adminLogin({expect:401});
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM organizers').first()).count, 1, 'a retired organiser is not recreated from the secrets');
   await operator.request('/api/admin', {expect:401});
-  const newBrowser = client();
-  await newBrowser.login(adminId, memberPin, 401);
-  assert.equal(newBrowser.cookie, '');
-  await DB.prepare('UPDATE members SET active = 0 WHERE id = ?').bind(member.id).run();
-  await newBrowser.login(adminId, memberPin, 401);
-  assert.equal(newBrowser.cookie, '');
-
-  env.CLUB_ADMIN_PIN = '316794';
-  assert.equal((await newBrowser.adminLogin({pin:env.CLUB_ADMIN_PIN})).user.role, 'admin');
-  await newBrowser.request('/api/admin');
 });
 
 test('administrator PIN attempts share a limit across source addresses', async t => {
@@ -378,6 +380,21 @@ test('administrator PIN attempts share a limit across source addresses', async t
   assert.equal((await operator.request('/api/admin/session')).user.role, 'admin');
   t.mock.timers.tick(15 * 60 * 1000);
   assert.equal((await newBrowser.adminLogin()).user.role, 'admin');
+});
+
+test('an admin session from before organiser accounts signs in again and then moves the account once', async t => {
+  const { DB, client, env } = setup(t);
+  const token = 'a'.repeat(64);
+  const hash = createHash('sha256').update('session\0admin\0' + env.CLUB_AUTH_PEPPER + '\0' + token).digest('hex');
+  await DB.prepare(`INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
+    VALUES (?, 'suncok19', 'admin', NULL, 'before-organizers', unixepoch() + 3600)`).bind(hash).run();
+  const browser = client();
+  assert.equal((await browser.request('/api/admin/session', {headerCookie:'__Host-suncok19-admin=' + token})).user, null);
+  await browser.request('/api/admin', {headerCookie:'__Host-suncok19-admin=' + token, expect:401});
+  assert.equal((await browser.adminLogin()).user.name, adminId);
+  await client('203.0.113.18').adminLogin();
+  const rows = await DB.prepare('SELECT name, must_change FROM organizers').all();
+  assert.deepEqual(rows.results.map(row => ({...row})), [{name:adminId, must_change:0}], 'one account, no forced change for a known PIN');
 });
 
 test('six-digit birthday enrollments preserve full entry and block duplicates of legacy birthdays', async t => {
