@@ -30,7 +30,8 @@ export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
   const root = escape(base);
   const brand = escape(PLATFORM_NAME);
   const name = escape(club.name);
-  const admin = base + 'clubs/' + encodeURIComponent(club.slug) + '/admin/';
+  const home = base + 'clubs/' + encodeURIComponent(club.slug) + '/';
+  const admin = home + 'admin/';
   const route = (kind, id) => escape(`${admin}#public-${kind}/${encodeURIComponent(id)}`);
   const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${route('notice', notice.id)}">
           <span><strong>${escape(notice.title)}</strong><time class="member-record-meta" datetime="${escape(notice.date)}">${escape(dateLabel(notice.date))}</time></span>
@@ -54,7 +55,7 @@ export function renderDemoClub({ club, basePath, vote, notices, dateLabel }) {
   <a class="skip-link" href="#main-content">본문 바로가기</a>
   <header class="site-header">
     <div class="page-width header-inner">
-      <a class="site-brand" href="${root}" aria-label="${brand} 소개 홈"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
+      <a class="site-brand" href="${escape(home)}" aria-label="${name} 모임 홈"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
       <a class="header-link" href="${escape(admin)}">운영 화면 체험</a>
     </div>
   </header>

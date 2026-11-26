@@ -10,6 +10,7 @@ import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
 const clubLink = document.querySelector('#club-home');
+const brandLink = document.querySelector('.site-header .brand');
 const loginMenu = document.querySelector('#login-menu');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
@@ -1198,6 +1199,9 @@ if (route && club.name) {
   showLoading();
   document.title = clubTitle;
   clubLink.href = club.home;
+  // The logo opens this club's first screen, as the organisers' sidebar logo does: never the intro home (DESIGN.md 로고).
+  brandLink.href = authRole === 'admin' ? club.admin : club.home;
+  brandLink.setAttribute('aria-label', `${club.name} ${authRole === 'admin' ? '운영 홈' : '모임 홈'}`);
   document.querySelector('#club-name').textContent = club.name;
   document.querySelector('#club-subtitle').textContent = club.subtitle;
   window.addEventListener('pagehide', clearProtectedView);

@@ -159,7 +159,7 @@ async function createClub(env, legacy, form) {
   const club = {
     slug, name: field(form, 'name', '모임 이름', 30),
     subtitle: field(form, 'subtitle', '부제', 60, { required: false }),
-    schedule: field(form, 'schedule', '운동 요일', 20, { required: false }),
+    schedule: field(form, 'schedule', '모임 요일', 20, { required: false }),
     defaultPlace: field(form, 'place', '기본 장소', 60, { required: false })
   };
   const organizer = field(form, 'organizer', '첫 운영진 성함', 60);
@@ -356,7 +356,7 @@ function newClubForm(form = new URLSearchParams(), error = '') {
           ${input('slug', '모임 주소', 'required maxlength="40" autocapitalize="off" spellcheck="false" pattern="[a-z0-9]+(-[a-z0-9]+)*" inputmode="url"', '/clubs/ 뒤에 붙는 영문 소문자·숫자·하이픈(-). 카톡 링크에 들어가니 만든 뒤에는 바꾸지 않아요.', true)}
           ${input('name', '모임 이름', 'required maxlength="30"')}
           ${input('subtitle', '부제 (선택)', 'maxlength="60"')}
-          ${input('schedule', '운동 요일 (선택)', 'maxlength="20"')}
+          ${input('schedule', '모임 요일 (선택)', 'maxlength="20"')}
           ${input('place', '기본 장소 (선택)', 'maxlength="60"')}
           ${input('organizer', '첫 운영진 성함', 'required maxlength="60" autocomplete="off"', '이 이름과 임시 번호로 운영 화면에 처음 들어가요.', true)}
         </div>
@@ -425,7 +425,7 @@ function page(style, main, signedInNow = false) {
   <header class="site-header">
     <div class="header-inner">
       <nav class="club-navigation" aria-label="서비스">
-        <a href="/" class="brand" aria-label="콕콕콕! 소개 홈">
+        <a href="/console/" class="brand" aria-label="총괄 콘솔 첫 화면">
           <img class="brand-mark" src="/assets/shuttlecock-icon-96.png" width="42" height="42" alt="">
         </a>
         <a class="current-club" href="/console/"><strong>총괄</strong><small>콕콕콕!</small></a>

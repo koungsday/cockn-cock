@@ -199,7 +199,7 @@ function serializeVote(row) {
 }
 
 function validateVote(body, allowClear = false, allowed = slots) {
-  if (!allowed.includes(body.slot) && !(allowClear && body.slot === null)) bad('운동 참석 선택을 확인해 주세요.');
+  if (!allowed.includes(body.slot) && !(allowClear && body.slot === null)) bad('참석 선택을 확인해 주세요.');
   const lunch = boolean(body.lunch, '점심 선택');
   if (body.slot === null && lunch) bad('응답을 지울 때는 점심 선택도 해제해 주세요.');
   return { slot: body.slot, lunch };
@@ -208,7 +208,7 @@ function validateVote(body, allowClear = false, allowed = slots) {
 function validateEvent(input) {
   const fields = {
     title: text(input.title, '일정 제목', 120),
-    date: dateOrThrow(input.date, '운동 날짜'),
+    date: dateOrThrow(input.date, '날짜'),
     time: timeOrThrow(input.time, '시작 시간'),
     endTime: timeOrThrow(input.endTime, '종료 시간'),
     place: text(input.place, '장소', 120),
@@ -220,9 +220,9 @@ function validateEvent(input) {
     published: boolean(input.published ?? false, '공개 상태')
   };
   if (fields.endTime <= fields.time || fields.lateTime <= fields.earlyTime) {
-    bad('운동 시간과 선발·후발 순서를 확인해 주세요.');
+    bad('시간과 선발·후발 순서를 확인해 주세요.');
   }
-  if (fields.deadline > fields.date + 'T' + fields.time) bad('투표 마감 시간은 운동 시작보다 늦을 수 없어요.');
+  if (fields.deadline > fields.date + 'T' + fields.time) bad('투표 마감 시간은 시작 시간보다 늦을 수 없어요.');
   return fields;
 }
 
@@ -594,7 +594,7 @@ async function setSettlement(db, club, id, body) {
   ];
   const event = await fetchEvent(db, club, id);
   const today = kstToday();
-  if (body.confirmed && event.date > today) bad('운동 날짜가 되면 마무리를 확정할 수 있어요.');
+  if (body.confirmed && event.date > today) bad('일정 당일이 되면 마무리를 확정할 수 있어요.');
   const statements = [sql(db, `
     INSERT INTO settlements (event_id, prior_singles, prior_tubes, remaining_singles, court_donation, confirmed)
     SELECT id, ?, ?, ?, ?, ? FROM events WHERE id = ? AND club_id = ? AND (? = 0 OR date <= ?)

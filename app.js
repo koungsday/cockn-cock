@@ -246,7 +246,7 @@
       <div class="dashboard-grid dashboard-bottom">${renderTodo(upcoming, last)}${renderLast(last)}</div>
       <div class="dashboard-metrics" aria-label="모임 요약">
         ${metric('members','users','mint','활동 회원',state.members.filter(member => member.status === 'active').length,'명')}
-        ${metric('stats','calendar','sand','11월 운동',monthly.sessions,'회')}
+        ${metric('stats','calendar','sand','11월 일정',monthly.sessions,'회')}
         ${metric('stats','chart','lavender','11월 출석률',monthly.sessions ? monthly.rate : '–',monthly.sessions ? '%' : '')}
       </div>
       <div class="dashboard-bottom">
@@ -587,7 +587,7 @@
     let message;
     let target;
     if (type === 'event') {
-      if (value('deadline') && value('deadline') > value('date')) return fieldError(form,'deadline','투표 마감은 운동 날짜 이전으로 정해 주세요.');
+      if (value('deadline') && value('deadline') > value('date')) return fieldError(form,'deadline','투표 마감은 일정 날짜 이전으로 정해 주세요.');
       let event = state.events.find(item => item.id === id);
       if (event?.finalized && value('date') > today) return fieldError(form,'date','출석을 확정한 모임은 미래 날짜로 옮길 수 없어요.');
       if (!event) {

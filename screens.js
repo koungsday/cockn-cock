@@ -86,7 +86,7 @@
       }
 
       const columns = ['일시', '일정', '상태', '참석 응답', '<span class="sr-only">일정 열기</span>'];
-      return heading('일정·참석 투표', '예정된 운동과 지난 출석 기록을 확인하세요.', addButton('새 일정', 'open-event'))
+      return heading('일정·참석 투표', '예정된 일정과 지난 출석 기록을 확인하세요.', addButton('새 일정', 'open-event'))
         + panel('예정된 일정', upcoming.length ? table(columns, rows(upcoming)) : empty('예정된 일정이 없어요.'))
         + panel('지난 일정', past.length ? table(columns, rows(past)) : empty('지난 일정이 없어요.'));
     }
@@ -117,8 +117,8 @@
           [`${e(event.earlyTime)} 선발`, `${report.early}명`, 'green'], [`${e(event.lateTime)} 후발`, `${report.late}명`],
           ['점심', `${report.lunch}명`], ['불참', `${report.no}명`], ['미응답', `${report.pending}명`]
         ])
-          + (rows.length ? table(['멤버', '운동 응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
-          subtitle: `운동 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
+          + (rows.length ? table(['멤버', '응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
+          subtitle: `참석 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
           actions: closeAction + shareAction + voteLink + correction
         });
       }
@@ -158,7 +158,7 @@
           ? '확정한 출석 기록이 통계에 반영됐어요.'
           : actionAllowed
             ? '선발과 후발 응답을 위에 표시했어요. 실제 출석과 줄서기 인정은 각각 기록하세요.'
-            : '운동 당일부터 출석을 기록할 수 있어요.';
+            : '일정 당일부터 출석을 기록할 수 있어요.';
         return panel('실제 출석', summary([['출석', `${report.present}명`, 'green'], ['결석', `${report.absent}명`], ['미확인', `${report.pending}명`], ['줄서기 인정', `${Object.keys(event.recognized).length}명`]])
           + (rows.length ? table(['멤버', '투표 응답', '실제 출석', '줄서기 인정'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), { subtitle, actions }) + guests();
       }
@@ -225,7 +225,7 @@
         <p class="preserve-lines">${e(notice.body)}</p>
         <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'link', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}</div>
       </article>`);
-      return heading('공지사항', '운동 일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
+      return heading('공지사항', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
     }
 
@@ -273,7 +273,7 @@
       const creditRows = credits.byMember.map(({member, first, second, met}) => `<tr><td><strong>${e(member.name)}</strong></td>
         <td>${first} / 3회</td><td>${second} / 3회</td><td>${pill(met ? '기준 충족' : '진행 중', met ? 'green' : 'neutral')}</td></tr>`);
       return heading('출석 통계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
-        + summary([['운동 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
+        + summary([['일정 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
         + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
           subtitle: '확정한 회차에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
         })
@@ -288,18 +288,18 @@
         ['공지와 투표 공유', '일정에서 공지 초안을 만들고, 공지와 참석 투표 링크를 단체 채팅방에 올리세요.'],
         ['당일 체크와 마무리', '회원 실제 출석, 줄서기 인정, 게스트 도착을 확인하고 콕과 찬조금을 기록해요.']
       ];
-      return heading('반복 일정', '정기 운동의 일정과 참석 투표를 한 번에 준비하세요.',
+      return heading('반복 일정', '정기 일정과 참석 투표를 한 번에 준비하세요.',
         action('반복 설정 수정', 'open-repeat', '', {symbol: 'settings'}))
         + panel('반복 설정', `<dl class="summary-grid">
           <div class="summary-item"><dt>일정 이름</dt><dd>${e(rule.title)}</dd></div>
-          <div class="summary-item"><dt>운동 시간</dt><dd>매주 ${weekdays[rule.weekday]} ${eventTime(rule)}</dd></div>
+          <div class="summary-item"><dt>시간</dt><dd>매주 ${weekdays[rule.weekday]} ${eventTime(rule)}</dd></div>
           <div class="summary-item"><dt>장소</dt><dd>${e(rule.place)}</dd></div>
-          <div class="summary-item"><dt>투표 마감</dt><dd>${rule.deadlineDays ? `운동 ${e(rule.deadlineDays)}일 전` : '운동 당일'} ${e(rule.deadlineTime)}</dd></div>
+          <div class="summary-item"><dt>투표 마감</dt><dd>${rule.deadlineDays ? `일정 ${e(rule.deadlineDays)}일 전` : '일정 당일'} ${e(rule.deadlineTime)}</dd></div>
         </dl><div class="form-actions">${action('다음 일정 만들기', 'generate-next', '', {tone: 'primary', symbol: 'plus', extra: rule.enabled ? '' : 'disabled'})}</div>`, {
           subtitle: '다음 일정 만들기를 누르면 이 설정으로 일정과 투표를 준비해요.',
           actions: rule.enabled ? pill('사용 중', 'green') : pill('사용 중지')
         })
-        + panel('정기 운동 운영 순서', `<ol class="routine-list">${steps.map(([title, description]) => `<li><strong>${title}</strong><p>${description}</p></li>`).join('')}</ol>`);
+        + panel('정기 일정 운영 순서', `<ol class="routine-list">${steps.map(([title, description]) => `<li><strong>${title}</strong><p>${description}</p></li>`).join('')}</ol>`);
     }
 
     function field(label, control, full = false) {
@@ -332,7 +332,7 @@
       const event = state.events.find(event => event.id === dialog.id) || state.repeat;
       return form(dialog, dialog.id ? '일정 수정' : '새 일정',
         field('일정 이름', input('title', event.title, 'required maxlength="80"'), true)
-        + field('운동 날짜', input('date', event.date || today, 'type="date" required'))
+        + field('날짜', input('date', event.date || today, 'type="date" required'))
         + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
         + field('시작 시간', input('time', event.time, 'type="time" required'))
         + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
@@ -367,7 +367,7 @@
         check('enabled', '반복 설정 사용', rule.enabled)
         + field('일정 이름', input('title', rule.title, 'required maxlength="80"'), true)
         + field('반복 요일', `<select name="weekday">${weekdays.map((day, index) => option(index, day, rule.weekday)).join('')}</select>`)
-        + field('투표 마감 (운동 며칠 전)', input('deadlineDays', rule.deadlineDays, 'type="number" min="0" max="6" required'))
+        + field('투표 마감 (며칠 전)', input('deadlineDays', rule.deadlineDays, 'type="number" min="0" max="6" required'))
         + field('시작 시간', input('time', rule.time, 'type="time" required'))
         + field('종료 시간', input('endTime', rule.endTime, 'type="time" required'))
         + slotFields(rule)
@@ -381,7 +381,7 @@
       return form(dialog, '예시 응답 조정',
         `<p class="form-note form-field-full">예시 회원의 응답을 정정합니다. 저장하면 기존 응답 한 건이 갱신됩니다.</p>`
         + field('멤버', `<select name="member" required><option value="">선택하세요</option>${members.map(member => option(member.id, member.name, '')).join('')}</select>`, true)
-        + field('운동 응답', `<select name="vote" required><option value="">선택하세요</option>${option('early', `${event.earlyTime} 선발`, '')}${option('late', `${event.lateTime} 후발`, '')}${option('no', '불참', '')}</select>`, true)
+        + field('응답', `<select name="vote" required><option value="">선택하세요</option>${option('early', `${event.earlyTime} 선발`, '')}${option('late', `${event.lateTime} 후발`, '')}${option('no', '불참', '')}</select>`, true)
         + check('lunch', '점심에 함께해요', false),
         '응답 저장');
     }
