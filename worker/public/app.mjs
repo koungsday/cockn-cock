@@ -862,7 +862,7 @@ async function doAction(action, itemId, tab) {
     case 'remove-organizer': {
       const organizer = state.admin.organizers.find(person => person.id === itemId);
       if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
-      openDialog('운영진 해지', `<p>${esc(organizer.name)}님의 운영 화면 로그인이 바로 끊기고, 다시 들어오려면 새로 추가해야 해요.</p>`
+      openDialog('운영진 해지', `<p>${esc(organizer.name)}님의 운영 권한이 꺼지고 로그인이 바로 끊겨요. 회원으로는 남아 지금 번호로 다시 로그인해 투표할 수 있어요.</p>`
         + button('해지하기', 'confirm-remove-organizer', { id: itemId }));
       break;
     }
@@ -911,8 +911,9 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'login': {
+      // as: which screen this sign-in is for (auth.mjs login). An organiser signing in from a 카톡 vote link stays on it.
       const { user } = await request('/api/login', 'POST', {
-        name: signIn.name, credential: raw(data, 'credential'),
+        name: signIn.name, credential: raw(data, 'credential'), as: authRole,
       });
       if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
       if (user.role === 'member') rememberName(user.name);

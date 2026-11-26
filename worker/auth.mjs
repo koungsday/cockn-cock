@@ -72,67 +72,60 @@ export function isSixDigitPin(value) {
   return typeof value === 'string' && value.length === 6 && /^\d{6}$/.test(value);
 }
 
-// Organisers (PLATFORM.md 인증): each has a name and a six-digit PIN in D1, hashed like member PINs.
-// A club from before the console also has one organiser in Worker secrets (CLUB_ADMIN_ID/PIN). The first sign-in
-// with those moves it into organizers; once any row has that name, the secrets no longer sign anyone in.
+// Accounts (ROLES.md 1단계): every person is one member row; `organizer` marks the 운영 권한. A club from before the
+// console also has one organiser in Worker secrets (CLUB_ADMIN_ID/PIN). The first sign-in with those makes them a
+// member with the 운영 권한; once any member has that name, the secrets no longer sign anyone in.
 function legacyAdmin(env, name, rows) {
   const id = env.CLUB_ADMIN_ID;
   const pin = env.CLUB_ADMIN_PIN;
   return !rows.length && isAdminId(id) && isSixDigitPin(pin) && name === id ? { id, pin } : null;
 }
 
-// Active and retired rows with this name; the caller filters on `active`.
-async function organizersNamed(env, name, input = name) {
-  const { results } = await sql(env.DB, `
-    SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
-    FROM organizers WHERE club_id = ? AND name IN (?, ?, ?)
-  `, env.CLUB_SCOPE, name, name.normalize('NFD'), input).all();
-  return results;
-}
-
-async function matchingOrganizers(env, rows, credential) {
-  const matches = await Promise.all(rows.map(async row =>
-    equalDigest(row.credential_hash, await credentialHash(env, credential, row.credential_salt)) ? row : null));
-  return matches.filter(Boolean);
-}
-
-// True when an organiser of this club signs in with this name and credential: a member must not get the same login.
-export async function organizerUses(env, name, credential) {
-  const rows = await organizersNamed(env, name);
-  const legacy = legacyAdmin(env, name, rows);
-  if (legacy) return equalDigest(legacy.pin, credential);
-  return (await matchingOrganizers(env, rows.filter(row => row.active), credential)).length > 0;
-}
-
-function organizerUser(row) {
-  return { id: row.id, name: row.name, role: 'admin', mustChange: Boolean(row.must_change), version: row.credential_version };
+// A member joins the roster of every event whose vote is still open and not wrapped up (also api.mjs, organizers.mjs).
+export function rosterOpenEvents(db, club, id, version = null) {
+  return sql(db, `
+    INSERT INTO roster (event_id, member_id)
+    SELECT e.id, m.id FROM events e CROSS JOIN members m
+    WHERE m.id = ? AND m.club_id = ? AND e.club_id = m.club_id AND m.active = 1 AND e.deadline_at > unixepoch()
+      AND (? IS NULL OR m.credential_version = ?)
+      AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = e.id AND s.confirmed = 1)
+    ON CONFLICT (event_id, member_id) DO NOTHING
+  `, id, club, version, version);
 }
 
 async function adoptLegacyAdmin(env, legacy) {
   const { hash, salt, version } = await makeMemberCredential(env, legacy.pin);
-  await sql(env.DB, `
-    INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
-    SELECT ?, ?, ?, ?, ?, ?, 0, ? WHERE NOT EXISTS (SELECT 1 FROM organizers WHERE club_id = ? AND name = ?)
-  `, crypto.randomUUID(), env.CLUB_SCOPE, legacy.id, salt, hash, version, currentSeconds(), env.CLUB_SCOPE, legacy.id).run();
+  const id = crypto.randomUUID();
+  await env.DB.batch([
+    sql(env.DB, `
+      INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, organizer)
+      SELECT ?, ?, ?, ?, ?, ?, 0, 1 WHERE NOT EXISTS (SELECT 1 FROM members WHERE club_id = ? AND name = ?)
+    `, id, env.CLUB_SCOPE, legacy.id, salt, hash, version, env.CLUB_SCOPE, legacy.id),
+    rosterOpenEvents(env.DB, env.CLUB_SCOPE, id)
+  ]);
   return sql(env.DB, `
-    SELECT id, name, credential_version, must_change FROM organizers WHERE club_id = ? AND name = ? AND active = 1
+    SELECT id, name, credential_version, must_change, organizer FROM members
+    WHERE club_id = ? AND name = ? AND active = 1 AND organizer = 1
   `, env.CLUB_SCOPE, legacy.id).first();
 }
 
-function cookieName(request, env, role) {
-  const scope = (env.CLUB_SCOPE ?? 'suncok19') + '-' + role;
+// One session per person, in one cookie. Every account is a member row, so it keeps the member cookie and session
+// role: member sessions from before the merge stay signed in.
+function cookieName(request, env) {
+  const scope = (env.CLUB_SCOPE ?? 'suncok19') + '-member';
   return new URL(request.url).protocol === 'https:' ? '__Host-' + scope : scope + '-dev';
 }
 
-function sessionCookie(request, env, role, token = '') {
-  const name = cookieName(request, env, role);
+// The 운영 권한 keeps the organisers' 30 days (the home-screen app); members stay signed in for half a year (#44).
+function sessionCookie(request, env, token = '', organizer = false) {
+  const name = cookieName(request, env);
   const secure = name.startsWith('__Host-') ? '; Secure' : '';
-  const maxAge = !token ? '; Max-Age=0' : '; Max-Age=' + (role === 'admin' ? adminSessionAge : memberSessionAge);
+  const maxAge = !token ? '; Max-Age=0' : '; Max-Age=' + (organizer ? adminSessionAge : memberSessionAge);
   return `${name}=${token}; Path=/; HttpOnly; SameSite=Lax${maxAge}${secure}`;
 }
 
-function cookieToken(request, env, role) {
-  const name = cookieName(request, env, role) + '=';
+function cookieToken(request, env) {
+  const name = cookieName(request, env) + '=';
   for (const cookie of (request.headers.get('cookie') || '').split(';')) {
     const value = cookie.trim();
     if (value.startsWith(name) && /^[0-9a-f]{64}$/.test(value.slice(name.length))) return value.slice(name.length);
@@ -140,61 +133,45 @@ function cookieToken(request, env, role) {
   return null;
 }
 
-async function sessionHash(env, role, token) {
-  return sha256('session\0' + role + '\0' + pepper(env) + '\0' + token);
+async function sessionHash(env, token) {
+  return sha256('session\0member\0' + pepper(env) + '\0' + token);
 }
 
-export function clientUser(user) {
+// role is the screen the answer is for: 'admin' only with the 운영 권한 (api.mjs route).
+export function clientUser(user, role = 'member') {
   if (!user) return null;
-  const { id, name, role, mustChange } = user;
+  const { id, name, mustChange } = user;
   return { id, name, role, mustChange };
 }
 
-export async function readSession(request, env, role) {
-  const token = cookieToken(request, env, role);
+// The signed-in person, with the 운영 권한 read from their member row on every request: turning it off takes effect at
+// once. Sessions from before the merge that point at an organiser row are never read (0010 removed them).
+export async function readSession(request, env) {
+  const token = cookieToken(request, env);
   if (!token) return null;
-  const tokenHash = await sessionHash(env, role, token);
+  const tokenHash = await sessionHash(env, token);
   const found = await sql(env.DB, `
-    SELECT s.role, s.member_id, s.organizer_id, s.credential_version AS session_version,
-      m.name, m.active, m.must_change, m.credential_version AS member_version,
-      o.name AS organizer_name, o.active AS organizer_active, o.must_change AS organizer_must_change,
-      o.credential_version AS organizer_version
-    FROM sessions s LEFT JOIN members m ON s.member_id = m.id LEFT JOIN organizers o ON s.organizer_id = o.id
-    WHERE s.token_hash = ? AND s.role = ? AND s.club_id = ? AND s.expires_at > ?
-  `, tokenHash, role, env.CLUB_SCOPE, currentSeconds()).first();
-  if (!found) return null;
-
-  if (found.role === 'admin') {
-    // Admin sessions from before organiser accounts name no organiser: signing in again moves the account.
-    if (!found.organizer_id || !found.organizer_active || found.organizer_version !== found.session_version) return null;
-    return {
-      id: found.organizer_id, name: found.organizer_name, role: 'admin',
-      mustChange: Boolean(found.organizer_must_change), tokenHash, version: found.session_version
-    };
-  }
-  if (!found.active || found.member_version !== found.session_version) return null;
+    SELECT s.member_id, s.credential_version AS session_version, m.name, m.active, m.must_change, m.organizer,
+      m.credential_version AS member_version
+    FROM sessions s JOIN members m ON s.member_id = m.id
+    WHERE s.token_hash = ? AND s.role = 'member' AND s.club_id = ? AND m.club_id = s.club_id AND s.expires_at > ?
+  `, tokenHash, env.CLUB_SCOPE, currentSeconds()).first();
+  if (!found || !found.active || found.member_version !== found.session_version) return null;
   return {
-    id: found.member_id, name: found.name, role: 'member',
+    id: found.member_id, name: found.name, organizer: Boolean(found.organizer),
     mustChange: Boolean(found.must_change), tokenHash, version: found.member_version
   };
 }
 
 async function sessionInsert(env, user) {
   const token = randomHex(32);
-  const hash = await sessionHash(env, user.role, token);
-  const age = user.role === 'admin' ? adminSessionAge : memberSessionAge;
-  const expiresAt = currentSeconds() + age;
-  const statement = user.role === 'admin'
-    ? sql(env.DB, `
-      INSERT INTO sessions (token_hash, club_id, role, member_id, organizer_id, credential_version, expires_at)
-      SELECT ?, club_id, 'admin', NULL, id, credential_version, ?
-      FROM organizers WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
-    `, hash, expiresAt, user.id, env.CLUB_SCOPE, user.version)
-    : sql(env.DB, `
-      INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
-      SELECT ?, club_id, 'member', id, credential_version, ?
-      FROM members WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
-    `, hash, expiresAt, user.id, env.CLUB_SCOPE, user.version);
+  const hash = await sessionHash(env, token);
+  const expiresAt = currentSeconds() + (user.organizer ? adminSessionAge : memberSessionAge);
+  const statement = sql(env.DB, `
+    INSERT INTO sessions (token_hash, club_id, role, member_id, credential_version, expires_at)
+    SELECT ?, club_id, 'member', id, credential_version, ?
+    FROM members WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
+  `, hash, expiresAt, user.id, env.CLUB_SCOPE, user.version);
   return { token, statement };
 }
 
@@ -243,24 +220,24 @@ function cleanExpired(env) {
   ];
 }
 
-async function startSession(request, env, user, limits) {
+async function startSession(request, env, user, limits, role) {
   const { token, statement } = await sessionInsert(env, user);
-  const previous = cookieToken(request, env, user.role);
+  const previous = cookieToken(request, env);
   const statements = [statement, ...cleanExpired(env)];
   for (const { key, expiresAt } of limits) statements.push(...releaseAttempt(env, key, expiresAt));
   if (previous) {
-    statements.push(sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ? AND club_id = ?',
-      await sessionHash(env, user.role, previous), user.role, env.CLUB_SCOPE));
+    statements.push(sql(env.DB, "DELETE FROM sessions WHERE token_hash = ? AND role = 'member' AND club_id = ?",
+      await sessionHash(env, previous), env.CLUB_SCOPE));
   }
   const results = await env.DB.batch(statements);
   if (!results[0].meta.changes) throw new ApiError(409, '로그인 정보가 변경됐어요. 다시 로그인해 주세요.');
-  return { user: clientUser(user), cookie: sessionCookie(request, env, user.role, token) };
+  return { user: clientUser(user, role), cookie: sessionCookie(request, env, token, user.organizer) };
 }
 
 export async function membersNamed(env, name, input = name) {
   // New rows use NFC. Preserve exact and decomposed spellings already stored.
   const { results } = await sql(env.DB, `
-    SELECT id, name, active, credential_salt, credential_hash, credential_version, must_change
+    SELECT id, name, active, organizer, credential_salt, credential_hash, credential_version, must_change
     FROM members WHERE club_id = ? AND name IN (?, ?, ?)
   `, env.CLUB_SCOPE, name, name.normalize('NFD'), input).all();
   return results;
@@ -306,46 +283,48 @@ export async function login(request, env, body) {
   const source = await ipLimit(env, request, loginNamespace);
   const namedSource = await ipLimit(env, request, loginNamespace, name);
   const limits = [source, namedSource];
-  const named = await organizersNamed(env, name, input);
-  const organizers = named.filter(row => row.active);
+  const named = await membersNamed(env, name, input);
+  const candidates = named.filter(row => row.active);
   const legacy = legacyAdmin(env, name, named);
-  if (organizers.length || legacy) {
+  if (candidates.some(row => row.organizer) || legacy) {
     // A six-digit organiser PIN also needs a budget shared across source IPs.
     const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + name);
     limits.push({ key, expiresAt: await reserveAttempt(env, key, 20) });
   }
-
-  const organizerMatches = await matchingOrganizers(env, organizers, credential);
-  const adminMatch = organizerMatches.length > 0 || Boolean(legacy && equalDigest(legacy.pin, credential));
-  // A retired member can still know their credential after a secret rotation.
-  const candidates = (await membersNamed(env, name, input)).filter(row => adminMatch || row.active);
-  if (!candidates.length && !organizers.length) await credentialHash(env, credential, '00000000000000000000000000000000');
-  const matching = await matchingCredentials(env, candidates, credential, true);
-  // The same name and credential for an organiser and a member (or two organisers) is never resolved by guessing.
-  if (adminMatch && !matching.length && organizerMatches.length <= 1) {
-    let organizer = organizerMatches[0];
-    if (!organizer) {
-      organizer = await adoptLegacyAdmin(env, legacy);
-      if (organizer) await audit(env.DB, env.CLUB_SCOPE, organizerActor(organizer), 'organizer.adopt', organizer.id, () => organizer.name);
+  if (legacy && equalDigest(legacy.pin, credential)) {
+    const organizer = await adoptLegacyAdmin(env, legacy);
+    if (organizer) {
+      await audit(env.DB, env.CLUB_SCOPE, organizerActor(organizer), 'organizer.adopt', organizer.id, () => organizer.name);
+      return startSession(request, env, sessionUser(organizer), limits, body.as === 'member' ? 'member' : 'admin');
     }
-    if (organizer) return startSession(request, env, organizerUser(organizer), limits);
   }
-  if (adminMatch || matching.length !== 1) {
+  if (!candidates.length) await credentialHash(env, credential, '00000000000000000000000000000000');
+  // The same name and credential for two people is never resolved by guessing.
+  const matching = await matchingCredentials(env, candidates, credential, true);
+  if (matching.length !== 1) {
     await env.DB.batch(cleanExpired(env));
     throw new ApiError(401, invalidLogin);
   }
-  const row = matching[0];
-  const user = { id: row.id, name: row.name, role: 'member', mustChange: Boolean(row.must_change), version: row.credential_version };
-  return startSession(request, env, user, limits);
+  const user = sessionUser(matching[0]);
+  // The screen says which page it signs in for: the 운영 화면 opens only with the 운영 권한, and an organiser signing in
+  // from a 카톡 vote link stays on that vote. Without it (an older screen) an organiser goes to the 운영 화면 as before.
+  return startSession(request, env, user, limits, user.organizer && body.as !== 'member' ? 'admin' : 'member');
 }
 
-export async function logout(request, env, role) {
-  const token = cookieToken(request, env, role);
+function sessionUser(row) {
+  return {
+    id: row.id, name: row.name, organizer: Boolean(row.organizer), mustChange: Boolean(row.must_change),
+    version: row.credential_version
+  };
+}
+
+export async function logout(request, env) {
+  const token = cookieToken(request, env);
   if (token) {
-    await sql(env.DB, 'DELETE FROM sessions WHERE token_hash = ? AND role = ? AND club_id = ?',
-      await sessionHash(env, role, token), role, env.CLUB_SCOPE).run();
+    await sql(env.DB, "DELETE FROM sessions WHERE token_hash = ? AND role = 'member' AND club_id = ?",
+      await sessionHash(env, token), env.CLUB_SCOPE).run();
   }
-  return sessionCookie(request, env, role);
+  return sessionCookie(request, env);
 }
 
 function weakPin(pin) {
@@ -353,7 +332,9 @@ function weakPin(pin) {
     || '01234567890123456789'.includes(pin) || '98765432109876543210'.includes(pin);
 }
 
-export async function changePin(request, env, user, body) {
+// Members and organisers alike (one account): after a temporary PIN, an organiser's 운영 화면 opens only once they set
+// their own (api.mjs). role is the screen asking, as for sign-in.
+export async function changePin(request, env, user, body, role = 'member') {
   const { currentPin, newPin } = body;
   if (typeof currentPin !== 'string' || !currentPin || currentPin.length > 128
     || !isSixDigitPin(newPin) || weakPin(newPin)) {
@@ -375,8 +356,7 @@ export async function changePin(request, env, user, body) {
   }
   const name = row.name.normalize('NFC');
   const candidates = await membersNamed(env, name, row.name);
-  if (await organizerUses(env, name, newPin) ||
-      (await matchingCredentials(env, candidates.filter(candidate => candidate.id !== user.id), newPin, true)).length) {
+  if ((await matchingCredentials(env, candidates.filter(candidate => candidate.id !== user.id), newPin, true)).length) {
     throw new ApiError(409, '같은 이름으로 사용 중인 번호예요. 다른 번호를 입력해 주세요.');
   }
 
@@ -406,51 +386,7 @@ export async function changePin(request, env, user, body) {
   if (!results[0].meta.changes || !results[2].meta.changes) {
     throw new ApiError(409, '회원 정보가 변경됐어요. 다시 로그인해 주세요.');
   }
-  return { user: clientUser(updated), cookie: sessionCookie(request, env, 'member', token) };
-}
-
-// An organiser sets their own PIN; after a console-issued temporary PIN nothing else opens until they do (api.mjs).
-export async function changeOrganizerPin(request, env, user, body) {
-  const { currentPin, newPin } = body;
-  if (typeof currentPin !== 'string' || !currentPin || currentPin.length > 128
-    || !isSixDigitPin(newPin) || weakPin(newPin)) {
-    throw new ApiError(400, '반복이나 연속 숫자를 피해서 새 번호를 숫자 6자리로 입력해 주세요.');
-  }
-  if (currentPin === newPin) throw new ApiError(400, '지금 번호와 다른 번호를 입력해 주세요.');
-  const source = await ipLimit(env, request, 'pin');
-  const limitKey = 'pin-organizer:' + user.id;
-  const expiresAt = await reserveAttempt(env, limitKey, 5);
-  const row = await sql(env.DB, `
-    SELECT name, credential_salt, credential_hash FROM organizers
-    WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
-  `, user.id, env.CLUB_SCOPE, user.version).first();
-  if (!row) throw new ApiError(401, '다시 로그인해 주세요.');
-  if (!equalDigest(row.credential_hash, await credentialHash(env, currentPin, row.credential_salt))) {
-    throw new ApiError(400, '지금 번호가 맞지 않아요.');
-  }
-  if ((await matchingCredentials(env, await membersNamed(env, row.name.normalize('NFC'), row.name), newPin, true)).length) {
-    throw new ApiError(409, '같은 이름의 회원이 쓰는 번호예요. 다른 번호를 입력해 주세요.');
-  }
-  const { hash, salt, version } = await makeMemberCredential(env, newPin);
-  const updated = { ...user, version, mustChange: false };
-  const { token, statement } = await sessionInsert(env, updated);
-  const results = await env.DB.batch([
-    sql(env.DB, `
-      UPDATE organizers SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
-      WHERE id = ? AND club_id = ? AND active = 1 AND credential_version = ?
-    `, version, salt, hash, user.id, env.CLUB_SCOPE, user.version),
-    sql(env.DB, `
-      DELETE FROM sessions WHERE role = 'admin' AND organizer_id = ? AND credential_version = ?
-        AND EXISTS (SELECT 1 FROM organizers WHERE id = ? AND credential_version = ?)
-    `, user.id, user.version, user.id, version),
-    statement,
-    ...releaseAttempt(env, source.key, source.expiresAt),
-    ...releaseAttempt(env, limitKey, expiresAt),
-  ]);
-  if (!results[0].meta.changes || !results[2].meta.changes) {
-    throw new ApiError(409, '운영진 정보가 변경됐어요. 다시 로그인해 주세요.');
-  }
-  return { user: clientUser(updated), cookie: sessionCookie(request, env, 'admin', token) };
+  return { user: clientUser(updated, role), cookie: sessionCookie(request, env, token, updated.organizer) };
 }
 
 export async function makeMemberCredential(env, activationSecret) {

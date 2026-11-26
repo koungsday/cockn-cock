@@ -1,6 +1,7 @@
-// Organiser accounts (PLATFORM.md 인증), issued by the 총괄 in the console or by another organiser of the same club.
-// scope is a club's API env (DB, CLUB_SCOPE, CLUB_AUTH_PEPPER), as worker/scope.mjs makes it.
-import { ApiError, currentSeconds, makeMemberCredential, matchingCredentials, membersNamed, sql, temporaryPin } from './auth.mjs';
+// Organisers (PLATFORM.md 인증, ROLES.md 1단계): members with the 운영 권한, issued by the 총괄 in the console or by
+// another organiser of the same club. scope is a club's API env (DB, CLUB_SCOPE, CLUB_AUTH_PEPPER), as
+// worker/scope.mjs makes it.
+import { ApiError, makeMemberCredential, matchingCredentials, membersNamed, rosterOpenEvents, sql, temporaryPin } from './auth.mjs';
 
 export function organizerName(value) {
   const name = typeof value === 'string' ? value.trim().normalize('NFC') : '';
@@ -20,46 +21,57 @@ async function temporaryFor(scope, name) {
 
 export async function listOrganizers(scope) {
   const { results } = await sql(scope.DB, `
-    SELECT id, name, must_change FROM organizers WHERE club_id = ? AND active = 1 ORDER BY created_at, name
+    SELECT id, name, must_change FROM members WHERE club_id = ? AND active = 1 AND organizer = 1 ORDER BY name, id
   `, scope.CLUB_SCOPE).all();
   return results.map(row => ({ id: row.id, name: row.name, mustChange: Boolean(row.must_change) }));
 }
 
+// A new member with the 운영 권한 and a temporary PIN. A member of the same name is never given the 운영 권한 here:
+// two people can share a name (turning it on for an existing member is the 회원 관리 screen's, ROLES.md 2단계).
 export async function issueOrganizer(scope, name) {
   const pin = await temporaryFor(scope, name);
   const { hash, salt, version } = await makeMemberCredential(scope, pin);
   const id = crypto.randomUUID();
-  const added = await sql(scope.DB, `
-    INSERT INTO organizers (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, created_at)
-    SELECT ?, ?, ?, ?, ?, ?, 1, ? WHERE NOT EXISTS (SELECT 1 FROM organizers WHERE club_id = ? AND name = ? AND active = 1)
-  `, id, scope.CLUB_SCOPE, name, salt, hash, version, currentSeconds(), scope.CLUB_SCOPE, name).run();
+  const [added] = await scope.DB.batch([
+    sql(scope.DB, `
+      INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version, must_change, organizer)
+      SELECT ?, ?, ?, ?, ?, ?, 1, 1
+      WHERE NOT EXISTS (SELECT 1 FROM members WHERE club_id = ? AND name = ? AND active = 1 AND organizer = 1)
+    `, id, scope.CLUB_SCOPE, name, salt, hash, version, scope.CLUB_SCOPE, name),
+    // Organisers vote too: like a new member, they join every open event's roster.
+    rosterOpenEvents(scope.DB, scope.CLUB_SCOPE, id)
+  ]);
   if (!added.meta.changes) throw new ApiError(409, '같은 이름의 운영진이 이미 있어요. 번호 재발급을 써 주세요.');
   return { id, name, pin };
 }
 
 // A new temporary PIN; their sessions and PIN-change attempts end at once.
 export async function reissueOrganizer(scope, id) {
-  const row = await sql(scope.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ? AND active = 1', id, scope.CLUB_SCOPE).first();
+  const row = await sql(scope.DB, 'SELECT name FROM members WHERE id = ? AND club_id = ? AND active = 1 AND organizer = 1',
+    id, scope.CLUB_SCOPE).first();
   if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
   const pin = await temporaryFor(scope, row.name);
   const { hash, salt, version } = await makeMemberCredential(scope, pin);
   const [updated] = await scope.DB.batch([
-    sql(scope.DB, `UPDATE organizers SET credential_salt = ?, credential_hash = ?, credential_version = ?, must_change = 1
-      WHERE id = ? AND club_id = ? AND active = 1`, salt, hash, version, id, scope.CLUB_SCOPE),
+    sql(scope.DB, `UPDATE members SET credential_salt = ?, credential_hash = ?, credential_version = ?, must_change = 1
+      WHERE id = ? AND club_id = ? AND active = 1 AND organizer = 1`, salt, hash, version, id, scope.CLUB_SCOPE),
     // Every statement names the club: an id from another club must change nothing there, sessions included.
-    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ? AND club_id = ?', id, scope.CLUB_SCOPE),
-    sql(scope.DB, 'DELETE FROM attempts WHERE key = ?', 'pin-organizer:' + id)
+    sql(scope.DB, 'DELETE FROM sessions WHERE member_id = ? AND club_id = ?', id, scope.CLUB_SCOPE),
+    sql(scope.DB, 'DELETE FROM attempts WHERE key IN (?, ?)', 'pin-member:' + id, 'pin-organizer:' + id)
   ]);
   if (!updated.meta.changes) throw new ApiError(409, '운영진 정보가 바뀌었어요. 목록을 다시 열어 주세요.');
   return { id, name: row.name, pin };
 }
 
+// Only the 운영 권한 goes: they stay a member and sign in with the same PIN. Their sessions end at once. The check comes
+// first: sessions are member sessions now, so an id that is not an organiser must sign no member out.
 export async function retireOrganizer(scope, id) {
-  const [removed, , row] = await scope.DB.batch([
-    sql(scope.DB, 'UPDATE organizers SET active = 0 WHERE id = ? AND club_id = ? AND active = 1', id, scope.CLUB_SCOPE),
-    sql(scope.DB, 'DELETE FROM sessions WHERE organizer_id = ? AND club_id = ?', id, scope.CLUB_SCOPE),
-    sql(scope.DB, 'SELECT name FROM organizers WHERE id = ? AND club_id = ?', id, scope.CLUB_SCOPE)
+  const row = await sql(scope.DB, 'SELECT name FROM members WHERE id = ? AND club_id = ? AND organizer = 1',
+    id, scope.CLUB_SCOPE).first();
+  if (!row) throw new ApiError(404, '운영진을 찾을 수 없어요.');
+  await scope.DB.batch([
+    sql(scope.DB, 'UPDATE members SET organizer = 0 WHERE id = ? AND club_id = ? AND organizer = 1', id, scope.CLUB_SCOPE),
+    sql(scope.DB, 'DELETE FROM sessions WHERE member_id = ? AND club_id = ?', id, scope.CLUB_SCOPE)
   ]);
-  if (!removed.meta.changes) throw new ApiError(404, '운영진을 찾을 수 없어요.');
-  return { id, name: row.results[0]?.name ?? '' };
+  return { id, name: row.name };
 }

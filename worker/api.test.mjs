@@ -93,8 +93,8 @@ function setup(t) {
         }
         return payload;
       },
-      login(name, credential, expect = 200) {
-        return this.request('/api/login', {method:'POST', body:{name, credential}, expect});
+      login(name, credential, expect = 200, as) {
+        return this.request('/api/login', {method:'POST', body:{name, credential, ...(as && {as})}, expect});
       },
       adminLogin({ id = adminId, pin = adminPin, expect = 200 } = {}) {
         return this.login(id, pin, expect);
@@ -126,7 +126,9 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
     method:'POST', expect:201, body:{name:'가상 회원 가', birthday:'19880517'}
   });
   assert.deepEqual(Object.keys(member), ['member']);
-  assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM members').first()).count, 1);
+  // The organiser from the secrets is a member with the 운영 권한 (ROLES.md 1단계); one member was added.
+  assert.deepEqual((await DB.prepare('SELECT organizer, COUNT(*) AS count FROM members GROUP BY organizer ORDER BY organizer').all()).results
+    .map(row => ({...row})), [{organizer:0, count:1}, {organizer:1, count:1}]);
   const {event} = await admin.request('/api/admin/events', {method:'POST', body:futureEvent(), expect:201});
   // Before sign-in (사용자 결정, 2026-11-26): when it is and its deadline show; the place, the notes, the member's own
   // answer and 내 기록 wait for sign-in, and answering needs it.
@@ -164,7 +166,8 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   await client().login(name, '19880517', 401);
   assert.equal((await client().login(name, '684270')).user.id, member.member.id);
   await visitor.request('/api/votes/' + event.id, {expect:401, headerCookie:previousCookie});
-  await visitor.request('/api/admin', {expect:401});
+  // Signed in as a member without the 운영 권한 (ROLES.md 1단계).
+  await visitor.request('/api/admin', {expect:403});
 
   assert.deepEqual((await visitor.request('/api/votes/' + event.id)).vote, { slot:'late', lunch:true });
   await visitor.request('/api/votes/' + event.id, {
@@ -173,9 +176,11 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
   await visitor.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'early', lunch:true}});
   await visitor.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'late', lunch:false}});
   const details = await admin.request('/api/admin/events/' + event.id);
-  assert.equal(details.roster.length, 1);
-  assert.equal(details.roster[0].slot, 'late');
-  assert.equal(details.roster[0].lunch, false);
+  // The organiser is on the roster too: a member with the 운영 권한 (ROLES.md 1단계).
+  assert.equal(details.roster.length, 2);
+  const answered = details.roster.find(row => row.id === member.member.id);
+  assert.equal(answered.slot, 'late');
+  assert.equal(answered.lunch, false);
   assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM votes').first()).count, 1);
 
   await admin.request('/api/admin/events/' + event.id, {method:'PATCH', body:{open:false}});
@@ -257,44 +262,53 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   const wrongPin = await admin.adminLogin({ pin:'583470', expect:401 });
   assert.deepEqual(wrongId, wrongPin);
   await admin.request('/api/login', {method:'POST', body:{name:adminId, credential:adminPin}, requestOrigin:'https://unrelated.test', expect:403});
-  await admin.adminLogin();
-  assert.match(admin.setCookie, /^__Host-suncok19-admin=/);
+  const {user: organizer} = await admin.adminLogin();
+  // One account, one session (ROLES.md 1단계): the organiser signs in with the member cookie, kept 30 days.
+  assert.match(admin.setCookie, /^__Host-suncok19-member=/);
   assert.match(admin.setCookie, /Max-Age=2592000/);
-  const lifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='admin'").first()).seconds;
+  const lifetime = (await DB.prepare('SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE member_id = ?').bind(organizer.id).first()).seconds;
   assert.ok(lifetime <= 2592000 && lifetime >= 2591999);
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
-  assert.equal((await admin.request('/api/session')).user, null);
-  // An organiser's session is no member's: the member home opens as it does before sign-in (no 내 기록).
-  assert.equal((await admin.request('/api/public')).record, null);
+  // The same session opens the member screens: organisers vote too, and the member home shows their own 내 기록.
+  assert.deepEqual((await admin.request('/api/session')).user, {...organizer, role:'member'});
+  assert.notEqual((await admin.request('/api/public')).record, null);
   await admin.request('/api/admin/login', {method:'POST', body:{adminId, credential:adminPin}, expect:404});
   const sharedName = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:adminId, birthday:'19890810'}
   });
   const memberWithSharedName = client();
   assert.equal((await memberWithSharedName.login(adminId, '19890810')).user.id, sharedName.member.id);
-  await memberWithSharedName.request('/api/admin', {expect:401});
+  // Signed in, but without the 운영 권한.
+  await memberWithSharedName.request('/api/admin', {expect:403});
+  assert.equal((await memberWithSharedName.request('/api/admin/session')).user, null);
 
   const {member} = await admin.request('/api/admin/members', {
     method:'POST', expect:201, body:{name:'가상 별도 로그인 회원', birthday:'19890810'}
   });
   const memberClient = client();
-  await memberClient.request('/api/login', {
-    method:'POST', body:{name:member.name, credential:'19890810', role:'admin', remember:true}
-  });
+  // Asking for the 운영 화면 does not give it.
+  assert.equal((await memberClient.request('/api/login', {
+    method:'POST', body:{name:member.name, credential:'19890810', as:'admin', role:'admin', remember:true}
+  })).user.role, 'member');
   assert.match(memberClient.setCookie, /^__Host-suncok19-member=/);
   // Members stay signed in on the phone for half a year (사용자 결정, 2026-11-26).
   assert.match(memberClient.setCookie, /Max-Age=15552000/);
-  const memberLifetime = (await DB.prepare("SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE role='member'").first()).seconds;
+  const memberLifetime = (await DB.prepare('SELECT expires_at - unixepoch() AS seconds FROM sessions WHERE member_id = ?').bind(member.id).first()).seconds;
   assert.ok(memberLifetime <= 15552000 && memberLifetime >= 15551999);
-  const both = admin.cookie + '; ' + memberClient.cookie;
-  assert.equal((await admin.request('/api/admin/session', {headerCookie:both})).user.role, 'admin');
-  assert.equal((await admin.request('/api/session', {headerCookie:both})).user.id, member.id);
-  await admin.request('/api/admin', {headerCookie:memberClient.cookie.replace('-member=', '-admin='), expect:401});
-  await memberClient.request('/api/logout', {method:'POST', body:{}, headerCookie:both});
+  assert.equal((await memberClient.request('/api/session')).user.id, member.id);
+  assert.equal((await memberClient.request('/api/admin/session')).user, null);
+  await memberClient.request('/api/admin', {expect:403});
+  // An organiser signing in from a member page (a 카톡 vote link) stays on it, and the 운영 화면 is open to them too.
+  const fromVoteLink = client('203.0.113.11');
+  assert.equal((await fromVoteLink.login(adminId, adminPin, 200, 'member')).user.role, 'member');
+  assert.equal((await fromVoteLink.request('/api/admin/session')).user.role, 'admin');
+  // Signing out of either screen ends that one session; another browser stays signed in.
+  await fromVoteLink.request('/api/logout', {method:'POST', body:{}});
+  await fromVoteLink.request('/api/admin', {expect:401});
   assert.equal((await admin.request('/api/admin/session')).user.role, 'admin');
 
-  // The organiser now has a D1 account (PLATFORM.md 인증): their own PIN change ends the old PIN and other sessions,
-  // and the Worker secrets that seeded the account sign no one in any more.
+  // The organiser's own PIN change ends the old PIN and other sessions, and the Worker secrets that seeded the
+  // account sign no one in any more.
   const otherBrowser = client('203.0.113.12');
   await otherBrowser.adminLogin();
   const changed = await admin.request('/api/admin/pin', {method:'POST', body:{currentPin:adminPin, newPin:'316794'}});
@@ -304,8 +318,36 @@ test('shared login assigns role and cookie lifetime on the server', async t => {
   assert.equal(env.CLUB_ADMIN_PIN, adminPin);
   await admin.adminLogin({pin:'316794'});
   const expiredCookie = admin.cookie;
-  await DB.prepare("UPDATE sessions SET expires_at = unixepoch() WHERE role='admin'").run();
+  await DB.prepare('UPDATE sessions SET expires_at = unixepoch() WHERE member_id = ?').bind(changed.user.id).run();
   await admin.request('/api/admin', {headerCookie:expiredCookie, expect:401});
+});
+
+test('organisers are members with the 운영 권한: they vote, and share a name without taking a member over', async t => {
+  const {DB, client} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const name = '가상 같은 이름 운영진';
+  const {member} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name, birthday:'19820303'}});
+  const issued = await admin.request('/api/admin/organizers', {method:'POST', expect:201, body:{name}});
+  // Two people can share a name: issuing makes a new account and never gives a member of that name the 운영 권한.
+  assert.notEqual(issued.organizer.id, member.id);
+  assert.deepEqual((await DB.prepare('SELECT id, organizer FROM members WHERE name = ? ORDER BY organizer').bind(name).all()).results
+    .map(row => ({...row})), [{id:member.id, organizer:0}, {id:issued.organizer.id, organizer:1}]);
+  const memberBrowser = client('203.0.113.40');
+  assert.equal((await memberBrowser.login(name, '820303')).user.id, member.id);
+  assert.equal((await client('203.0.113.41').login(name, issued.temporaryPin)).user.id, issued.organizer.id);
+  // Sessions are member sessions now: 재발급·해지 with a member who has no 운영 권한 changes nothing and signs no one out.
+  await admin.request('/api/admin/organizers/' + member.id, {method:'PATCH', body:{active:false}, expect:404});
+  await admin.request('/api/admin/organizers/' + member.id + '/reset', {method:'POST', body:{}, expect:404});
+  assert.equal((await memberBrowser.request('/api/session')).user.id, member.id);
+
+  // An organiser joins the roster of open events and answers like any member, in the same session.
+  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()});
+  const votePath = '/api/votes/' + event.id;
+  assert.deepEqual((await admin.request(votePath, {method:'PUT', body:{slot:'early', lunch:false}})).vote, {slot:'early', lunch:false});
+  const roster = (await admin.request('/api/admin/events/' + event.id)).roster;
+  const {user: me} = await admin.request('/api/admin/session');
+  assert.equal(roster.find(row => row.id === me.id).slot, 'early');
 });
 
 test('a fresh browser signs in with an administrator name and PIN alone', async t => {
@@ -319,7 +361,7 @@ test('a fresh browser signs in with an administrator name and PIN alone', async 
   assert.equal(browser.cookie, '');
   assert.equal((await browser.login(name, adminPin)).user.role, 'admin');
   assert.equal(browser.setCookies.length, 1);
-  assert.match(browser.setCookie, /^__Host-suncok19-admin=/);
+  assert.match(browser.setCookie, /^__Host-suncok19-member=/);
   assert.equal((await browser.request('/api/admin/session')).user.role, 'admin');
   await browser.request('/api/admin');
 });
@@ -349,7 +391,7 @@ test('member changes cannot create the same login as the administrator', async t
   await member.request('/api/pin', {
     method:'POST', expect:409, body:{currentPin:'780925', newPin:env.CLUB_ADMIN_PIN}
   });
-  await member.request('/api/admin', {expect:401});
+  await member.request('/api/admin', {expect:403});
   const {temporaryPin: reset} = await admin.request('/api/admin/members/' + sameName.id + '/reset', {method:'POST', body:{}});
   assert.match(reset, /^\d{6}$/);
   assert.notEqual(reset, env.CLUB_ADMIN_PIN);
@@ -370,11 +412,13 @@ test('an organiser cannot take a same-named member credential, and secrets stop 
   env.CLUB_ADMIN_PIN = memberPin;
   assert.equal((await operator.request('/api/admin/session')).user.role, 'admin');
   assert.equal((await client('203.0.113.15').login(adminId, memberPin)).user.role, 'member');
-  await DB.prepare('UPDATE organizers SET active = 0').run();
+  // Taking the 운영 권한 away (here straight in the database) closes the 운영 화면 at the next request. The person stays a
+  // member with the same PIN, and the secrets do not bring the permission back (ROLES.md 1단계).
+  await DB.prepare('UPDATE members SET organizer = 0 WHERE organizer = 1').run();
   await client('203.0.113.16').adminLogin({pin:memberPin, expect:200}).then(({user}) => assert.equal(user.role, 'member'));
-  await client('203.0.113.17').adminLogin({expect:401});
-  assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM organizers').first()).count, 1, 'a retired organiser is not recreated from the secrets');
-  await operator.request('/api/admin', {expect:401});
+  await client('203.0.113.17').adminLogin().then(({user}) => assert.equal(user.role, 'member'));
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM members WHERE organizer = 1').first()).count, 0, 'a retired organiser is not recreated from the secrets');
+  await operator.request('/api/admin', {expect:403});
 });
 
 test('administrator PIN attempts share a limit across source addresses', async t => {
@@ -407,7 +451,7 @@ test('an admin session from before organiser accounts signs in again and then mo
   await browser.request('/api/admin', {headerCookie:'__Host-suncok19-admin=' + token, expect:401});
   assert.equal((await browser.adminLogin()).user.name, adminId);
   await client('203.0.113.18').adminLogin();
-  const rows = await DB.prepare('SELECT name, must_change FROM organizers').all();
+  const rows = await DB.prepare('SELECT name, must_change FROM members WHERE organizer = 1').all();
   assert.deepEqual(rows.results.map(row => ({...row})), [{name:adminId, must_change:0}], 'one account, no forced change for a known PIN');
 });
 
@@ -481,7 +525,9 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   assert.equal(await settled(afterBoundary), true);
   assert.equal(await settled(lastPath), false);
   const endpoint = '/api/admin/progress?year=' + year + '&half=2';
-  const progress = (await admin.request(endpoint)).members[0];
+  // The organiser is a member too and has a row of their own; this member's row is the one counted.
+  const mine = response => response.members.find(row => row.id === member.id);
+  const progress = mine(await admin.request(endpoint));
   assert.deepEqual(progress, {id:member.id, name:member.name, periods:[1, 1], rewarded:false, eligible:false});
 
   await admin.request(lastPath + '/guests', {
@@ -498,14 +544,14 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
     method:'POST', expect:409, body:{name:'가상 마감 뒤 게스트', status:'pending', paid:false}
   });
   await admin.request(lastPath, {method:'PATCH', body:{open:true}, expect:409});
-  const final = (await admin.request(endpoint)).members[0];
+  const final = mine(await admin.request(endpoint));
   assert.deepEqual(final.periods, [1, 2]);
   assert.equal(final.rewarded, false);
 
   await admin.request('/api/admin/progress', {method:'PUT', body:{year, half:2, memberId:member.id, rewarded:true}});
-  assert.equal((await admin.request(endpoint)).members[0].rewarded, true);
+  assert.equal(mine(await admin.request(endpoint)).rewarded, true);
   await admin.request(afterBoundary + '/settlement', {method:'PUT', body:{...patchSettlement, confirmed:false}});
-  assert.equal((await admin.request(endpoint)).members[0].periods[1], 1);
+  assert.equal(mine(await admin.request(endpoint)).periods[1], 1);
   assert.equal(await settled(afterBoundary), false);
 
   // 모임 규칙: the defaults are how the table counted before; a club can cut the half by month, count only some 인정
@@ -522,14 +568,14 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   const monthly = {periods:6, goal:1, kinds:['direct'], reward:'goal', eventKinds:['regular']};
   assert.deepEqual((await admin.request('/api/admin/rules', {method:'PUT', body:monthly})).rules, monthly);
   // July to December: 09-30 and 12-31 were direct; 10-01 was 대타, which this club no longer counts.
-  const byMonth = (await admin.request(endpoint)).members[0];
+  const byMonth = mine(await admin.request(endpoint));
   assert.deepEqual([byMonth.periods, byMonth.eligible], [[0, 0, 1, 0, 0, 1], false]);
   await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['substitute', 'direct'], reward:'goal', eventKinds:['match', 'regular']}});
   const whole = await admin.request(endpoint);
   assert.deepEqual(whole.rules, {periods:1, goal:3, kinds:['direct', 'substitute'], reward:'goal', eventKinds:['regular', 'match']});
-  assert.deepEqual([whole.members[0].periods, whole.members[0].eligible], [[3], true]);
+  assert.deepEqual([mine(whole).periods, mine(whole).eligible], [[3], true]);
   await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['direct', 'substitute'], reward:'manual', eventKinds:['regular']}});
-  assert.equal((await admin.request(endpoint)).members[0].eligible, false);
+  assert.equal(mine(await admin.request(endpoint)).eligible, false);
 });
 
 test('members see vote counts without names and their own half-year record', async t => {
@@ -549,12 +595,13 @@ test('members see vote counts without names and their own half-year record', asy
   const votePath = '/api/votes/' + event.id;
   // 진행 중인 일정 (FLOW.md) reads 미응답 from the organisers' list: active members on the roster without an answer.
   const waiting = async () => (await admin.request('/api/admin')).events.find(item => item.id === event.id).waiting;
-  assert.equal(await waiting(), 2);
+  // Three on the roster: the two members and the organiser, who is a member too (ROLES.md 1단계).
+  assert.equal(await waiting(), 3);
   assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:true}})).counts, {early:1, late:0, no:0, lunch:1});
   // Members answer 선발 or 후발 only; 불참 is the organisers' record.
   await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}, expect:400});
   assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'late', lunch:false}})).counts, {early:1, late:1, no:0, lunch:1});
-  assert.equal(await waiting(), 0);
+  assert.equal(await waiting(), 1);
 
   const home = await first.request('/api/public');
   const listed = home.events.find(item => item.id === event.id);
@@ -566,7 +613,7 @@ test('members see vote counts without names and their own half-year record', asy
   // 응답 취소 removes the answer; cancelling again is harmless, and after the deadline the answer stays.
   assert.deepEqual(await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}}), {vote:null, counts:{early:1, late:0, no:0, lunch:1}});
   assert.equal((await second.request(votePath)).vote, null);
-  assert.equal(await waiting(), 1);
+  assert.equal(await waiting(), 2);
   assert.equal((await second.request(votePath, {method:'PUT', body:{slot:null, lunch:false}})).vote, null);
   await second.request(votePath, {method:'PUT', body:{slot:null, lunch:true}, expect:400});
   await admin.request('/api/admin/events/' + event.id, {method:'PATCH', body:{open:false}});
@@ -770,13 +817,14 @@ test('event kinds default to 정기 and the 모임 규칙 choose which kinds cou
   assert.equal((await admin.request('/api/admin/events/' + upcoming.id, {method:'PATCH', body:{kind:'match'}})).event.kind, 'match');
 
   const endpoint = '/api/admin/progress?year=' + year + '&half=2';
+  const periods = async () => (await admin.request(endpoint)).members.find(row => row.id === member.id).periods;
   // The default counts 정기·번개·대회: the 모임 (social) is left out.
-  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [2, 0]);
+  assert.deepEqual(await periods(), [2, 0]);
   const rules = {periods:2, goal:3, kinds:['direct', 'substitute', 'approved'], reward:'manual'};
   await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['regular', 'flash', 'match', 'social']}});
-  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [3, 0]);
+  assert.deepEqual(await periods(), [3, 0]);
   await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['regular']}});
-  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [1, 0]);
+  assert.deepEqual(await periods(), [1, 0]);
 
   // 내 기록's 출석 follows the same rule (this year's months only count when the events are this year).
   const self = client();
