@@ -42,3 +42,18 @@ export function koreanNow(ms = Date.now()) {
   const minute = new Date(ms + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
   return { day: minute.slice(0, 10), minute };
 }
+
+// 회원 홈 (FLOW.md 4): 상단 고정(고정한 순서) → 오늘 → 응답하지 않은 열린 투표(마감 이른 순) → 응답한 열린 투표 →
+// 그 외 예정(날짜순). The events are the member's own listing (worker/api.mjs listPublic): published and upcoming.
+export function awaitingVote(event) {
+  return event.canVote && event.eligible && !event.mySlot;
+}
+
+export function memberOrder(events, now) {
+  const rank = event => event.date === now.day ? 0 : awaitingVote(event) ? 1 : event.canVote ? 2 : 3;
+  const key = event => [1, 2].includes(rank(event)) ? event.deadline : `${event.date}T${event.time}`;
+  const pinned = events.filter(event => event.pinnedAt).sort((a, b) => a.pinnedAt - b.pinnedAt || a.id.localeCompare(b.id));
+  const rest = events.filter(event => !event.pinnedAt)
+    .sort((a, b) => rank(a) - rank(b) || key(a).localeCompare(key(b)) || a.id.localeCompare(b.id));
+  return [...pinned, ...rest];
+}

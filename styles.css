@@ -152,6 +152,7 @@ p { line-height: 1.58; }
 /* 상단 고정: a push pin by the title, in the colour of the text around it. */
 .pin-mark { display: inline-flex; vertical-align: -2px; margin-right: 4px; }
 .notice-date .pin-mark, .notice-home-link .pin-mark { margin-right: 0; }
+.public-share-type .pin-mark { margin: 0 0 0 6px; }
 /* The side panel keeps its own height instead of stretching beside a long 진행 중인 일정. */
 .dashboard-grid.dashboard-bottom { align-items: start; }
 .last-session { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 12px 0; }

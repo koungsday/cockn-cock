@@ -339,21 +339,23 @@ test('member overview requires login and limits records to published upcoming ev
   const { cookie } = await adminLogin(first);
   const futureDate = offset => new Date(Date.now() + (9 + offset * 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  async function addEvent(title, date, published = true) {
+  async function addEvent(title, date, published = true, open = true) {
     const response = await request(first, '/admin/events', {
       method: 'POST', cookie, body: {
         title, date, time: '10:00', endTime: '13:00', place: '가상 운동장',
         deadline: date + 'T09:00', earlyTime: '09:30', lateTime: '09:50',
-        notes: '목록에는 나오지 않는 상세 안내', published, open: true
+        notes: '목록에는 나오지 않는 상세 안내', published, open
       }
     });
     assert.equal(response.status, 201);
     return (await response.json()).event;
   }
 
+  // 13 events without an open vote, then three open votes further out (FLOW.md 7-10): every open vote comes, the
+  // rest only to the next 12.
   const published = [];
-  for (let offset = 1; offset <= 13; offset++) {
-    published.push(await addEvent('가상 예정 일정 ' + offset, futureDate(offset)));
+  for (let offset = 1; offset <= 16; offset++) {
+    published.push(await addEvent('가상 예정 일정 ' + offset, futureDate(offset), true, offset > 13));
   }
   const draft = await addEvent('가상 비공개 일정', futureDate(1), false);
   const previous = await addEvent('가상 지난 일정', futureDate(-1));
@@ -378,13 +380,21 @@ test('member overview requires login and limits records to published upcoming ev
   assert.match(list.headers.get('Cache-Control'), /no-store/);
   assert.equal(list.headers.get('Set-Cookie'), null);
   const result = await list.json();
-  assert.deepEqual(result.events, published.slice(0, 12).map(({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime }) =>
-    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: true, kind: 'regular', open: true, eligible: true, mySlot: null,
-      counts: { early: 0, late: 0, no: 0, lunch: 0 } })
-  ));
+  const shown = events => events.map(({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, open, pinnedAt }) =>
+    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: open, kind: 'regular', pinnedAt, open, eligible: true, mySlot: null,
+      counts: { early: 0, late: 0, no: 0, lunch: 0 } }));
+  assert.deepEqual(result.events, shown([...published.slice(0, 12), ...published.slice(13)]));
   // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.
   assert.doesNotMatch(JSON.stringify(result.events.map(({ counts, ...event }) => event)), /lunch|roster|가상 첫 모임 회원/);
-  assert.deepEqual(result.notices, notices.slice(1, 9).reverse().map(({ id, title, date }) => ({ id, title, date })));
+  assert.deepEqual(result.notices, notices.slice(1, 9).reverse().map(({ id, title, date }) => ({ id, title, date, pinnedAt: null })));
+  // 상단 고정 brings back what the limits cut: the 13th closed event and the oldest notice, which comes first.
+  for (const path of ['/admin/events/' + published[12].id, '/admin/notices/' + notices[0].id]) {
+    assert.equal((await request(first, path, { method: 'PATCH', cookie, body: { pinned: true } })).status, 200);
+  }
+  const pinned = await (await request(first, '/public', {cookie:memberCookie})).json();
+  assert.deepEqual(pinned.events.map(event => event.id), published.map(event => event.id));
+  assert.ok(pinned.events[12].pinnedAt);
+  assert.deepEqual(pinned.notices.map(notice => notice.id), [notices[0], ...notices.slice(2, 9).reverse()].map(notice => notice.id));
   assert.ok(result.events.every(event => event.id !== draft.id && event.id !== previous.id));
   assert.equal((await request(second, '/public', {cookie:memberCookie})).status, 401);
   assert.equal((await request(first, '/public', { method: 'POST', body: {} })).status, 405);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { eventStage, flowOrder, koreanNow } from './public/flow.mjs';
+import { awaitingVote, eventStage, flowOrder, koreanNow, memberOrder } from './public/flow.mjs';
 
 // FLOW.md 7장의 상황들. 지금은 2026-11-26(목) 12:00, 한국 시각.
 const now = { day: '2026-11-26', minute: '2026-11-26T12:00' };
@@ -64,4 +64,29 @@ test('pinned events come first in the order they were pinned, then the rest by u
 
 test('Korean time is nine hours ahead of UTC', () => {
   assert.deepEqual(koreanNow(Date.parse('2026-11-25T15:30:00Z')), { day: '2026-11-26', minute: '2026-11-26T00:30' });
+});
+
+// The member's own listing (worker/api.mjs listPublic): canVote, eligible and mySlot are theirs.
+const listed = (id, date, fields = {}) => ({
+  id, date, time: '10:00', deadline: `${date}T09:00`, canVote: true, eligible: true, mySlot: null, pinnedAt: null, ...fields
+});
+
+test('the member home: pinned, today, votes still to answer by deadline, answered votes, then the rest by date (4)', () => {
+  const order = memberOrder([
+    listed('later', '2026-12-20', { canVote: false }),
+    listed('answered', '2026-11-28', { mySlot: 'early' }),
+    listed('sunday', '2026-11-29', { deadline: '2026-11-28T20:00' }),
+    listed('wednesday', '2026-12-02', { deadline: '2026-11-28T18:00' }),
+    listed('today', '2026-11-26', { canVote: false }),
+    listed('year-end', '2026-12-13', { canVote: false, pinnedAt: 10 }),
+    listed('not-on-roster', '2026-11-30', { eligible: false }),
+  ], now).map(item => item.id);
+  assert.deepEqual(order, ['year-end', 'today', 'wednesday', 'sunday', 'answered', 'not-on-roster', 'later']);
+});
+
+test('a vote waits for this member only while it is open, they are on its roster and have not answered', () => {
+  assert.equal(awaitingVote(listed('a', '2026-11-29')), true);
+  assert.equal(awaitingVote(listed('a', '2026-11-29', { mySlot: 'late' })), false);
+  assert.equal(awaitingVote(listed('a', '2026-11-29', { eligible: false })), false);
+  assert.equal(awaitingVote(listed('a', '2026-11-29', { canVote: false })), false);
 });
