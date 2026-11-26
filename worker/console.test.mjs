@@ -485,10 +485,12 @@ test('an organiser issues, reissues and retires other organisers of their club, 
   const secondNow = cookieOf(await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.41' }));
   assert.equal((await other.api(`/admin/organizers/${second.id}/reset`, { method: 'POST', json: {}, cookie: other.own })).status, 404, 'another club');
   assert.equal((await other.api(`/admin/organizers/${second.id}`, { method: 'PATCH', json: { active: false }, cookie: other.own })).status, 404);
+  assert.equal((await other.api(`/admin/organizers/${second.id}`, { method: 'PATCH', json: { active: true }, cookie: other.own })).status, 404);
   assert.equal((await (await api('/admin/session', { cookie: secondNow })).json()).user.id, second.id,
     'a refused attempt from another club leaves their sign-in alone');
 
-  assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: true })).status, 400);
+  assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: true })).status, 409, 'already an organiser');
+  assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: 'yes' })).status, 400);
   assert.equal((await as(`/admin/organizers/${second.id}`, 'PATCH', { active: false })).status, 200);
   // Retired: a member without the 운영 권한, signing in with the same PIN.
   const retired = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: again }, ip: '198.51.100.40' });

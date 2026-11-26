@@ -850,9 +850,11 @@ async function doAction(action, itemId, tab) {
       credentialDialog(member.name, result.temporaryPin);
       break;
     }
-    case 'new-organizer':
-      openDialog('운영진 추가', organizerForm());
+    case 'new-organizer': {
+      const organizerIds = new Set(state.admin.organizers.map(organizer => organizer.id));
+      openDialog('운영진 추가', organizerForm(state.admin.members.filter(member => member.active && !organizerIds.has(member.id))));
       break;
+    }
     case 'reset-organizer': {
       const organizer = state.admin.organizers.find(person => person.id === itemId);
       if (!organizer) return showSaved('운영진 목록이 바뀌어 새로 불러왔어요.');
@@ -1020,6 +1022,14 @@ async function doSubmit(kind, itemId, data) {
         await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
         await showSaved('회원을 등록했어요.');
       }
+      break;
+    }
+    // The 운영 권한 for someone already on the 회원 명단 (ROLES.md 2단계): their account and number stay.
+    case 'organizer-grant': {
+      const member = state.admin.members.find(person => person.id === read(data, 'member'));
+      if (!member) throw new Error('운영 권한을 켤 회원을 골라 주세요.');
+      await update(`/api/admin/organizers/${id(member.id)}`, 'PATCH', { active: true },
+        `${member.name}님의 운영 권한을 켰어요. 다음에 모임 화면을 열면 운영 메뉴가 보여요.`);
       break;
     }
     case 'organizer': {

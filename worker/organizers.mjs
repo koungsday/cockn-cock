@@ -1,7 +1,9 @@
 // Organisers (PLATFORM.md 인증, ROLES.md 1단계): members with the 운영 권한, issued by the 총괄 in the console or by
 // another organiser of the same club. scope is a club's API env (DB, CLUB_SCOPE, CLUB_AUTH_PEPPER), as
 // worker/scope.mjs makes it.
-import { ApiError, makeMemberCredential, matchingCredentials, membersNamed, rosterOpenEvents, sql, temporaryPin } from './auth.mjs';
+import {
+  ApiError, adminSessionAge, currentSeconds, makeMemberCredential, matchingCredentials, membersNamed, rosterOpenEvents, sql, temporaryPin,
+} from './auth.mjs';
 
 export function organizerName(value) {
   const name = typeof value === 'string' ? value.trim().normalize('NFC') : '';
@@ -43,6 +45,28 @@ export async function issueOrganizer(scope, name) {
   ]);
   if (!added.meta.changes) throw new ApiError(409, '같은 이름의 운영진이 이미 있어요. 번호 재발급을 써 주세요.');
   return { id, name, pin };
+}
+
+// The 운영 권한 for someone already on the 회원 명단 (ROLES.md 2단계): the same account, id and PIN. One who signs in with
+// a birthday or a temporary number opens the 운영 메뉴 only after setting their own (api.mjs refuses until then). They
+// stay signed in, but no longer than an organiser's sign-in lasts (auth.mjs adminSessionAge). As when issuing, a second
+// organiser of the same name is refused.
+export async function grantOrganizer(scope, id) {
+  const row = await sql(scope.DB, 'SELECT name, organizer FROM members WHERE id = ? AND club_id = ? AND active = 1',
+    id, scope.CLUB_SCOPE).first();
+  if (!row) throw new ApiError(404, '운영 권한을 켤 활동 회원을 찾을 수 없어요.');
+  if (row.organizer) throw new ApiError(409, '이미 운영진이에요.');
+  const [granted] = await scope.DB.batch([
+    sql(scope.DB, `
+      UPDATE members SET organizer = 1 WHERE id = ? AND club_id = ? AND active = 1 AND organizer = 0
+        AND NOT EXISTS (SELECT 1 FROM members WHERE club_id = ? AND name = ? AND active = 1 AND organizer = 1)
+    `, id, scope.CLUB_SCOPE, scope.CLUB_SCOPE, row.name),
+    sql(scope.DB, `UPDATE sessions SET expires_at = MIN(expires_at, ?)
+      WHERE member_id = ? AND club_id = ? AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND organizer = 1)`,
+    currentSeconds() + adminSessionAge, id, scope.CLUB_SCOPE, id, scope.CLUB_SCOPE),
+  ]);
+  if (!granted.meta.changes) throw new ApiError(409, '같은 이름의 운영진이 이미 있어요.');
+  return { id, name: row.name };
 }
 
 // A new temporary PIN; their sessions and PIN-change attempts end at once.

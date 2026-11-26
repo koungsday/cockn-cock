@@ -4,7 +4,7 @@ const encoder = new TextEncoder();
 // Members stay signed in on their phone for half a year (사용자 결정, 2026-11-26: name and 6 digits once, not every
 // visit); a PIN change or a reset by the organisers still ends it (credential_version).
 const memberSessionAge = 180 * 24 * 60 * 60;
-const adminSessionAge = 30 * 24 * 60 * 60;
+export const adminSessionAge = 30 * 24 * 60 * 60;
 const invalidLogin = '입력한 로그인 정보를 확인해 주세요.';
 const attemptWindow = 15 * 60;
 const loginNamespace = 'pin-login';

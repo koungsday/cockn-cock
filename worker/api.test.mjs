@@ -350,6 +350,48 @@ test('organisers are members with the 운영 권한: they vote, and share a name
   assert.equal(roster.find(row => row.id === me.id).slot, 'early');
 });
 
+// ROLES.md 2단계: an organiser turns the 운영 권한 on for someone already on the 회원 명단 — the same account and PIN.
+test('the 운영 권한 turns on for an existing member, who opens the 운영 메뉴 once their own number is set', async t => {
+  const {DB, client} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const name = '가상 권한 받을 회원';
+  const {member} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name, birthday:'19850505'}});
+  const phone = client('203.0.113.50');
+  await phone.login(name, '850505');
+  await phone.request('/api/admin', {expect:403});
+  const sessionEnds = async () => (await DB.prepare('SELECT expires_at FROM sessions WHERE member_id = ?').bind(member.id).first()).expires_at;
+  const now = Math.floor(Date.now() / 1000);
+  assert(await sessionEnds() > now + 170 * 86400, 'a member stays signed in for half a year');
+
+  const {organizer} = await admin.request('/api/admin/organizers/' + member.id, {method:'PATCH', body:{active:true}});
+  assert.deepEqual(organizer, {id:member.id, name, active:true});
+  assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM members WHERE name = ?').bind(name).first()).count, 1, 'no second account');
+  // Still signed in, but no longer than an organiser's sign-in lasts.
+  const ends = await sessionEnds();
+  assert(ends <= now + 30 * 86400 + 5 && ends > now + 29 * 86400, 'the sign-in is cut to 30 days');
+  const {user} = await phone.request('/api/session');
+  assert.equal(user.organizer, true);
+  assert.equal(user.mustChange, true);
+  // A birthday sign-in opens the 운영 메뉴 only after the member sets their own number.
+  await phone.request('/api/admin', {expect:403});
+  await phone.request('/api/admin/pin', {method:'POST', body:{currentPin:'850505', newPin:'394817'}});
+  await phone.request('/api/admin');
+  assert((await admin.request('/api/admin')).organizers.some(row => row.id === member.id));
+  assert.equal((await DB.prepare("SELECT COUNT(*) AS count FROM audit_log WHERE action = 'organizer.grant' AND target_id = ?").bind(member.id).first()).count, 1);
+
+  // Refused: someone who already has it, an inactive member, a second organiser of the same name, and oneself.
+  await admin.request('/api/admin/organizers/' + member.id, {method:'PATCH', body:{active:true}, expect:409});
+  const {member: resting} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name:'가상 쉬는 회원', birthday:'19860606'}});
+  await admin.request('/api/admin/members/' + resting.id, {method:'PATCH', body:{active:false}});
+  await admin.request('/api/admin/organizers/' + resting.id, {method:'PATCH', body:{active:true}, expect:404});
+  const {member: namesake} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name, birthday:'19870707'}});
+  await admin.request('/api/admin/organizers/' + namesake.id, {method:'PATCH', body:{active:true}, expect:409});
+  assert.equal((await DB.prepare('SELECT organizer FROM members WHERE id = ?').bind(namesake.id).first()).organizer, 0);
+  const {user: me} = await admin.request('/api/admin/session');
+  await admin.request('/api/admin/organizers/' + me.id, {method:'PATCH', body:{active:true}, expect:409});
+});
+
 test('a fresh browser signs in with an administrator name and PIN alone', async t => {
   const { client, env } = setup(t);
   env.CLUB_ADMIN_ID = '가상 운영진';
