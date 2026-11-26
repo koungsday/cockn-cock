@@ -259,36 +259,41 @@ async function fetchPublic(db, club, kind, id) {
 
 // The member home: published upcoming events with this member's own place on the roster and answer
 // (never anyone else's; others only as counts), so the home can show 투표하기 / 응답 완료 without one request per
-// event, and 내 기록: this member's row of this half's 반기 집계.
+// event, and 내 기록: this member's row of this half's 반기 집계. Every pinned event, today's events and every open vote
+// come (FLOW.md 6); only the rest are cut to the next 12. The screen orders them (flow.mjs memberOrder).
 async function listPublic(db, club, memberId) {
   const now = kstNow();
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
-  const [events, notices] = await db.batch([
-    sql(db, `
-      SELECT e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind,
-        e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}
-      FROM events e
+  const seconds = currentSeconds();
+  const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at,
+        e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
+  const upcoming = `FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
-      WHERE e.club_id = ? AND e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)
-      ORDER BY e.date, e.time, e.id LIMIT 12
-    `, memberId, memberId, club, date, date, time),
+      WHERE e.club_id = ? AND e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)`;
+  const flowing = '(e.pinned_at IS NOT NULL OR e.date = ? OR (e.open = 1 AND e.deadline_at > ?))';
+  const binds = [memberId, memberId, club, date, date, time];
+  const [current, later, notices] = await db.batch([
+    sql(db, `SELECT ${columns} ${upcoming} AND ${flowing}`, ...binds, date, seconds),
+    sql(db, `SELECT ${columns} ${upcoming} AND NOT ${flowing} ORDER BY e.date, e.time, e.id LIMIT 12`, ...binds, date, seconds),
+    // Pinned notices first, in the order they were pinned (상단 고정), then the newest.
     sql(db, `
-      SELECT id, title, date FROM notices
+      SELECT id, title, date, pinned_at FROM notices
       WHERE club_id = ? AND date <= ? AND published = 1
-      ORDER BY date DESC, rowid DESC LIMIT 8
+      ORDER BY pinned_at IS NULL, pinned_at, date DESC, rowid DESC LIMIT 8
     `, club, date)
   ]);
-  const seconds = currentSeconds();
+  const rows = [...current.results, ...later.results]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
   return {
-    events: events.results.map(row => ({
+    events: rows.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
       place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
-      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind,
+      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null,
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
-    notices: notices.results,
+    notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
     record: await memberRecord(db, club, memberId, date)
   };
 }

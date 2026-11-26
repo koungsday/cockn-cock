@@ -1,6 +1,6 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { adminSkeleton, loadingCenter, memberSkeleton } from './skeleton.mjs';
-import { eventStage, flowOrder, koreanNow } from './flow.mjs';
+import { awaitingVote, eventStage, flowOrder, koreanNow, memberOrder } from './flow.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -313,7 +313,7 @@ function nextEventCard(event, club) {
   const kind = event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
   const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
   return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
-    <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}</span>
+    <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}${pinMark(event)}</span>
       <h2 id="member-next-title" class="public-title">${esc(event.title)}</h2><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time></header>
     <div class="public-share-content">
       <dl class="public-event-facts"><div><dt>장소</dt><dd>${esc(event.place)}</dd></div>${deadline}</dl>${countsBlock(event.counts, event)}
@@ -369,17 +369,21 @@ function recordCard(record) {
     <p class="public-form-note">마무리한 회차에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
 }
 
+// 회원 홈 (FLOW.md 4·5): the big card is the member's first event (memberOrder), the votes they still have to answer
+// follow it as one bundle ("응답할 투표 n개"), then the rest in the same order.
 export function homeScreen({ events, notices, record }, club, user = null) {
-  const [next, ...later] = events;
-  const eventRows = later.map(event => {
+  const [next, ...others] = memberOrder(events, koreanNow());
+  const waiting = others.filter(awaitingVote);
+  const later = others.filter(event => !awaitingVote(event));
+  const eventRow = event => {
     const state = memberEventState(event);
     const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
     return `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}">
-    <span><strong>${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
+    <span><strong>${pinMark(event)}${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(kindPrefix(event) + dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
     <span class="member-record-action${tone}">${state.row}</span></a></li>`;
-  });
+  };
   const noticeRows = notices.map(notice => `<li class="member-record"><a class="member-record-link" href="${esc(club.home)}notice/${encodeURIComponent(notice.id)}">
-    <span><strong>${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
+    <span><strong>${pinMark(notice)}${esc(notice.title)}</strong><time class="member-record-meta" datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time></span>
     <span class="member-record-arrow" aria-hidden="true">${icon('chevron-right', 18)}</span></a></li>`);
   const listCard = (id, title, rows, empty) => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
     <h2 id="${id}">${title}</h2>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
@@ -389,7 +393,8 @@ export function homeScreen({ events, notices, record }, club, user = null) {
     <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
     <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
   return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
-    ${later.length ? listCard('member-events', '이후 일정', eventRows, '') : ''}
+    ${waiting.length ? listCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(eventRow), '') : ''}
+    ${later.length ? listCard('member-events', '이후 일정', later.map(eventRow), '') : ''}
     ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${pin}`, { back: false });
 }
 
