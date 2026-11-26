@@ -749,6 +749,8 @@ async function doAction(action, itemId, tab) {
       break;
     }
     case 'confirm-remove-organizer':
+      // The row it was opened from disappears; the dialog hands focus to 운영진 추가 in the redrawn panel instead.
+      dialogOpener = main.querySelector('[data-action="new-organizer"]');
       await update(`/api/admin/organizers/${id(itemId)}`, 'PATCH', { active: false }, '운영진을 해지했어요.');
       break;
     case 'copy-invitation':

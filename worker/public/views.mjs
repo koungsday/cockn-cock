@@ -169,9 +169,9 @@ function panel(title, content, { subtitle = '', actions = '', id = '', titleId =
   return `<section class="panel"${id ? ` id="${id}"` : ''}><header class="panel-head"><div><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div>${actions ? `<div class="panel-actions">${actions}</div>` : ''}</header><div class="panel-body">${content}</div></section>`;
 }
 
-function table(columns, rows, empty) {
+function table(columns, rows, empty, css = '') {
   if (!rows.length) return `<p class="empty-state">${empty}</p>`;
-  return `<div class="data-table-wrap"><table class="data-table"><thead><tr>${columns.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  return `<div class="data-table-wrap"><table class="data-table${css ? ` ${css}` : ''}"><thead><tr>${columns.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 }
 
 function summary(items) {
@@ -759,7 +759,7 @@ function organizersPanel(organizers, me) {
         + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
   </tr>`;
   });
-  return panel('운영진', table(['이름', '상태', '<span class="sr-only">운영진 관리</span>'], rows, '운영진이 없습니다.'), {
+  return panel('운영진', table(['이름', '상태', '<span class="sr-only">운영진 관리</span>'], rows, '운영진이 없습니다.', 'stack-table'), {
     subtitle: '운영 화면에 들어오는 사람이에요. 추가하면 임시 번호가 한 번 보여요.',
     actions: button('운영진 추가', 'new-organizer', { css: 'secondary small' }),
   });
@@ -779,7 +779,7 @@ export function membersScreen(members, organizers = [], me = null) {
     <td class="table-actions">${button('회원 수정', 'edit-member', { id: member.id, css: 'text small', label: `${member.name} 회원 수정` })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'text small', disabled: !member.active, label: `${member.name} 접속 재설정` })}</td>
   </tr>`);
   return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}
-    ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.'), {
+    ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.', 'stack-table'), {
     subtitle: `전체 ${members.length}명 · 활동 중 ${active}명`, actions: search('members'),
   })}
     ${organizersPanel(organizers, me)}</div>`;
