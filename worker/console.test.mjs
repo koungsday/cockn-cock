@@ -220,3 +220,24 @@ test('ten wrong passwords from one place lock it for 15 minutes, even with the r
   assert.match(await locked.text(), /15분 뒤에 다시 시도해 주세요/);
   assert.equal((await signIn({ id: 'console-fixture', password }, { ip: '198.51.100.7' })).status, 303, 'another place still can');
 });
+
+test('twenty wrong passwords from anywhere lock the console for everyone for 15 minutes', async t => {
+  const { signIn } = await setup(t);
+  for (let place = 1; place <= 20; place++) {
+    assert.equal((await signIn({ id: 'console-fixture', password: 'wrong-password' }, { ip: `198.51.100.${place}` })).status, 401);
+  }
+  // The trade-off (PLATFORM.md 인증): spread-out guessing stops, and so does the right password from a new place.
+  assert.equal((await signIn({ id: 'console-fixture', password }, { ip: '203.0.113.99' })).status, 429);
+});
+
+test('the old workers.dev address cannot take a console login: its pages all move, so no form there can pass the Origin check', async t => {
+  const { env, receive } = await setup(t);
+  env.CLUB_LEGACY_ORIGIN = origin;
+  env.CLUB_PUBLIC_ORIGIN = 'https://club-example.pages.dev';
+  const moved = await receive('/console/');
+  assert.equal(moved.status, 308);
+  assert.equal(moved.headers.get('Location'), 'https://club-example.pages.dev/console/');
+  const fromElsewhere = await receive('/console/login', { method: 'POST', form: { id: 'console-fixture', password }, requestOrigin: env.CLUB_PUBLIC_ORIGIN });
+  assert.equal(fromElsewhere.status, 403);
+  assert.equal(fromElsewhere.headers.get('Set-Cookie'), null);
+});
