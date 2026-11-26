@@ -9,7 +9,7 @@ html:has(dialog[open]) { overflow: hidden; overscroll-behavior: none; }
 body.dialog-scroll-lock { position: fixed; inset-inline: 0; width: 100%; }
 .noscript { padding: 1rem; }
 
-/* Member and sign-in header. The admin shell replaces it with the sidebar and top bar. */
+/* Sign-in header. The shell (everyone's since ROLES.md 2단계) replaces it with the sidebar and top bar. */
 .site-header { padding-top: var(--safe-top); background: var(--paper); border-bottom: 1px solid var(--line); }
 .site-header:has(#account:not(:empty)) { position: sticky; top: 0; z-index: 5; }
 body:has(.admin-app) .site-header { display: none; }
@@ -57,16 +57,6 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-crumb { width: 120px; height: 16px; }
 .sk-icon { width: 24px; height: 24px; border-radius: 7px; }
 .admin-skeleton .topbar .sk-icon { display: none; }
-.sk-card-head { display: grid; gap: 12px; padding: clamp(21px, 6vw, 38px); background: #174331; }
-.sk-card-head .sk { background: #ffffff24; }
-.sk-card-head--notice { background: #f4e5b8; }
-.sk-card-head--notice .sk { background: #362d1b14; }
-.sk-kicker { width: 64px; height: 14px; }
-.sk-card-title { width: 62%; height: 30px; }
-.sk-card-date { width: 150px; height: 16px; }
-.sk-card .public-share-content { display: grid; gap: 12px; }
-.sk-fact { width: 70%; height: 18px; }
-.sk-cta { height: 46px; border-radius: 11px; }
 .shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: .94rem; font-weight: 650; text-align: center; }
 .shuttle-loader .shuttle-spin { width: 64px; height: 60px; color: var(--court); }
 .shuttle-inline { width: 1.2em; height: 1.12em; margin-right: .35em; vertical-align: -.22em; flex: none; }
@@ -148,7 +138,11 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .menu-actions { display: grid; gap: 8px; }
 .login-menu-dialog[open] { inset: calc(var(--site-header-block) + .5rem) 0 auto; width: min(25rem, calc(100% - 32px)); margin-block: 0; }
 
-/* Member screens live in share.css (member home, records, back link) so the demo uses the same components. */
+/* Member screens live in share.css (member home, records, back link) so the demo uses the same components. In the
+   shell they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content area's own padding. */
+.admin-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
+/* 내 응답 in the organisers' 일정 상세 (views.mjs eventScreen): the vote form is the panel's body, no divider above it. */
+#my-vote .public-form { margin-top: 0; padding-top: 0; border-top: 0; }
 .message-actions { margin-top: 16px; }
 .member-back, .member-record-link, .public-choice, .public-lunch, .public-form button { touch-action: manipulation; }
 
@@ -192,9 +186,6 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
 .login-pending { display: flex; align-items: center; color: var(--muted); font-size: .9rem; font-weight: 650; }
 .login-pending .shuttle-inline { color: var(--court); }
-/* 내 번호 정하기 (views.mjs organizerPinScreen): the sign-in card holding the PIN form; title at the panel size (DESIGN.md 2). */
-.organizer-pin { display: grid; gap: 12px; padding-top: 16px; }
-.organizer-pin h2 { font-size: 1.13rem; }
 
 /* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
 .console-login input[name] { width: 100%; min-height: 46px; }

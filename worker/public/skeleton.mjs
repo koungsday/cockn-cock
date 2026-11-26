@@ -36,14 +36,6 @@ export function adminSkeleton(section = 'home') {
   </div>`;
 }
 
-// kind: home (next-event card and a list), vote or notice (one card; a notice card has the sand head).
-export function memberSkeleton(kind = 'home') {
-  const card = `<div class="public-share-card sk-card"><div class="sk-card-head${kind === 'notice' ? ' sk-card-head--notice' : ''}">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-card-date')}</div>
-    <div class="public-share-content">${bars(2, 'sk-fact')}${bar('sk-text')}${bar('sk-cta')}</div></div>`;
-  const list = `<div class="public-share-card sk-card"><div class="public-share-content">${bar('sk-h2')}${rows(3)}</div></div>`;
-  return `<div class="public-share-page member-page sk-member" aria-hidden="true">${card}${kind === 'home' ? list : ''}</div>`;
-}
-
 // The one moving thing while a screen loads: the shuttlecock in the middle of the viewport, with its sentence.
 export function loadingCenter(shuttle, text = '모임을 불러오는 중이에요.') {
   return `<main id="main-content" class="loading-center" tabindex="-1"><div class="shuttle-loader" role="status">${shuttle}<span>${text}</span></div></main>`;

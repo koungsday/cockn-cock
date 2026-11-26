@@ -91,11 +91,12 @@ function methodNotAllowed() {
   return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
 }
 
-function adminManifest(request, club) {
-  const start = `/clubs/${club.slug}/admin/`;
+// The home-screen app (ROLES.md 2단계): one address for everyone, members and organisers alike.
+function clubManifest(request, club) {
+  const start = `/clubs/${club.slug}/`;
   const manifest = {
     id: start, start_url: start, scope: start, display: 'standalone', lang: 'ko',
-    name: `${club.name} 운영진 · ${PLATFORM_NAME}`, short_name: `${club.name} 운영진`,
+    name: `${club.name} · ${PLATFORM_NAME}`, short_name: club.name,
     background_color: '#f3f2ec', theme_color: '#f3f2ec',
     icons: [192, 512].map(size => ({
       src: `/assets/shuttlecock-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
@@ -111,26 +112,24 @@ function adminManifest(request, club) {
 }
 
 // The intro home's '최근 들어간 모임' reads this (platform/recent-club.js). Only the club's public name and slug, no account data.
-function recentCookie(url, club, admin) {
-  const value = encodeURIComponent(new URLSearchParams({ s: club.slug, n: club.name, v: admin ? 'admin' : 'member' }).toString());
+function recentCookie(url, club) {
+  const value = encodeURIComponent(new URLSearchParams({ s: club.slug, n: club.name, v: 'member' }).toString());
   return `cockcockcock-recent=${value}; Path=/; Max-Age=15552000; SameSite=Lax${url.protocol === 'https:' ? '; Secure' : ''}`;
 }
 
-async function clubPage(request, env, url, club, share, admin, summary = null) {
+// One page for everyone (ROLES.md 2단계): the screen shows each person's menus from their sign-in.
+async function clubPage(request, env, url, club, share, summary = null) {
   const tags = share ? shareTags(url, club, share[1], summary) : '';
-  const path = admin ? '/admin-shell.html' : '/index.html';
-  const index = await env.ASSETS.fetch(new Request(new URL(path, url.origin)));
+  const index = await env.ASSETS.fetch(new Request(new URL('/index.html', url.origin)));
   if (!index.ok) return errorPage(request, 503, '화면을 불러올 수 없어요');
   const html = (await index.text())
     .replace(/<title>[^<]*<\/title>/, () => `<title>${escape(club.name)} · ${escape(PLATFORM_NAME)}</title>`)
     .replace('<!-- club-context -->', () => clubContext(club))
     .replace('<!-- share-meta -->', () => tags)
-    .replace('<!-- admin-app -->', () => admin
-      ? `<link rel="manifest" href="/clubs/${club.slug}/admin/manifest.webmanifest">
-    <link rel="apple-touch-icon" href="/assets/shuttlecock-icon-192.png">`
-      : '');
+    .replace('<!-- admin-app -->', () => `<link rel="manifest" href="/clubs/${club.slug}/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/assets/shuttlecock-icon-192.png">`);
   const response = htmlResponse(request, html, { headers: index.headers });
-  response.headers.append('Set-Cookie', recentCookie(url, club, admin));
+  response.headers.append('Set-Cookie', recentCookie(url, club));
   return response;
 }
 
@@ -195,7 +194,7 @@ export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = 
           cacheControl: 'public, max-age=60, s-maxage=60'
         });
       }
-      if (path === '/index.html' || path === '/admin-shell.html') return Response.redirect(new URL('/', url.origin), 308);
+      if (path === '/index.html') return Response.redirect(new URL('/', url.origin), 308);
       if (path === '/api' || path.startsWith('/api/')) return apiError(request, 404, 'API 주소를 찾을 수 없어요.');
 
       const legacy = sharePath.exec(path);
@@ -234,18 +233,21 @@ export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = 
         url.pathname = remainder;
         return handleApi(new Request(url, request), scoped);
       }
-      if (remainder === '/admin/manifest.webmanifest') {
-        return canView(request) ? adminManifest(request, club) : methodNotAllowed();
+      // The old organisers' app address keeps working: its manifest and page lead to the one club address.
+      if (remainder === '/manifest.webmanifest' || remainder === '/admin/manifest.webmanifest') {
+        return canView(request) ? clubManifest(request, club) : methodNotAllowed();
       }
       const share = sharePath.exec(remainder);
       if (!share && !['', '/', '/admin', '/admin/'].includes(remainder)) return errorPage(request, 404, '공유 내용을 찾을 수 없어요');
       if (!canView(request)) return methodNotAllowed();
-      if (!remainder || remainder === '/admin') {
-        url.pathname += '/';
+      if (remainder !== '/' && !share) {
+        // '/admin/' was the 운영 화면 until ROLES.md 2단계; a bookmark or home-screen app there opens the one club page
+        // (a browser keeps the #section of the address across this redirect).
+        url.pathname = `/clubs/${club.slug}/`;
         return Response.redirect(url, 308);
       }
       const summary = share ? await shareSummary(scoped.DB, scoped.CLUB_SCOPE, share[1], share[2]) : null;
-      return clubPage(request, env, url, club, share, remainder === '/admin/', summary);
+      return clubPage(request, env, url, club, share, summary);
     }
   };
 }

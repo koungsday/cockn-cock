@@ -66,7 +66,7 @@ function setup(t) {
     SECOND_PEPPER: 'second-club-test-only-pepper-value',
     ASSETS: {
       async fetch(request) {
-        if (!['/index.html', '/admin-shell.html'].includes(new URL(request.url).pathname)) return new Response(null, { status: 404 });
+        if (new URL(request.url).pathname !== '/index.html') return new Response(null, { status: 404 });
         return new Response('<html><head><title>원본</title><!-- club-context --><!-- share-meta --><!-- admin-app --></head><body></body></html>', {
           headers: { 'Content-Type': 'text/html' }
         });
@@ -442,31 +442,36 @@ test('administration shell contains no private data and scoped admin API still r
   assert.equal(created.status, 201);
   assert.deepEqual(Object.keys(await created.json()), ['member']);
 
-  const canonical = await receive('/clubs/first-club/admin');
-  assert.equal(canonical.status, 308);
-  assert.equal(canonical.headers.get('Location'), origin + '/clubs/first-club/admin/');
+  // One club address for everyone (ROLES.md 2단계): the old 운영 화면 address opens it.
+  for (const old of ['/clubs/first-club/admin', '/clubs/first-club/admin/', '/clubs/first-club']) {
+    const moved = await receive(old);
+    assert.equal(moved.status, 308, old);
+    assert.equal(moved.headers.get('Location'), origin + '/clubs/first-club/', old);
+  }
   for (const session of [null, cookie]) {
-    const page = await receive('/clubs/first-club/admin/', { cookie: session });
+    const page = await receive('/clubs/first-club/', { cookie: session });
     assert.equal(page.status, 200);
     assert.equal(page.headers.get('Cache-Control'), 'no-store');
     const html = await page.text();
     assert.match(html, /<meta name="club-base" content="\/clubs\/first-club">/);
     assert.doesNotMatch(html, /가상 운영진 전용 회원|19890124/);
-    assert.match(html, /rel="manifest" href="\/clubs\/first-club\/admin\/manifest\.webmanifest"/);
+    assert.match(html, /rel="manifest" href="\/clubs\/first-club\/manifest\.webmanifest"/);
     // The page never touches login cookies; it only remembers the club for the intro home (PLATFORM.md).
-    assert.equal(recentClub(page), 's=first-club&n=가상 첫 모임&v=admin');
+    assert.equal(recentClub(page), 's=first-club&n=가상 첫 모임&v=member');
   }
   const anonymous = await request(first, '/admin');
   assert.equal(anonymous.status, 401);
   assert.match(anonymous.headers.get('Cache-Control'), /no-store/);
   assert.equal((await request(first, '/admin', { cookie })).status, 200);
   assert.equal((await receive('/clubs/first-club/admin/other')).status, 404);
-  const openApp = await receive('/clubs/first-club/admin/manifest.webmanifest');
+  // The home-screen app opens the one club address; an app installed at the old address still reads its manifest.
+  assert.equal((await (await receive('/clubs/first-club/admin/manifest.webmanifest')).json()).start_url, '/clubs/first-club/');
+  const openApp = await receive('/clubs/first-club/manifest.webmanifest');
   assert.equal(openApp.status, 200);
   assert.match(openApp.headers.get('Content-Type'), /^application\/manifest\+json/);
   assert.match(openApp.headers.get('Cache-Control'), /^public, max-age=3600$/);
   const manifest = await openApp.json();
-  assert.equal(manifest.start_url, '/clubs/first-club/admin/');
+  assert.equal(manifest.start_url, '/clubs/first-club/');
   assert.equal(manifest.scope, manifest.start_url);
   assert.equal(manifest.display, 'standalone');
   assert.deepEqual(manifest.icons.map(icon => icon.sizes), ['192x192', '512x512']);
@@ -533,7 +538,7 @@ test('a configured address move preserves paths without redirecting credential r
   const worker = createWorker([first]);
   env.CLUB_LEGACY_ORIGIN = origin;
   env.CLUB_PUBLIC_ORIGIN = 'https://club-example.pages.dev';
-  const path = '/clubs/first-club/admin/?from=homescreen';
+  const path = '/clubs/first-club/?from=homescreen';
   const oldPage = await worker.fetch(new Request(origin + path), env);
   assert.equal(oldPage.status, 308);
   assert.equal(oldPage.headers.get('Location'), env.CLUB_PUBLIC_ORIGIN + path);

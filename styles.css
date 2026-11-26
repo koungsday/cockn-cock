@@ -47,10 +47,11 @@ p { line-height: 1.58; }
 .operator-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--menu-text-2); background: var(--menu-line); flex: none; }
 .main-shell { margin-left: var(--sidebar-width); }
 .topbar { min-height: 66px; background: var(--paper); border-bottom: 1px solid var(--line); padding: 0 clamp(20px,3.2vw,50px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.breadcrumb { display: flex; align-items: center; gap: 11px; font-size: .89rem; }
-.breadcrumb-parent { color: var(--muted); }
+.breadcrumb { display: flex; align-items: center; gap: 11px; min-width: 0; font-size: .89rem; }
+/* The club's name (ROLES.md 2단계: members read it here too) stays on every width; a long one ends in … */
+.breadcrumb-parent { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .breadcrumb-divider { color: var(--muted); }
-.breadcrumb strong { font-weight: 750; }
+.breadcrumb strong { font-weight: 750; white-space: nowrap; }
 .demo-label { display: inline-flex; align-items: center; gap: 7px; color: #435e4c; background: #edf3e8; border: 1px solid #e2ebdf; padding: 6px 10px; border-radius: 99px; font-size: .77rem; font-weight: 700; white-space: nowrap; }
 .demo-label i, .featured-kicker i, .poll-status i { width: 6px; height: 6px; border-radius: 50%; background: #619c66; }
 .main-content { max-width: 1400px; margin: 0 auto; padding: 33px clamp(20px,3.2vw,50px) 44px; }
@@ -360,7 +361,7 @@ textarea { min-height: 100px; resize: vertical; }
   .summary-grid { grid-template-columns: repeat(auto-fit,minmax(92px,1fr)); }
 }
 @media (max-width: 390px) {
-  .breadcrumb-parent, .breadcrumb-divider, .metric .metric-icon { display: none; }
+  .metric .metric-icon { display: none; }
   .metric { padding-left: 10px; }
   .form-grid { grid-template-columns: 1fr; }
 }

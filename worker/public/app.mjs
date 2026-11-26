@@ -1,9 +1,10 @@
 import {
-  adminHome, adminMenu, adminShell, attendanceForm, attendanceRow, attendanceSubtitle, brand, button, countEvent, deadlinePassed,
-  esc, eventDefaults, eventForm, eventScreen, homeFlows, homeSteps,
+  accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceSubtitle, brand, button,
+  countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventScreen, homeFlows, homeSteps,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
-  guestForm, homeScreen, loginHelp, loginScreen, memberForm, membersScreen, memberVoteScreen, noticeForm, noticeScreen, organizerForm,
-  noticesScreen, organizerPinScreen, overrideForm, pinForm, progressScreen, reportText, rulesScreen, sharePreview, today, voteMetrics,
+  guestForm, homeScreen, loginHelp, loginScreen, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
+  memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
+  rulesScreen, sharePreview, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { flowOrder, koreanNow } from './flow.mjs';
@@ -18,14 +19,10 @@ const message = document.querySelector('#message');
 // Matches the width where styles.css shows the sidebar instead of the menu button.
 const desktopNavigation = window.matchMedia('(min-width: 701px)');
 
-// The skeleton of the screen being loaded (skeleton.mjs); role picks the side when a sign-in moves to the other one.
-function showLoading(role = authRole) {
-  let kind = `member:${route?.kind === 'vote' || route?.kind === 'notice' ? route.kind : 'home'}`;
-  if (role === 'admin') {
-    const { section } = role === authRole ? readAdminHash() : { section: 'home' };
-    kind = `admin:${section === 'home' || section === 'event' ? section : 'list'}`;
-  }
-  main.innerHTML = loadingPage(kind);
+// The skeleton of the screen being loaded (skeleton.mjs): the one shell, shaped for the section on the address.
+function showLoading() {
+  const { section } = readHash();
+  main.innerHTML = loadingPage(section === 'home' || section === 'event' ? section : 'list');
   spinShuttlecocks(main);
 }
 
@@ -33,7 +30,6 @@ const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.tri
 const clubBase = meta('club-base');
 const club = {
   home: `${clubBase}/`,
-  admin: `${clubBase}/admin/`,
   name: meta('club-name'),
   subtitle: meta('club-subtitle'),
   defaultPlace: meta('club-default-place'),
@@ -42,15 +38,16 @@ const scopedPath = /^\/clubs\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clubBase)
   && location.pathname.startsWith(club.home)
   ? location.pathname.slice(clubBase.length)
   : '';
-const path = scopedPath.match(/^\/(vote|notice)\/([^/]+)\/?$/);
-const route = path ? { kind: path[1], id: path[2] }
-  : scopedPath === '/' ? { kind: 'home' }
-  : scopedPath === '/admin/' || scopedPath === '/admin' ? { kind: 'admin' } : null;
+// One club page for everyone (ROLES.md 2단계). 카톡 links (/vote/<id>, /notice/<id>) keep their address for the chat
+// preview (worker/index.mjs shareTags); the page then opens that event or notice in the shell.
+const sharedPath = scopedPath.match(/^\/(vote|notice)\/([^/]+)\/?$/);
+const clubPage = Boolean(sharedPath) || scopedPath === '/';
 const date = today();
 const state = {
   user: null,
   section: 'home',
   selectedEvent: null,
+  selectedNotice: null,
   eventTab: null,
   admin: null,
   upcoming: null,
@@ -68,17 +65,15 @@ let busy = false;
 let messageTimer;
 let eventSnapshot = null;
 let navigationVersion = 0;
-let renderedBrowsing = null;
-let renderedAccountUser;
+let renderedAccount = null;
 let dialogOpener = null;
 let startedOnBackdrop = false;
 let dialogScrollTop = null;
-// requested: a member page asked for the login screen (로그인 버튼); member pages otherwise show what is open before
-// sign-in (사용자 결정, 2026-11-26), and the admin shell always asks first.
+// requested: someone asked for the login screen (로그인 버튼); the shell otherwise shows what is open before sign-in
+// (사용자 결정, 2026-11-26): 링크 → 보기 → (처음 한 번) 로그인 → 저장.
 const signIn = { name: null, numberStep: false, requested: false };
+const signingIn = () => !state.user && signIn.requested;
 
-const authRole = route?.kind === 'admin' ? 'admin' : 'member';
-const authPath = command => `/api/${authRole === 'admin' ? 'admin/' : ''}${command}`;
 const clubTitle = `${club.name} · 콕콕콕!`;
 const savedNameKey = `cockcockcock:member-name:${clubBase}`;
 const savedNameLifetime = 30 * 24 * 60 * 60 * 1000;
@@ -133,39 +128,40 @@ async function request(url, method = 'GET', body = undefined) {
 
 const id = value => encodeURIComponent(value);
 const adminEventPath = (eventId = state.selectedEvent) => `/api/admin/events/${id(eventId)}`;
-const votePath = () => `/api/votes/${id(route.id)}`;
+const votePath = () => `/api/votes/${id(state.selectedEvent)}`;
 
-// Admin addresses use the demo's hash format (app.js): #home, #event/:id[/:tab], #notices, #members, #progress, and
-// #rules (모임 규칙, live only).
-// A refresh, the back button or the home-screen app reopened on an address shows the same section, session and tab.
-const adminSectionNames = ['home', 'event', 'notices', 'members', 'progress', 'rules'];
+// Addresses use the demo's hash format (app.js): #home, #event, #event/:id[/:tab], #notices, #notices/:id, #record and,
+// with the 운영 메뉴, #members, #progress and #rules (live only). A section the person cannot open shows #home.
+// A refresh, the back button or the home-screen app reopened on an address shows the same section, event and tab.
 const sessionTabNames = ['poll', 'attendance', 'settlement'];
 let lostEvent = false;
 
-function readAdminHash() {
-  const [section, eventId = '', tab = ''] = location.hash.slice(1).split('/').map(part => {
+function readHash() {
+  const [section, itemId = '', tab = ''] = location.hash.slice(1).split('/').map(part => {
     try {
       return decodeURIComponent(part);
     } catch {
       return '';
     }
   });
-  if (!adminSectionNames.includes(section)) return { section: 'home', eventId: null, tab: null };
-  return { section, eventId: section === 'event' && eventId ? eventId : null, tab: section === 'event' && sessionTabNames.includes(tab) ? tab : null };
+  if (!appSections(state.user).some(([name]) => name === section)) return { section: 'home', itemId: null, tab: null };
+  const item = (section === 'event' || section === 'notices') && itemId ? itemId : null;
+  return { section, itemId: item, tab: section === 'event' && item && operating(state.user) && sessionTabNames.includes(tab) ? tab : null };
 }
 
-function applyAdminHash() {
-  const { section, eventId, tab } = readAdminHash();
+function applyHash() {
+  const { section, itemId, tab } = readHash();
   state.section = section;
   state.eventTab = tab;
-  // #event is the 일정 list, #event/:id one session (FLOW.md 5).
-  if (section === 'event') state.selectedEvent = eventId;
+  // #event is the 일정 list, #event/:id one event (FLOW.md 5); #notices/:id one notice.
+  if (section === 'event') state.selectedEvent = itemId;
+  if (section === 'notices') state.selectedNotice = itemId;
 }
 
-function writeAdminHash({ replace = false } = {}) {
-  if (route.kind !== 'admin' || state.user?.role !== 'admin') return;
-  const hash = state.section !== 'event' || !state.selectedEvent ? `#${state.section}`
-    : `#event/${id(state.selectedEvent)}${state.eventTab ? `/${state.eventTab}` : ''}`;
+function writeHash({ replace = false } = {}) {
+  if (signingIn()) return;
+  const hash = state.section === 'event' && state.selectedEvent ? `#event/${id(state.selectedEvent)}${state.eventTab ? `/${state.eventTab}` : ''}`
+    : state.section === 'notices' && state.selectedNotice ? `#notices/${id(state.selectedNotice)}` : `#${state.section}`;
   if (location.hash !== hash) history[replace ? 'replaceState' : 'pushState'](null, '', hash);
 }
 
@@ -190,28 +186,18 @@ function showMessage(text, error = false, { visuallyHidden = false } = {}) {
   messageTimer = setTimeout(() => { message.hidden = true; }, 5000);
 }
 
+// The site header shows only where the shell does not (the login screen, a page that failed to load); the shell
+// carries its own menu and account.
 function renderAccount() {
-  document.title = state.user?.role === 'admin' ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
-  const browsing = !state.user && route.kind !== 'admin' && !signIn.requested;
-  if (renderedAccountUser === state.user && renderedBrowsing === browsing) return;
-  renderedAccountUser = state.user;
-  renderedBrowsing = browsing;
-  const signedIn = state.user?.role === authRole;
-  clubLink.hidden = !signedIn;
-  // The login menu (모임 홈, 로그인 도움말) belongs to the login screen; reading before sign-in has 로그인 instead.
-  loginMenu.hidden = signedIn || browsing;
-  if (!signedIn) {
-    // Reading a member page before sign-in: the way in stays in the header.
-    account.innerHTML = browsing ? button('로그인', 'sign-in', { css: 'text small' }) : '';
-    return;
-  }
-  const user = state.user;
-  clubLink.href = user.role === 'admin' ? club.admin : club.home;
-  // The admin shell carries its own menu and sign-out; members keep them in the site header, and so does an organiser
-  // on 내 번호 정하기 (no shell yet), so a temporary sign-in on someone else's phone can still be ended.
-  account.innerHTML = user.role === 'admin' ? (user.mustChange ? button('로그아웃', 'logout', { css: 'text small' }) : '')
-    : `<span class="account-name">${esc(user.name)}</span>
-    ${button('PIN 관리', 'pin', { css: 'text small' })}${button('로그아웃', 'logout', { css: 'text small' })}`;
+  document.title = operating(state.user) ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
+  const key = `${state.user?.id ?? ''}:${signingIn()}`;
+  if (renderedAccount === key) return;
+  renderedAccount = key;
+  clubLink.hidden = !state.user;
+  // The login menu (모임 홈, 로그인 도움말) belongs to the login screen; elsewhere before sign-in, 로그인.
+  loginMenu.hidden = !signingIn();
+  account.innerHTML = state.user ? button('로그아웃', 'logout', { css: 'text small' })
+    : signingIn() ? '' : button('로그인', 'sign-in', { css: 'text small' });
 }
 
 function failedPage(error) {
@@ -234,92 +220,116 @@ async function loadProgress(period = state.period) {
   state.progressRules = response.rules;
 }
 
-async function load() {
-  const signedIn = state.user?.role === authRole;
-  // Member pages load what is open before sign-in (worker/api.mjs fetchPublic); the admin shell waits for sign-in.
-  if (!signedIn && route.kind === 'admin') return;
-  // A temporary number from the console opens only 내 번호 정하기 (the API refuses the rest until then).
-  if (signedIn && state.user.role === 'admin' && state.user.mustChange) return;
-  if (route.kind === 'vote') {
-    ({ event: state.event } = await request(`/api/public/vote/${id(route.id)}`));
-    state.vote = null;
-    state.eligible = false;
-    if (signedIn) try {
-      ({ vote: state.vote } = await request(votePath()));
-      state.eligible = true;
-    } catch (error) {
-      if (error.status !== 403 && error.status !== 404) throw error;
-    }
-  } else if (route.kind === 'notice') {
-    ({ notice: state.notice } = await request(`/api/public/notice/${id(route.id)}`));
-  } else if (route.kind === 'home') {
-    state.listing = await request('/api/public');
-  } else if (state.user?.role === 'admin') {
-    state.admin = await request('/api/admin');
-    const events = state.admin.events.sort((a, b) => b.date.localeCompare(a.date));
-    // A session the address names but the club no longer has: the 일정 list opens instead, with a line saying so.
-    if (state.selectedEvent && !events.some(event => event.id === state.selectedEvent)) {
-      if (state.section === 'event') {
-        lostEvent = true;
-        state.eventTab = null;
-      }
-      state.selectedEvent = null;
-    }
-    if (state.section === 'home') {
-      // The big card is the first of the 진행 중인 일정 (FLOW.md, flow.mjs); the rest are listed under it.
-      const [first] = flowOrder(events, koreanNow());
-      state.upcoming = first ? await request(adminEventPath(first.id)) : null;
-      // 지난 회차 is the latest event whose 마무리 is confirmed; unfinished ones are among the 진행 중인 일정.
-      // A side panel: if it cannot load, the rest of the home still shows (only that panel says so).
-      const latest = events.find(event => event.settled);
-      state.last = latest ? await request(adminEventPath(latest.id)).catch(error => {
-        if (error.status === 401 || error.name === 'AbortError') throw error;
-        return { failed: true };
-      }) : null;
-    }
-    if (state.section === 'event') await loadEvent();
-    if (state.section === 'progress') await loadProgress();
+// The own answer to one event (the members' vote, the organisers' 내 응답): 403/404 when not on its roster.
+async function loadOwnVote(eventId) {
+  state.vote = null;
+  state.eligible = false;
+  if (!state.user) return;
+  try {
+    ({ vote: state.vote } = await request(`/api/votes/${id(eventId)}`));
+    state.eligible = true;
+  } catch (error) {
+    if (error.status !== 403 && error.status !== 404) throw error;
   }
+}
+
+async function load() {
+  if (signingIn()) return;
+  // Without the 운영 메뉴 (before sign-in, members, an organiser yet to set their number): what /api/public opens
+  // (worker/api.mjs fetchPublic), more once signed in.
+  if (!operating(state.user)) {
+    if (state.section === 'event' && state.selectedEvent) {
+      ({ event: state.event } = await request(`/api/public/vote/${id(state.selectedEvent)}`));
+      await loadOwnVote(state.selectedEvent);
+    } else if (state.section === 'notices' && state.selectedNotice) {
+      ({ notice: state.notice } = await request(`/api/public/notice/${id(state.selectedNotice)}`));
+    } else {
+      state.listing = await request('/api/public');
+    }
+    return;
+  }
+  // A 카톡 notice link opens the notice as members read it; 내 기록 is the organiser's own member listing.
+  if (state.section === 'notices' && state.selectedNotice) {
+    ({ notice: state.notice } = await request(`/api/public/notice/${id(state.selectedNotice)}`));
+    return;
+  }
+  if (state.section === 'record') {
+    state.listing = await request('/api/public');
+    return;
+  }
+  // The 홈's 응답할 투표 reads the same listing (ROLES.md 결정 5).
+  const [admin, listing] = await Promise.all([request('/api/admin'), state.section === 'home' ? request('/api/public') : null]);
+  state.admin = admin;
+  if (listing) state.listing = listing;
+  const events = state.admin.events.sort((a, b) => b.date.localeCompare(a.date));
+  // A session the address names but the club no longer has: the 일정 list opens instead, with a line saying so.
+  if (state.selectedEvent && !events.some(event => event.id === state.selectedEvent)) {
+    if (state.section === 'event') {
+      lostEvent = true;
+      state.eventTab = null;
+    }
+    state.selectedEvent = null;
+  }
+  if (state.section === 'home') {
+    // The big card is the first of the 진행 중인 일정 (FLOW.md, flow.mjs); the rest are listed under it.
+    const [first] = flowOrder(events, koreanNow());
+    state.upcoming = first ? await request(adminEventPath(first.id)) : null;
+    // 지난 회차 is the latest event whose 마무리 is confirmed; unfinished ones are among the 진행 중인 일정.
+    // A side panel: if it cannot load, the rest of the home still shows (only that panel says so).
+    const latest = events.find(event => event.settled);
+    state.last = latest ? await request(adminEventPath(latest.id)).catch(error => {
+      if (error.status === 401 || error.name === 'AbortError') throw error;
+      return { failed: true };
+    }) : null;
+  }
+  if (state.section === 'event') {
+    await loadEvent();
+    if (state.selectedEvent) await loadOwnVote(state.selectedEvent);
+  }
+  if (state.section === 'progress') await loadProgress();
+}
+
+// The screen inside the shell for the section on the address and the person's permission (ROLES.md 권한 표).
+function sectionScreen(voteSaved) {
+  const { section, user } = state;
+  if (section === 'notices' && state.selectedNotice) return noticeScreen(state.notice);
+  if (section === 'record') return memberRecordScreen(state.listing, user);
+  if (!operating(user)) {
+    if (section === 'event') {
+      return state.selectedEvent ? memberVoteScreen(state.event, state.vote, state.eligible, voteSaved, Boolean(user))
+        : memberEventsScreen(state.listing, user);
+    }
+    return section === 'notices' ? memberNoticesScreen(state.listing) : homeScreen(state.listing, club, user);
+  }
+  if (section === 'home') return adminHome(state.admin, state.upcoming, state.last, state.listing);
+  if (section === 'members') return membersScreen(state.admin.members, state.admin.organizers, state.user.id);
+  if (section === 'notices') return noticesScreen(state.admin.notices);
+  if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
+  if (section === 'rules') return rulesScreen(state.admin.rules);
+  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved });
 }
 
 function render({ voteSaved = false, motion = '' } = {}) {
   main.dataset.motion = motion;
   const search = main.querySelector('input[data-filter]');
   renderAccount();
-  const isAdmin = route.kind === 'admin' && state.user?.role === 'admin';
-  const pinFirst = isAdmin && state.user.mustChange;
-  main.classList.toggle('narrow', !isAdmin || pinFirst);
-  if (!state.user && (route.kind === 'admin' || signIn.requested)) {
-    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, route.kind !== 'admin');
-  } else if (pinFirst) {
-    main.innerHTML = organizerPinScreen(club, state.user);
-  } else if (route.kind === 'vote') {
-    main.innerHTML = memberVoteScreen(state.event, state.vote, state.eligible, club, voteSaved, Boolean(state.user));
-  } else if (route.kind === 'notice') {
-    main.innerHTML = noticeScreen(state.notice, club);
-  } else if (route.kind === 'home') {
-    main.innerHTML = homeScreen(state.listing, club, state.user);
-  } else if (isAdmin) {
-    let body;
-    if (state.section === 'home') body = adminHome(state.admin, state.upcoming, club, state.last);
-    else if (state.section === 'members') body = membersScreen(state.admin.members, state.admin.organizers, state.user.id);
-    else if (state.section === 'notices') body = noticesScreen(state.admin.notices);
-    else if (state.section === 'progress') body = progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
-    else if (state.section === 'rules') body = rulesScreen(state.admin.rules);
-    else body = eventScreen(state.admin.events, state.detail, club, state.eventTab);
-    main.innerHTML = adminShell(state.section, body, club, state.user);
-    for (const memberId of checking) {
-      const pendingButton = checkButton(memberId);
-      if (pendingButton) {
-        pendingButton.disabled = true;
-        pendingButton.setAttribute('data-pending', '');
-      }
+  main.classList.toggle('narrow', signingIn());
+  if (signingIn()) {
+    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, true);
+    return;
+  }
+  main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user);
+  for (const memberId of checking) {
+    const pendingButton = checkButton(memberId);
+    if (pendingButton) {
+      pendingButton.disabled = true;
+      pendingButton.setAttribute('data-pending', '');
     }
-    const newSearch = main.querySelector('input[data-filter]');
-    if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
-      newSearch.value = search.value;
-      applyFilter(newSearch);
-    }
+  }
+  const newSearch = main.querySelector('input[data-filter]');
+  if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
+    newSearch.value = search.value;
+    applyFilter(newSearch);
   }
 }
 
@@ -327,7 +337,7 @@ function clearProtectedView() {
   navigationVersion++;
   busy = false;
   Object.assign(state, {
-    user: null, section: 'home', selectedEvent: null, eventTab: null, admin: null, upcoming: null, last: null, listing: { events: [], notices: [] },
+    user: null, section: 'home', selectedEvent: null, selectedNotice: null, eventTab: null, admin: null, upcoming: null, last: null, listing: { events: [], notices: [] },
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
@@ -337,7 +347,7 @@ function clearProtectedView() {
   dialog.replaceChildren();
   account.replaceChildren();
   clubLink.hidden = true;
-  renderedAccountUser = undefined;
+  renderedAccount = null;
   document.title = clubTitle;
   hideMessage();
   main.classList.add('narrow');
@@ -353,22 +363,11 @@ function loginExpired() {
 
 async function initialize() {
   try {
-    const { user } = await request(authPath('session'));
-    state.user = user?.role === authRole ? user : null;
-    if (!state.user && route.kind === 'home') {
-      const adminSession = await request('/api/admin/session').catch(error => {
-        if (error.name === 'AbortError') throw error;
-        return null;
-      });
-      if (adminSession?.user?.role === 'admin') {
-        location.replace(club.admin);
-        return;
-      }
-    }
-    if (route.kind === 'admin') applyAdminHash();
+    ({ user: state.user } = await request('/api/session'));
+    applyHash();
     await load();
     render();
-    writeAdminHash({ replace: true });
+    writeHash({ replace: true });
     noteLostEvent();
   } catch (error) {
     if (error.name === 'AbortError') return;
@@ -380,10 +379,10 @@ async function initialize() {
 async function openSignedInPage() {
   showLoading();
   try {
-    if (route.kind === 'admin') applyAdminHash();
+    applyHash();
     await load();
     render();
-    writeAdminHash({ replace: true });
+    writeHash({ replace: true });
     noteLostEvent();
   } catch (error) {
     if (error.name === 'AbortError' || error.status === 401) throw error;
@@ -394,12 +393,13 @@ async function openSignedInPage() {
   main.focus({ preventScroll: true });
 }
 
-async function checkAdminSession() {
+// An organiser's sign-in is checked when the screen comes back, so a 해지 (sessions deleted) shows at once.
+async function checkSession() {
   const user = state.user;
-  if (document.hidden || user?.role !== 'admin') return;
+  if (document.hidden || !user?.organizer) return;
   try {
-    const { user: detected } = await request(authPath('session'));
-    if (state.user === user && detected?.role !== 'admin') loginExpired();
+    const { user: detected } = await request('/api/session');
+    if (state.user === user && !detected?.organizer) loginExpired();
   } catch (error) {
     if (state.user === user && error.status === 401) loginExpired();
   }
@@ -425,13 +425,13 @@ function openDialog(title, body, className = '') {
     <div class="dialog-body"><p class="inline-error" role="alert" hidden></p>${body}</div>`, `dialog ${className}`.trim(), '#dialog-title');
 }
 
-// The demo's full-screen mobile menu: brand, the same section links as the sidebar, and sign-out.
+// The demo's full-screen mobile menu: brand, the same section links as the sidebar, and the account (or 로그인).
 // The phone menu: a drawer from the right, with the top bar's button repeated at the same spot as × (styles.css).
 function openAdminMenu() {
   showDialog(`<button type="button" class="icon-button menu-toggle" data-action="close" aria-label="메뉴 닫기">${menuIcon}</button>
     <div class="menu-panel"><header class="mobile-nav-header">${brand(club)}</header>
-    <div class="mobile-nav-links"><h2 id="dialog-title" class="sr-only">운영 메뉴</h2>${adminMenu(state.section)}
-      <div class="mobile-nav-account">${button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: 'text small' })}${button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })}</div></div></div>`,
+    <div class="mobile-nav-links"><h2 id="dialog-title" class="sr-only">모임 메뉴</h2>${adminMenu(state.section, state.user)}
+      <div class="mobile-nav-account">${accountActions(state.user)}</div></div></div>`,
   'mobile-navigation admin-menu-dialog', '[aria-current="page"]');
 }
 
@@ -475,7 +475,7 @@ function matchingControl(control) {
 
 function credentialDialog(name, temporaryPin, organizer = false) {
   const text = organizer
-    ? `${club.name} 운영진 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n운영 화면 ${new URL(club.admin, location.origin).href}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`
+    ? `${club.name} 운영진 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n모임 화면 ${new URL(club.home, location.origin).href}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`
     : `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
   const who = organizer ? '운영진' : '회원';
   openDialog(`${who}에게 보낼 접속 안내`, `<p>${esc(name)} ${who}에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
@@ -528,7 +528,7 @@ function replaceKeepingFocus(selector, html) {
 }
 
 async function refreshVoteCounts() {
-  if (document.hidden || busy || dialog.open || state.user?.role !== 'admin') return;
+  if (document.hidden || busy || dialog.open || !operating(state.user)) return;
   const onHome = state.section === 'home';
   const target = main.querySelector(onHome ? '#home-vote-counts' : '#vote-counts');
   if (!target) return;
@@ -613,27 +613,29 @@ function submitCompleteCode(input) {
   if (input.value.length === 6 && !busy) input.form.requestSubmit();
 }
 
-// Moves to a section, session or tab. Only a new section or session is fetched; a tab change redraws what is already here.
-// list: the 일정 list (#event) rather than a session.
-async function goTo(section, { eventId = null, tab = null, push = true, list = false } = {}) {
-  const previous = { section: state.section, selectedEvent: state.selectedEvent, eventTab: state.eventTab };
-  const reload = section !== previous.section || (section === 'event'
-    && (list ? previous.selectedEvent !== null : eventId !== null && eventId !== previous.selectedEvent));
+// Moves to a section, event, notice or tab. Only a new section, event or notice is fetched; a tab change redraws what is
+// already here. list: the 일정 list (#event) rather than an event; noticeId: one notice (#notices/:id), null for the list.
+async function goTo(section, { eventId = null, noticeId = null, tab = null, push = true, list = false } = {}) {
+  const previous = { section: state.section, selectedEvent: state.selectedEvent, selectedNotice: state.selectedNotice, eventTab: state.eventTab };
+  const reload = section !== previous.section
+    || (section === 'event' && (list ? previous.selectedEvent !== null : eventId !== null && eventId !== previous.selectedEvent))
+    || (section === 'notices' && noticeId !== previous.selectedNotice);
   state.section = section;
   state.eventTab = section === 'event' ? tab : null;
   if (eventId) state.selectedEvent = eventId;
   if (list) state.selectedEvent = null;
+  if (section === 'notices') state.selectedNotice = noticeId;
   if (reload) {
     try {
       await load();
     } catch (error) {
       if (state.section === section) Object.assign(state, previous);
-      writeAdminHash({ replace: true });
+      writeHash({ replace: true });
       throw error;
     }
   }
   render({ motion: reload ? 'section' : '' });
-  writeAdminHash({ replace: !push });
+  writeHash({ replace: !push });
   noteLostEvent();
   if (!reload) {
     main.querySelector('.tabs [aria-current]')?.focus({ preventScroll: true });
@@ -653,7 +655,7 @@ async function doAction(action, itemId, tab) {
       closeDialog();
       break;
     case 'login-menu': {
-      const home = route.kind === 'home' ? '' : `<a class="btn btn-secondary" href="${esc(club.home)}">모임 홈</a>`;
+      const home = `<a class="btn btn-secondary" href="${esc(club.home)}">모임 홈</a>`;
       openDialog('메뉴', `<div class="menu-actions">${home}${button('로그인 도움말', 'login-help', { css: 'secondary' })}</div>`, 'login-menu-dialog');
       break;
     }
@@ -665,15 +667,18 @@ async function doAction(action, itemId, tab) {
       signIn.numberStep = false;
       showLoginStep('login-back');
       break;
+    // Back to what is open before sign-in, on the same address where that section is open to everyone.
     case 'logout':
-      await request(authPath('logout'), 'POST', {});
+      await request('/api/logout', 'POST', {});
       clearProtectedView();
-      if (route.kind !== 'admin') await load();
+      applyHash();
+      await load();
       render();
+      writeHash({ replace: true });
       showMessage('로그아웃했어요.');
       break;
-    // 로그인 없이 보기 (사용자 결정, 2026-11-26): a member page asks for sign-in only when the member wants to answer,
-    // read the whole notice or see the place; 로그인 없이 보기 goes back to the page as it was.
+    // 로그인 없이 보기 (사용자 결정, 2026-11-26): the shell asks for sign-in only when someone wants to answer, read the
+    // whole notice, see the place or their 내 기록; 로그인 없이 보기 goes back to the screen as it was.
     case 'sign-in':
       signIn.requested = true;
       showLoginStep('');
@@ -685,7 +690,7 @@ async function doAction(action, itemId, tab) {
       main.focus({ preventScroll: true });
       break;
     case 'pin':
-      openDialog(authRole === 'admin' ? '번호 바꾸기' : 'PIN 설정·변경', pinForm({ organizer: authRole === 'admin' }));
+      openDialog(state.user?.organizer && state.user.mustChange ? '내 번호 정하기' : '번호 바꾸기', pinForm({ organizer: Boolean(state.user?.organizer) }));
       break;
     case 'admin-menu':
       openAdminMenu();
@@ -694,8 +699,9 @@ async function doAction(action, itemId, tab) {
     case 'tab': {
       const section = action === 'open-event' ? 'event' : itemId;
       const eventId = action === 'open-event' ? itemId : null;
-      // 일정 in the menu opens the list, a session its detail (FLOW.md 5); the screen already shown stays.
-      const same = state.section === section && (section !== 'event' || state.selectedEvent === eventId);
+      // 일정 in the menu opens the list, a session its detail (FLOW.md 5), 공지 the list; the screen already shown stays.
+      const same = state.section === section
+        && (section === 'event' ? state.selectedEvent === eventId : section !== 'notices' || !state.selectedNotice);
       if (!same) dialogOpener = null;
       closeDialog({ instant: !same });
       if (same) break;
@@ -802,13 +808,17 @@ async function doAction(action, itemId, tab) {
     case 'vote-override':
       openDialog('회원 응답 변경', overrideForm(state.detail.event, findRoster(itemId)));
       break;
-    // 응답 취소 on the member vote screen: the answer goes, the form stays for a new one.
-    case 'cancel-vote':
-      ({ vote: state.vote, counts: state.event.counts } = await request(votePath(), 'PUT', { slot: null, lunch: false }));
+    // 응답 취소 (the vote screen, 내 응답): the answer goes, the form stays for a new one.
+    case 'cancel-vote': {
+      const { vote, counts } = await request(votePath(), 'PUT', { slot: null, lunch: false });
+      state.vote = vote;
+      if (operating(state.user)) await loadEvent();
+      else state.event.counts = counts;
       render();
       main.querySelector('[data-form="vote"] input[name="slot"]')?.focus({ preventScroll: true });
       showMessage('응답을 취소했어요.');
       break;
+    }
     case 'clear-vote':
       await update(`${adminEventPath()}/votes/${id(itemId)}`, 'PUT', { slot: null, lunch: false }, '응답을 삭제했어요.');
       break;
@@ -911,42 +921,44 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'login': {
-      // as: which screen this sign-in is for (auth.mjs login). An organiser signing in from a 카톡 vote link stays on it.
-      const { user } = await request('/api/login', 'POST', {
-        name: signIn.name, credential: raw(data, 'credential'), as: authRole,
-      });
-      if (user?.role !== 'member' && user?.role !== 'admin') throw new Error('로그인 권한을 확인하지 못했어요.');
-      if (user.role === 'member') rememberName(user.name);
-      if (user.role !== authRole) {
-        showLoading(user.role);
-        location.replace(user.role === 'admin' ? club.admin : club.home);
-        break;
-      }
+      // Everyone signs in on the same screen and stays on the address they were reading (ROLES.md 결정 2).
+      const { user } = await request('/api/login', 'POST', { name: signIn.name, credential: raw(data, 'credential') });
+      if (!user?.id) throw new Error('로그인 권한을 확인하지 못했어요.');
+      rememberName(user.name);
       state.user = user;
       signIn.requested = false;
       await openSignedInPage();
       break;
     }
     case 'pin': {
-      const organizer = authRole === 'admin';
+      // Organisers through the 운영 API, which keeps it in the 변경 기록 (worker/api.mjs organizer.pin).
+      const organizer = Boolean(state.user?.organizer);
       const newPin = read(data, 'newPin');
       if (newPin !== read(data, 'confirmPin')) throw new Error(`새 ${organizer ? '번호' : 'PIN'}이 서로 달라요. 다시 확인해 주세요.`);
-      const firstPin = organizer && state.user?.mustChange;
+      const firstPin = organizer && state.user.mustChange;
       ({ user: state.user } = await request(organizer ? '/api/admin/pin' : '/api/pin', 'POST', { currentPin: raw(data, 'currentPin'), newPin }));
       if (firstPin) {
+        // The 운영 메뉴 open now; the screen reloads with them.
+        dialogOpener = null;
+        closeDialog({ instant: true });
         await openSignedInPage();
-        showMessage('내 번호를 저장했어요. 다음부터 이 번호로 로그인해요.');
+        showMessage('내 번호를 저장했어요. 운영 메뉴가 열렸어요.');
         break;
       }
       await showSaved(organizer ? '번호를 저장했어요.' : state.user ? 'PIN을 저장했어요.' : 'PIN을 저장했어요. 새 PIN으로 다시 로그인해 주세요.');
       break;
     }
-    case 'vote':
-      ({ vote: state.vote, counts: state.event.counts } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') }));
+    case 'vote': {
+      const { vote, counts } = await request(votePath(), 'PUT', { slot: read(data, 'slot'), lunch: data.has('lunch') });
+      state.vote = vote;
+      // The organisers' 일정 상세 shows the counts with names, so it reloads; members see counts only.
+      if (operating(state.user)) await loadEvent();
+      else state.event.counts = counts;
       render({ voteSaved: true });
       main.querySelector('[data-form="vote"] button[type="submit"]')?.focus({ preventScroll: true });
       showMessage('응답을 저장했어요.', false, { visuallyHidden: true });
       break;
+    }
     case 'event': {
       const values = buildEvent(data);
       const changed = itemId && eventSnapshot?.id === itemId
@@ -967,7 +979,7 @@ async function doSubmit(kind, itemId, data) {
       state.selectedEvent = result.event.id;
       if (!itemId) state.eventTab = null;
       await showSaved('회차를 저장했어요.', fromHome ? 'section' : '');
-      writeAdminHash();
+      writeHash();
       if (fromHome) (main.querySelector('.admin-content h1') ?? main).focus({ preventScroll: true });
       break;
     }
@@ -1266,19 +1278,27 @@ dialog.addEventListener('close', () => {
   if (target) target.focus({ preventScroll: true });
   else if (opener && document.activeElement === document.body) main.focus({ preventScroll: true });
 });
-// Back and forward follow the address like a menu tap, with the same section loader, errors and focus as run().
-// An answer still on its way is dropped (as on pagehide); the screen that opens loads what the server kept.
-window.addEventListener('popstate', () => {
-  if (route.kind !== 'admin' || state.user?.role !== 'admin') return;
+// Back, forward and the links in the member screens (#event/<id>) follow the address like a menu tap, with the same
+// section loader, errors and focus as run(). An answer still on its way is dropped (as on pagehide); the screen that
+// opens loads what the server kept. A link brings both popstate and hashchange; the second finds the screen moving.
+function followAddress() {
+  if (signingIn()) return;
+  const { section, itemId, tab } = readHash();
+  if (state.section === section && (section !== 'event' || (state.selectedEvent === itemId && state.eventTab === tab))
+    && (section !== 'notices' || state.selectedNotice === itemId)) return;
   navigationVersion++;
   busy = false;
   dialogOpener = null;
   closeDialog({ instant: true });
-  const { section, eventId, tab } = readAdminHash();
   const control = document.createElement('button');
   Object.assign(control.dataset, { action: 'tab', id: section });
-  void run(() => goTo(section, { eventId, tab, push: false, list: section === 'event' && !eventId }), control);
-});
+  const event = section === 'event';
+  void run(() => goTo(section, {
+    eventId: event ? itemId : null, noticeId: section === 'notices' ? itemId : null, tab, push: false, list: event && !itemId,
+  }), control);
+}
+window.addEventListener('popstate', followAddress);
+window.addEventListener('hashchange', followAddress);
 
 // The skip link moves focus without changing the address: #main-content is not an admin route.
 document.querySelector('.skip-link')?.addEventListener('click', event => {
@@ -1292,20 +1312,22 @@ desktopNavigation.addEventListener('change', event => {
   closeDialog({ instant: true });
 });
 
-if (route && club.name) {
+if (clubPage && club.name) {
+  // A 카톡 link opens its event's vote (#event/<id>) or the notice in the shell, on the shell's own address.
+  if (sharedPath) history.replaceState(null, '', `${club.home}#${sharedPath[1] === 'vote' ? 'event' : 'notices'}/${sharedPath[2]}`);
   showLoading();
   document.title = clubTitle;
   clubLink.href = club.home;
-  // The logo opens this club's first screen, as the organisers' sidebar logo does: never the intro home (DESIGN.md 로고).
-  brandLink.href = authRole === 'admin' ? club.admin : club.home;
-  brandLink.setAttribute('aria-label', `${club.name} ${authRole === 'admin' ? '운영 홈' : '모임 홈'}`);
+  // The logo opens this club's first screen, as the sidebar logo does: never the intro home (DESIGN.md 로고).
+  brandLink.href = club.home;
+  brandLink.setAttribute('aria-label', `${club.name} 모임 홈`);
   document.querySelector('#club-name').textContent = club.name;
   document.querySelector('#club-subtitle').textContent = club.subtitle;
   window.addEventListener('pagehide', clearProtectedView);
   window.addEventListener('pageshow', event => {
     if (event.persisted) void initialize();
   });
-  if (authRole === 'admin') document.addEventListener('visibilitychange', checkAdminSession);
+  document.addEventListener('visibilitychange', checkSession);
   await initialize();
   setInterval(refreshVoteCounts, 15_000);
 } else {
