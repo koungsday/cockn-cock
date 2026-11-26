@@ -473,7 +473,7 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   assert.equal(await settled(lastPath), false);
   const endpoint = '/api/admin/progress?year=' + year + '&half=2';
   const progress = (await admin.request(endpoint)).members[0];
-  assert.deepEqual(progress, {id:member.id, name:member.name, first:1, second:1, rewarded:false});
+  assert.deepEqual(progress, {id:member.id, name:member.name, periods:[1, 1], rewarded:false, eligible:false});
 
   await admin.request(lastPath + '/guests', {
     method:'POST', expect:201, body:{name:'가상 게스트', level:'A', invitedBy:member.name, status:'arrived', paid:true}
@@ -490,15 +490,36 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   });
   await admin.request(lastPath, {method:'PATCH', body:{open:true}, expect:409});
   const final = (await admin.request(endpoint)).members[0];
-  assert.equal(final.first, 1);
-  assert.equal(final.second, 2);
+  assert.deepEqual(final.periods, [1, 2]);
   assert.equal(final.rewarded, false);
 
   await admin.request('/api/admin/progress', {method:'PUT', body:{year, half:2, memberId:member.id, rewarded:true}});
   assert.equal((await admin.request(endpoint)).members[0].rewarded, true);
   await admin.request(afterBoundary + '/settlement', {method:'PUT', body:{...patchSettlement, confirmed:false}});
-  assert.equal((await admin.request(endpoint)).members[0].second, 1);
+  assert.equal((await admin.request(endpoint)).members[0].periods[1], 1);
   assert.equal(await settled(afterBoundary), false);
+
+  // 모임 규칙: the defaults are how the table counted before; a club can cut the half by month, count only some 인정
+  // 방식, and show 수령 대상 to whoever met the goal in every 구간.
+  const defaults = {periods:2, goal:3, kinds:['direct', 'substitute', 'approved'], reward:'manual'};
+  assert.deepEqual((await admin.request('/api/admin/rules')).rules, defaults);
+  assert.deepEqual((await admin.request('/api/admin')).rules, defaults);
+  for (const body of [{...defaults, periods:4}, {...defaults, goal:0}, {...defaults, goal:21}, {...defaults, kinds:[]},
+    {...defaults, kinds:['direct', 'late']}, {...defaults, reward:'auto'}]) {
+    await admin.request('/api/admin/rules', {method:'PUT', body, expect:400});
+  }
+  await admin.request(afterBoundary + '/settlement', {method:'PUT', body:patchSettlement});
+  const monthly = {periods:6, goal:1, kinds:['direct'], reward:'goal'};
+  assert.deepEqual((await admin.request('/api/admin/rules', {method:'PUT', body:monthly})).rules, monthly);
+  // July to December: 09-30 and 12-31 were direct; 10-01 was 대타, which this club no longer counts.
+  const byMonth = (await admin.request(endpoint)).members[0];
+  assert.deepEqual([byMonth.periods, byMonth.eligible], [[0, 0, 1, 0, 0, 1], false]);
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['substitute', 'direct'], reward:'goal'}});
+  const whole = await admin.request(endpoint);
+  assert.deepEqual(whole.rules, {periods:1, goal:3, kinds:['direct', 'substitute'], reward:'goal'});
+  assert.deepEqual([whole.members[0].periods, whole.members[0].eligible], [[3], true]);
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['direct', 'substitute'], reward:'manual'}});
+  assert.equal((await admin.request(endpoint)).members[0].eligible, false);
 });
 
 test('members see vote counts without names and their own half-year record', async t => {
@@ -543,7 +564,8 @@ test('members see vote counts without names and their own half-year record', asy
   const [year, month] = today.split('-').map(Number);
   const half = month <= 6 ? 1 : 2;
   const noAttendance = {months:Array(12).fill(0), total:0};
-  assert.deepEqual(home.record, {year, half, first:[], second:[], rewarded:false, attendance:noAttendance});
+  const record = (periods, rewarded, attendance) => ({year, half, periods, goal:3, reward:'manual', rewarded, eligible:false, attendance});
+  assert.deepEqual(home.record, record([[], []], false, noAttendance));
   const {event: done} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
     ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', earlyTime:'00:01', lateTime:'00:02'
   }});
@@ -563,13 +585,16 @@ test('members see vote counts without names and their own half-year record', asy
   const months = Array(12).fill(0);
   months[month - 1] = 1;
   assert.deepEqual((await first.request('/api/public')).record,
-    {year, half, first:firstPeriod ? marks : [], second:firstPeriod ? [] : marks, rewarded:true, attendance:{months, total:1}});
-  assert.deepEqual((await second.request('/api/public')).record,
-    {year, half, first:[], second:[], rewarded:false, attendance:noAttendance});
+    record(firstPeriod ? [marks, []] : [[], marks], true, {months, total:1}));
+  assert.deepEqual((await second.request('/api/public')).record, record([[], []], false, noAttendance));
   // The organisers' 반기 집계 counts the same marks.
   const {members: table} = await admin.request(`/api/admin/progress?year=${year}&half=${half}`);
   const row = table.find(item => item.id === members[0].id);
-  assert.deepEqual([row.first, row.second], [firstPeriod ? 1 : 0, firstPeriod ? 0 : 1]);
+  assert.deepEqual(row.periods, [firstPeriod ? 1 : 0, firstPeriod ? 0 : 1]);
+  // 내 기록 follows the 모임 규칙 too: one 구간, one 대타 needed, 수령 대상 shown.
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:1, kinds:['substitute'], reward:'goal'}});
+  const ruled = (await first.request('/api/public')).record;
+  assert.deepEqual([ruled.periods, ruled.goal, ruled.reward, ruled.eligible], [[marks], 1, 'goal', true]);
 });
 
 test('published notices and KST deadlines are respected without exposing drafts', async t => {

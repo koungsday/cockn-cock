@@ -56,7 +56,7 @@ p { line-height: 1.58; }
 .main-content { max-width: 1400px; margin: 0 auto; padding: 33px clamp(20px,3.2vw,50px) 44px; }
 .dashboard-heading, .page-head { display: flex; gap: 18px; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
 .dashboard-heading h1, .page-head h1 { font-size: clamp(1.85rem, 2.45vw, 2.36rem); font-weight: 850; }
-.dashboard-heading p, .page-description { color: var(--muted); margin-top: 8px; font-size: .99rem; }
+.dashboard-heading p, .page-description { color: var(--muted); margin-top: 8px; font-size: .99rem; word-break: keep-all; }
 .heading-actions, .page-actions, .panel-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .today-label { display: inline-flex; align-items: center; gap: 8px; color: #4d6153; font-size: .88rem; padding-right: 7px; font-weight: 700; white-space: nowrap; }
 .btn { min-height: 41px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; padding: 8px 13px; border: 1px solid transparent; border-radius: 8px; font-size: .89rem; font-weight: 750; white-space: nowrap; line-height: 1.25; transition: background .16s; }
@@ -255,6 +255,10 @@ textarea { min-height: 100px; resize: vertical; }
 .guest-form .form-field { flex: 1 1 165px; }
 .settlement-form { margin-top: 18px; }
 .form-check { display: flex; align-items: center; gap: 6px; font-size: .90rem; }
+/* 모임 규칙 (worker/public/views.mjs rulesScreen): a group of checks or radios under a label like .form-field's. */
+.rule-choices { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.rule-choices legend { margin-bottom: 4px; padding: 0; font-size: .90rem; font-weight: 700; }
+.rule-choices .form-check, .rules-form .form-note { word-break: keep-all; }
 .form-note { font-size: .86rem; color: var(--muted); }
 .form-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toast { display: none; position: fixed; inset: auto 18px 18px auto; z-index: 20; max-width: calc(100vw - 36px); padding: 12px 15px; border-radius: 10px; background: #1f5039; color: #fff; font-weight: 650; font-size: .91rem; box-shadow: 0 8px 25px #15362630; }

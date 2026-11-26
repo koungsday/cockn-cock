@@ -289,8 +289,13 @@ test('two clubs in the one database never read or change each other\'s records',
   assert.equal((await memberApi('/votes/' + a.event.id, { method: 'PUT', body: { slot: 'early', lunch: false } })).status, 404);
   assert.equal((await memberApi('/votes/' + b.event.id, { method: 'PUT', body: { slot: 'early', lunch: false } })).status, 200);
 
+  // The other club's 모임 규칙 are its own.
+  const rulesB = { periods: 6, goal: 1, kinds: ['direct'], reward: 'goal' };
+  assert.deepEqual((await (await b.admin('/admin/rules', { method: 'PUT', body: rulesB })).json()).rules, rulesB);
+
   // Nothing of the first club moved.
   const listA = await (await a.admin('/admin')).json();
+  assert.deepEqual(listA.rules, { periods: 2, goal: 3, kinds: ['direct', 'substitute', 'approved'], reward: 'manual' });
   assert.deepEqual(listA.members, [a.member]);
   assert.deepEqual(listA.notices, [a.notice]);
   const detailA = await (await a.admin(eventA)).json();

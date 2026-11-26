@@ -33,7 +33,7 @@
     'arrow-left':'<path d="m12 19-7-7 7-7m-7 7h15"/>',
     edit:'<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
     megaphone:'<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
-    link:'<path d="m10 13 4-4m-6 6-1 1a3 3 0 1 1-4-4l4-4a3 3 0 0 1 4 0m2 8a3 3 0 0 0 4 0l4-4a3 3 0 1 0-4-4l-1 1"/>',
+    share:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
     info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
     more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
@@ -256,7 +256,7 @@
             <div class="home-notice-row">
               <a href="#public-notice/${escape(notice.id)}" data-route="public-notice/${escape(notice.id)}" class="notice-home-link">${notice.pinned ? '<span class="notice-tag">고정</span>' : ''}<span>${escape(notice.title)}</span></a>
               <time datetime="${escape(notice.date)}">${readPeriod(notice.date)}</time>
-              <button type="button" class="icon-button notice-share" data-action="open-share" data-id="${escape(notice.id)}" data-kind="notice" aria-label="${escape(notice.title)} 카톡 공유" title="카톡 공유">${icon('link',17)}</button>
+              <button type="button" class="icon-button notice-share" data-action="open-share" data-id="${escape(notice.id)}" data-kind="notice" aria-label="${escape(notice.title)} 카톡 공유" title="카톡 공유">${icon('share',17)}</button>
             </div>`).join('') : '<p class="muted">아직 등록한 공지가 없어요.</p>'}</div>
         </section>
       </div>
@@ -292,7 +292,7 @@
         routeButton('회차 열기', `event/${upcoming.id}/poll`)));
     } else if (upcoming && pollIsOpen(upcoming) && counts(upcoming).pending) {
       items.push(todoRow('users','mint',`미응답 ${counts(upcoming).pending}명`,`${escape(dateLabel(upcoming.deadline))} ${escape(upcoming.deadlineTime)} 마감이에요. 단체방에 투표 링크를 다시 올려 주세요.`,
-        `<button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(upcoming.id)}">${icon('link',16)} 카톡 공유</button>`));
+        `<button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(upcoming.id)}">${icon('share',16)} 카톡 공유</button>`));
     }
     if (last && !last.finalized) {
       items.push(todoRow('clipboard','mint',`${escape(dateLabel(last.date))} 회차 출석 확정 전이에요`,'출석과 게스트를 확정해야 통계와 마무리 글에 반영돼요.',
@@ -342,7 +342,7 @@
       <div class="poll-track" role="img" aria-label="응답률 ${percent}%"><span class="vote-yes" style="width:${branch(yes)}"></span><span class="vote-no" style="width:${branch(no)}"></span></div>
       <div class="poll-grid">${[['선발',early,'yes'],['후발',late,'yes'],['점심',lunch,'no']].map(([name,n,status])=>`<div><span><i class="vote-${status}"></i>${name}</span><strong>${n}<small>명</small></strong></div>`).join('')}</div>
       <p class="poll-subline">참석 예정 ${yes}명 · 불참 ${no}명 · 미응답 ${pending}명</p>
-      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? `${readPeriod(event.deadline)} ${escape(event.deadlineTime)} 마감` : '마감일 미설정'}</span><button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}">${icon('link',16)} 카톡 공유</button></div>
+      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? `${readPeriod(event.deadline)} ${escape(event.deadlineTime)} 마감` : '마감일 미설정'}</span><button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}">${icon('share',16)} 카톡 공유</button></div>
     </section>`;
   }
   function metric(route, glyph, tone, label, value, unit) {

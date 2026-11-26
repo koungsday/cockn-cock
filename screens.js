@@ -106,7 +106,7 @@
       function poll() {
         const report = counts(event);
         const closeAction = !event.finalized && !deadlinePassed(event) ? action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id) : '';
-        const shareAction = action('카톡 공유', 'open-share', event.id, {tone: 'primary', symbol: 'link', extra: 'data-kind="vote"'});
+        const shareAction = action('카톡 공유', 'open-share', event.id, {tone: 'primary', symbol: 'share', extra: 'data-kind="vote"'});
         const voteLink = pollAvailable && members.length ? routeLink('회원 투표 체험', `public-vote/${encodeURIComponent(event.id)}`) : '';
         const correction = !event.finalized && members.length ? action('응답 조정', 'open-vote', event.id, {tone: 'text'}) : '';
         const rows = members.map(member => {
@@ -223,7 +223,7 @@
         <div class="notice-date"><time datetime="${e(notice.date)}">${e(dateLabel(notice.date))}</time>${notice.pinned ? pill('상단 고정', 'green') : ''}</div>
         <h3>${e(notice.title)}</h3>
         <p class="preserve-lines">${e(notice.body)}</p>
-        <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'link', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}</div>
+        <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}</div>
       </article>`);
       return heading('공지사항', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
