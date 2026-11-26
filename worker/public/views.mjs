@@ -323,16 +323,29 @@ function markSlots(label, months, marks) {
     <ol class="member-mark-slots">${filled.join('')}${empty.join('')}</ol></div>`;
 }
 
-// 내 기록: this member's row of this half's 반기 집계 (progressScreen), so they need not ask an organiser.
+// 출석 in 내 기록: this year by month as bars and the count in all. The live CSP blocks style attributes, so each bar
+// is an SVG sized by its viewBox, as 응답 현황 draws them; the numbers are spoken once by the group's label.
+function attendanceMonths(year, { months, total }) {
+  const max = Math.max(1, ...months);
+  const now = today().startsWith(year + '-') ? Number(today().slice(5, 7)) : 0;
+  const spoken = months.map((n, index) => `${index + 1}월 ${n}회`).join(', ');
+  const bars = months.map((n, index) => `<span class="member-month${index + 1 === now ? ' member-month-now' : ''}"><small>${n || ''}</small>
+      <svg viewBox="0 0 1 ${max}" preserveAspectRatio="none"><rect y="${max - n}" width="1" height="${n}"/></svg><span>${index + 1}</span></span>`);
+  return `<div class="member-marks"><p class="member-marks-head"><strong>출석</strong><span>${year}년 ${months.reduce((sum, n) => sum + n, 0)}회</span><span class="member-marks-count">전체 ${total}회</span></p>
+    <div class="member-months" role="img" aria-label="${year}년 월별 출석: ${spoken}">${bars.join('')}</div></div>`;
+}
+
+// 내 기록: this member's 출석 and row of this half's 반기 집계 (progressScreen), so they need not ask an organiser.
 function recordCard(record) {
   if (!record) return '';
   const [first, second] = record.half === 1 ? ['1~3월', '4~6월'] : ['7~9월', '10~12월'];
   return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
     <h2 id="member-record">내 기록</h2>
+    ${attendanceMonths(record.year, record.attendance)}
     <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
     ${markSlots('1차 구간', first, record.first)}${markSlots('2차 구간', second, record.second)}
     <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${record.rewarded ? '받았어요' : '아직이에요'}</dd></div></dl>
-    <p class="public-form-note">마무리한 회차에서 운영진이 기록한 인정만 세요.</p></div></section>`;
+    <p class="public-form-note">마무리한 회차에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
 }
 
 export function homeScreen({ events, notices, record }, club, user = null) {

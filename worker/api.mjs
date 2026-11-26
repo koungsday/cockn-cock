@@ -284,23 +284,35 @@ async function listPublic(db, club, memberId) {
   };
 }
 
+// 출석 in 내 기록: present at an event of this club whose 마무리 is confirmed, as the organisers' 출석 체크 recorded
+// it, the same closing rule as 줄서기 인정 (recognisedMarks). Binds club, member.
+const attendedMarks = `FROM attendance a JOIN events e ON a.event_id = e.id
+      JOIN settlements s ON s.event_id = e.id AND s.confirmed = 1
+      WHERE e.club_id = ? AND a.member_id = ? AND a.present = 1`;
+
 // 내 기록: this member's 줄서기 인정 in this half, each with its date and kind like the club's 출석완료자 명단 sheet,
-// counted exactly as the organisers' 반기 집계 (progress) counts them.
+// counted exactly as the organisers' 반기 집계 (progress) counts them; and their 출석, by month this year and in all.
 async function memberRecord(db, club, memberId, date) {
   const year = Number(date.slice(0, 4));
   const half = Number(date.slice(5, 7)) <= 6 ? 1 : 2;
   const { start, mid, end } = halfRange(year, half);
-  const [marks, reward] = await db.batch([
+  const [marks, reward, months, total] = await db.batch([
     sql(db, `SELECT e.date, a.recognition ${recognisedMarks} AND a.member_id = ? ORDER BY e.date, e.time, e.id`,
       club, start, end, memberId),
-    sql(db, 'SELECT 1 FROM rewards WHERE year = ? AND half = ? AND member_id = ?', year, half, memberId)
+    sql(db, 'SELECT 1 FROM rewards WHERE year = ? AND half = ? AND member_id = ?', year, half, memberId),
+    sql(db, `SELECT CAST(substr(e.date, 6, 2) AS INTEGER) AS month, COUNT(*) AS count ${attendedMarks}
+      AND e.date >= ? AND e.date < ? GROUP BY month`, club, memberId, year + '-01-01', (year + 1) + '-01-01'),
+    sql(db, `SELECT COUNT(*) AS total ${attendedMarks}`, club, memberId)
   ]);
   const mark = row => ({ date: row.date, kind: row.recognition });
+  const byMonth = Array(12).fill(0);
+  for (const row of months.results) byMonth[row.month - 1] = row.count;
   return {
     year, half,
     first: marks.results.filter(row => row.date < mid).map(mark),
     second: marks.results.filter(row => row.date >= mid).map(mark),
-    rewarded: reward.results.length > 0
+    rewarded: reward.results.length > 0,
+    attendance: { months: byMonth, total: total.results[0].total }
   };
 }
 

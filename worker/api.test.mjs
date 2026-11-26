@@ -542,19 +542,30 @@ test('members see vote counts without names and their own half-year record', asy
   const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const [year, month] = today.split('-').map(Number);
   const half = month <= 6 ? 1 : 2;
-  assert.deepEqual(home.record, {year, half, first:[], second:[], rewarded:false});
+  const noAttendance = {months:Array(12).fill(0), total:0};
+  assert.deepEqual(home.record, {year, half, first:[], second:[], rewarded:false, attendance:noAttendance});
   const {event: done} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
     ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', earlyTime:'00:01', lateTime:'00:02'
   }});
   const donePath = '/api/admin/events/' + done.id;
   await admin.request(donePath + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:'substitute'}});
+  await admin.request(donePath + '/attendance/' + members[1].id, {method:'PUT', body:{present:false, recognition:null}});
   await admin.request(donePath + '/settlement', {method:'PUT', body:{priorSingles:1, priorTubes:0, remainingSingles:0, courtDonation:0, confirmed:true}});
+  // Present at an event not yet finalized does not count until its 마무리 is confirmed.
+  const {event: open} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
+    ...futureEvent(), date:today, time:'00:04', endTime:'00:06', deadline:today + 'T00:00', earlyTime:'00:04', lateTime:'00:05'
+  }});
+  await admin.request('/api/admin/events/' + open.id + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:null}});
   await admin.request('/api/admin/progress', {method:'PUT', body:{year, half, memberId:members[0].id, rewarded:true}});
   const firstPeriod = month % 6 >= 1 && month % 6 <= 3;
   const marks = [{date:today, kind:'substitute'}];
+  // 출석 counts present at a finalized event: this month once, in all once; the other member none.
+  const months = Array(12).fill(0);
+  months[month - 1] = 1;
   assert.deepEqual((await first.request('/api/public')).record,
-    {year, half, first:firstPeriod ? marks : [], second:firstPeriod ? [] : marks, rewarded:true});
-  assert.deepEqual((await second.request('/api/public')).record, {year, half, first:[], second:[], rewarded:false});
+    {year, half, first:firstPeriod ? marks : [], second:firstPeriod ? [] : marks, rewarded:true, attendance:{months, total:1}});
+  assert.deepEqual((await second.request('/api/public')).record,
+    {year, half, first:[], second:[], rewarded:false, attendance:noAttendance});
   // The organisers' 반기 집계 counts the same marks.
   const {members: table} = await admin.request(`/api/admin/progress?year=${year}&half=${half}`);
   const row = table.find(item => item.id === members[0].id);
