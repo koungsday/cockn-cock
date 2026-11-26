@@ -147,9 +147,13 @@ p { line-height: 1.58; }
 .todo-row > div { flex: 1; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
 .todo-row strong { font-size: .93rem; }
 .todo-row p { margin-top: 1px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
-.todo-row .metric-icon { width: 33px; height: 33px; border-radius: 8px; }
 .todo-row .btn { flex: none; }
 .todo-empty { margin-top: 10px; }
+/* 상단 고정: a push pin by the title, in the colour of the text around it. */
+.pin-mark { display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.notice-date .pin-mark, .notice-home-link .pin-mark { margin-right: 0; }
+/* The side panel keeps its own height instead of stretching beside a long 진행 중인 일정. */
+.dashboard-grid.dashboard-bottom { align-items: start; }
 .last-session { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 12px 0; }
 .last-session strong { font-size: .99rem; }
 .last-session p { margin-top: 2px; color: var(--muted); font-size: .83rem; }
@@ -246,6 +250,7 @@ textarea { min-height: 100px; resize: vertical; }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 9px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line); }
 .dialog-head h2 { font-size: 1.27rem; }
 .dialog-body { padding: 17px 18px; }
+.dialog-body > p { word-break: keep-all; }
 .dialog-footer { padding: 12px 18px 16px; border-top: 1px solid var(--line); justify-content: flex-end; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 12px; }
 .form-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-weight: 700; font-size: .90rem; }
@@ -318,9 +323,6 @@ textarea { min-height: 100px; resize: vertical; }
   .featured::after { background: linear-gradient(90deg,#173d2dfa 0%,#173d2df0 15%,#173d2dda 35%,#153a2b60 70%,#13322728 100%); }
   .featured-content { padding: 19px 18px; }
   .session-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; padding: 12px 18px 15px; }
-  .todo-row { flex-wrap: wrap; }
-  .todo-row > div { flex-basis: calc(100% - 43px); }
-  .todo-row .btn { margin-left: 43px; }
   .featured-meta span { font-size: .89rem; }
   .dashboard-panel-head h2 { font-size: 1.12rem; }
   .poll-dashboard, .dashboard-bottom .panel { padding-inline: 15px; }

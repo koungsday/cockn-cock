@@ -67,9 +67,12 @@ export function eventDefaults(previous = null, defaultPlace = '', { keepFuture =
   return {
     title: '정기 운동', date, time: '10:00', endTime: '13:00',
     earlyTime: '09:30', lateTime: '09:50', place: defaultPlace,
-    deadline: `${addDays(date, -1)}T15:30`, notes: '', open: false, published: false,
+    deadline: `${addDays(date, -1)}T15:30`, notes: '', open: false, published: false, kind: 'regular',
   };
 }
+
+// 일정 종류 (worker/migrations/0008_pins_kinds.sql). 정기 is the usual one, so lists name only the others.
+export const eventKindLabels = { regular: '정기', flash: '번개', match: '대회', social: '모임' };
 
 const paths = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -89,6 +92,8 @@ const paths = {
   megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
   // 카톡 공유: a chat bubble, the same in the demo (app.js icons).
   share: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
+  // 상단 고정: a push pin (the map marker above is `pin`, for places).
+  pushpin: '<path d="M12 16v6M8 3h8l-1.5 6.5L18 13v3H6v-3l3.5-3.5z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3m-5-3 5-5-5-5m5 5H3"/>',
@@ -521,7 +526,7 @@ function featured(detail, club) {
   const kicker = stage === 2 ? '오늘 일정' : stage === 3 ? '마무리할 일정' : '다음 일정';
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="featured" aria-labelledby="next-event-title"><div class="featured-content">
-    <div class="featured-kicker"><i></i> ${kicker}</div>
+    <div class="featured-kicker"><i></i> ${kicker}${pinMark(event)}</div>
     <h2 id="next-event-title">${esc(event.title)}</h2>
     <div class="featured-meta"><span>${icon('calendar', 18)} <time datetime="${esc(`${event.date}T${event.time}`)}">${esc(fullDate(event.date))} · ${esc(event.time)}–${esc(event.endTime)}</time></span>
       <span>${icon('pin', 18)} ${esc(event.place)}</span></div>
@@ -576,73 +581,97 @@ function metric(section, glyph, tone, label, value, unit) {
     <div><span class="metric-label">${label}</span><div class="metric-value">${value}<small>${unit}</small></div></div>${icon('chevron-right', 16)}</button>`;
 }
 
-function todoRow(glyph, tone, title, detail, action) {
-  return `<li class="todo-row"><span class="metric-icon ${tone}">${icon(glyph, 19)}</span><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
+function todoRow(title, detail, action) {
+  return `<li class="todo-row"><div><strong>${title}</strong><p>${detail}</p></div>${action}</li>`;
+}
+
+// 상단 고정 (FLOW.md 5): a push pin by the title wherever a pinned event or notice shows; pinning itself is on the
+// 회차 화면 and the 공지 list, so the 운영 홈 rows keep one action each.
+function pinMark(item) {
+  return item?.pinnedAt ? `<span class="pin-mark" title="상단 고정">${icon('pushpin', 15)}<span class="sr-only">상단 고정</span></span>` : '';
+}
+
+// 일정 종류 in a line of facts: only the ones other than the usual 정기, and not when the title already says it
+// ("수요 번개").
+function kindPrefix(event) {
+  const label = eventKindLabels[event.kind];
+  return label && event.kind !== 'regular' && !event.title.includes(label) ? `${label} · ` : '';
 }
 
 // 진행 중인 일정 (FLOW.md): every unfinished event but the one in the big card, in the 운영 홈 order (flow.mjs), each
-// with its stage and the one thing to do now. Redrawn with the vote counts.
+// with its stage, its date first, and the one thing to do now. Redrawn with the vote counts.
 const flowStages = {
-  draft: ['준비', 'muted', 'calendar', 'sand'], waiting: ['투표 대기', 'muted', 'clipboard', 'sand'],
-  voting: ['투표 중', 'green', 'users', 'mint'], closed: ['투표 마감', 'muted', 'clock', 'sand'],
-  today: ['오늘', 'warm', 'calendar', 'mint'], wrapup: ['마무리 전', 'warm', 'clipboard', 'mint'],
+  draft: ['준비', 'muted'], waiting: ['투표 대기', 'muted'], voting: ['투표 중', 'green'],
+  closed: ['투표 마감', 'muted'], today: ['오늘', 'warm'], wrapup: ['마무리 전', 'warm'],
 };
 
 function flowRow(event, now) {
   const stage = eventStage(event, now);
-  const [word, tone, glyph, iconTone] = flowStages[stage];
-  const when = `${dateLabel(event.date)} ${event.time}`;
-  const open = (label, tab) => button(label, 'open-event', { id: event.id, css: 'secondary small', tab, label: `${event.title} ${label}` });
+  const [word, tone] = flowStages[stage];
+  const day = dateLabel(event.date);
+  const when = `${kindPrefix(event)}${day} ${event.time}`;
+  // The title and the date name the button, as weekly events often share a title.
+  const named = label => `${event.title} ${day} ${label}`;
+  const go = (label, tab) => button(label, 'open-event', { id: event.id, css: 'secondary small', tab, label: named(label) });
+  const late = Math.round((Date.parse(now.day) - Date.parse(event.date)) / 86400000);
   const [detail, action] = {
-    draft: [`${when} · 비공개예요. 공개해야 회원이 보고 투표할 수 있어요.`, open('회차 열기', 'poll')],
-    waiting: [`${when} · 투표가 닫혀 있어요. 열어야 회원이 응답할 수 있어요.`, open('회차 열기', 'poll')],
-    voting: [`${deadlineLabel(event.deadline)} 마감 · 미응답 ${event.waiting}명`,
-      button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small', label: `${event.title} 카톡 공유` })],
-    closed: [`${when} · 투표 마감, 미응답 ${event.waiting}명`, open('회차 열기', 'poll')],
-    today: [`${when} · 출석과 게스트 도착을 체크해 주세요.`, open('출석 체크', 'attendance')],
-    wrapup: [`${when} · 출석과 콕·찬조금을 기록하고 마무리해 주세요.`, open('마무리하기', 'settlement')],
+    draft: [`${when} · 비공개예요. 공개해야 회원이 보고 투표할 수 있어요.`, go('회차 보기', 'poll')],
+    waiting: [`${when} · 투표가 닫혀 있어요. 열어야 회원이 응답할 수 있어요.`, go('회차 보기', 'poll')],
+    voting: [`${when} · ${deadlineLabel(event.deadline)} 마감 · 미응답 ${event.waiting}명`,
+      button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small', label: named('카톡 공유') })],
+    closed: [`${when} · 미응답 ${event.waiting}명`, go('명단 확인', 'poll')],
+    today: [`${when} · 출석과 게스트 도착을 체크해 주세요.`, go('출석 체크', 'attendance')],
+    wrapup: [`${when} · ${late}일 지났어요`, go('마무리하기', 'settlement')],
   }[stage];
-  return todoRow(glyph, iconTone, `${pill(word, tone)} ${esc(event.title)}`, esc(detail), action);
+  return todoRow(`${pill(word, tone)} ${pinMark(event)}${esc(event.title)}`, esc(detail), action);
 }
 
 export function homeFlows(events, featuredId, now = koreanNow()) {
   const rows = flowOrder(events, now).filter(event => event.id !== featuredId).map(event => flowRow(event, now));
   if (events.length && !events.some(event => event.date >= now.day)) {
     const latest = [...events].sort((a, b) => b.date.localeCompare(a.date))[0];
-    rows.push(todoRow('repeat', 'mint', '예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
+    rows.push(todoRow('예정된 회차가 없어요', '지난 회차를 복제해 다음 주 회차를 만들 수 있어요.',
       button('다음 주 회차 만들기', 'clone-event', { id: latest.id, css: 'secondary small' })));
   }
   return `<section class="panel todo-panel" aria-labelledby="home-todo-title"><header class="dashboard-panel-head"><h2 id="home-todo-title">진행 중인 일정</h2></header>
     ${rows.length ? `<ul class="todo-list">${rows.join('')}</ul>` : `<p class="muted todo-empty">${featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.'}</p>`}</section>`;
 }
 
+// 마무리한 회차: the latest event whose 마무리 is confirmed (unfinished ones are among the 진행 중인 일정), with its
+// counts and the 마무리 글 to paste into the group chat.
 function lastPanel(last) {
-  let body = '<p class="muted">아직 지난 회차가 없어요.</p>';
-  if (last?.failed) body = '<p class="muted">지난 회차를 불러오지 못했어요. 잠시 뒤 운영 홈을 다시 열어 주세요.</p>';
+  let body = '<p class="muted">아직 마무리한 회차가 없어요.</p>';
+  if (last?.failed) body = '<p class="muted">마무리한 회차를 불러오지 못했어요. 잠시 뒤 운영 홈을 다시 열어 주세요.</p>';
   else if (last) {
-    const { event, roster, guests, settlement } = last;
+    const { event, roster, guests } = last;
     const c = countEvent(roster, guests);
     const skipped = roster.filter(row => (row.slot === 'early' || row.slot === 'late') && row.present === false).length;
-    const done = Boolean(settlement?.confirmed);
-    body = `<div class="last-session"><div><strong>${esc(event.title)}</strong><p>${esc(dateLabel(event.date))} · ${esc(event.place)}</p></div>${pill(done ? '마무리 완료' : '마무리 전', done ? 'green' : 'warm')}</div>
+    body = `<div class="last-session"><div><strong>${esc(event.title)}</strong><p>${esc(dateLabel(event.date))} · ${esc(event.place)}</p></div>${pill('마무리 완료', 'green')}</div>
       ${summary([['출석', `${c.members}명`, 'green'], ['게스트 도착', `${c.guests}명`], ['응답 후 불참', `${skipped}명`]])}
-      <div class="last-session-action">${done
-        ? button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-last-report', { css: 'secondary small' })
-        : button('마무리하기', 'open-event', { id: event.id, css: 'secondary small', tab: 'settlement' })}</div>`;
+      <div class="last-session-action">${button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-last-report', { css: 'secondary small' })}</div>`;
   }
-  return `<section class="panel last-panel" aria-labelledby="home-last-title"><header class="dashboard-panel-head"><h2 id="home-last-title">지난 회차</h2></header>${body}</section>`;
+  return `<section class="panel last-panel" aria-labelledby="home-last-title"><header class="dashboard-panel-head"><h2 id="home-last-title">마무리한 회차</h2></header>${body}</section>`;
+}
+
+// The heading says how many events are under way, so a phone that shows only the big card at first still tells
+// there are more below (the list starts under the 참석 투표 panel).
+function flowSummary(events) {
+  const now = koreanNow();
+  const flows = flowOrder(events, now);
+  const wrapups = flows.filter(event => eventStage(event, now) === 'wrapup').length;
+  return flows.length ? `진행 중인 일정 ${flows.length}개${wrapups ? ` · 마무리 전 ${wrapups}개` : ''}` : '진행 중인 일정이 없어요.';
 }
 
 export function adminHome({ events, members, notices }, upcoming, club, last = null) {
   const month = today().slice(0, 7);
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
-    <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}<span>${esc(notice.title)}</span></button>
+    <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}${pinMark(notice)}<span>${esc(notice.title)}</span></button>
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
     ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 공유" title="카톡 공유">${icon('share', 17)}</button>` : ''}
   </div>`);
   return `<div class="dashboard">
     <header class="dashboard-heading">
-      <div><h1 tabindex="-1">운영 홈</h1><p>진행 중인 일정과 지금 할 일을 확인하세요.</p></div>
+      <div><h1 tabindex="-1">운영 홈</h1><p>${esc(flowSummary(events))}</p></div>
       <div class="heading-actions"><span class="today-label">${icon('calendar', 17)}${esc(fullDate(today()))}</span>${button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' })}</div>
     </header>
     <div class="dashboard-grid">${featured(upcoming, club)}${pollPanel(upcoming)}</div>
@@ -683,7 +712,8 @@ export function eventForm(event, id = '') {
   const time = { type: 'time', attrs: 'required' };
   return form('event',
     (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 회차는 준비 상태로 저장할 수 있어요.') : '') + `<div class="form-grid">
-      ${field('모임 이름', 'title', event.title, { wide: true, attrs: 'required maxlength="120"' })}
+      ${field('모임 이름', 'title', event.title, { attrs: 'required maxlength="120"' })}
+      ${select('종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
       ${field('날짜', 'date', event.date, { type: 'date', attrs: 'required' })}
       ${field('장소', 'place', event.place, { attrs: 'required maxlength="120"' })}
       ${field('시작 시간', 'time', event.time, time)}
@@ -718,12 +748,15 @@ export function eventScreen(events, detail, club, tab = null) {
   if (!event) return `<div class="secondary-page">${head}${panel('회차', '<p class="empty-state">회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p>')}</div>`;
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
+  // 상단 고정 lives here (and in the 공지 list), not on every 운영 홈 row; a confirmed 마무리 has left the flow.
+  const pinControl = settlement?.confirmed ? '' : button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event',
+    { id: event.id, css: 'secondary small event-pin', label: `${event.title} ${event.pinnedAt ? '상단 고정 해제' : '상단 고정'}` });
   const picker = `<label class="form-field event-picker"><span>확인할 회차</span><select name="event-id" data-action="switch-event">
     ${events.map(item => option(item.id, `${dateLabel(item.date)} ${item.title} · ${sessionStatus(item)}`, event.id)).join('')}</select></label>`;
   const overview = `<section class="panel event-overview" aria-labelledby="admin-event-title"><div class="panel-body">
     ${picker}
-    <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}</div>
-    <div class="event-facts"><span>${icon('calendar', 18)}${esc(dateLabel(event.date))}</span><span>${icon('clock', 18)}${esc(event.time)}–${esc(event.endTime)}</span>
+    <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${pinControl}</div>
+    <div class="event-facts"><span>${icon('calendar', 18)}${esc(kindPrefix(event))}${esc(dateLabel(event.date))}</span><span>${icon('clock', 18)}${esc(event.time)}–${esc(event.endTime)}</span>
       <span>${icon('pin', 18)}${esc(event.place)}</span></div>
   </div></section>`;
   const voteActions = button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary small' })
@@ -890,11 +923,12 @@ export function noticeForm(notice = null) {
 
 export function noticesScreen(notices) {
   const items = notices.map(notice => `<article class="notice-item">
-    <div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}</div>
+    <div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}${pinMark(notice)}</div>
     <h3>${esc(notice.title)}</h3>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
     <div class="notice-actions">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary small' })}
-      ${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}</div>
+      ${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}
+      ${button(`${icon('pushpin', 17)} ${notice.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-notice', { id: notice.id, css: 'text small', label: `${notice.title} ${notice.pinnedAt ? '상단 고정 해제' : '상단 고정'}` })}</div>
   </article>`);
   return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
@@ -906,13 +940,15 @@ export function noticesScreen(notices) {
 export function rulesScreen(rules) {
   const periods = [[1, '반기 통째로 (6개월)'], [2, '반기를 2구간 (3개월씩)'], [3, '반기를 3구간 (2개월씩)'], [6, '매달 (1개월씩)']];
   const kinds = Object.entries(recognitionLabel).map(([kind, label]) => `<label class="form-check"><input type="checkbox" name="kinds" value="${kind}"${rules.kinds.includes(kind) ? ' checked' : ''}><span>${label}</span></label>`);
+  const eventKinds = Object.entries(eventKindLabels).map(([kind, label]) => `<label class="form-check"><input type="checkbox" name="eventKinds" value="${kind}"${rules.eventKinds.includes(kind) ? ' checked' : ''}><span>${label}</span></label>`);
   const rewards = [['manual', '운영진이 직접 체크해요'], ['goal', '모든 구간에서 목표를 채운 회원을 반기 집계에 "수령 대상"으로 표시해요']]
     .map(([value, label]) => `<label class="form-check"><input type="radio" name="reward" value="${value}"${rules.reward === value ? ' checked' : ''} required><span>${label}</span></label>`);
   const body = `<div class="form-grid">${select('집계 구간', 'periods', periods, rules.periods)}
       ${field('구간 목표 (회)', 'goal', rules.goal, { type: 'number', attrs: 'min="1" max="20" step="1" inputmode="numeric" required' })}</div>
     <fieldset class="rule-choices"><legend>세는 줄서기 인정</legend>${kinds.join('')}</fieldset>
+    <fieldset class="rule-choices"><legend>세는 일정 종류</legend>${eventKinds.join('')}</fieldset>
     <fieldset class="rule-choices"><legend>콕 수령</legend>${rewards.join('')}</fieldset>
-    ${note('바꾸면 반기 집계와 회원 내 기록에 바로 반영돼요. 지난 출석 기록은 그대로 두고 세는 방법만 바뀌어요. 콕 수령 기록은 어느 쪽이든 운영진이 해요.')}`;
+    ${note('바꾸면 반기 집계와 회원 내 기록(출석 포함)에 바로 반영돼요. 지난 출석 기록은 그대로 두고 세는 방법만 바뀌어요. 콕 수령 기록은 어느 쪽이든 운영진이 해요.')}`;
   return `<div class="secondary-page">${pageHead('모임 규칙', '줄서기 인정과 콕 수령을 우리 모임 방식대로 셉니다.')}
     ${panel('집계 기준', form('rules', body, '규칙 저장', '', 'rules-form'))}</div>`;
 }

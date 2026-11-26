@@ -290,12 +290,12 @@ test('two clubs in the one database never read or change each other\'s records',
   assert.equal((await memberApi('/votes/' + b.event.id, { method: 'PUT', body: { slot: 'early', lunch: false } })).status, 200);
 
   // The other club's 모임 규칙 are its own.
-  const rulesB = { periods: 6, goal: 1, kinds: ['direct'], reward: 'goal' };
+  const rulesB = { periods: 6, goal: 1, kinds: ['direct'], reward: 'goal', eventKinds: ['flash'] };
   assert.deepEqual((await (await b.admin('/admin/rules', { method: 'PUT', body: rulesB })).json()).rules, rulesB);
 
   // Nothing of the first club moved.
   const listA = await (await a.admin('/admin')).json();
-  assert.deepEqual(listA.rules, { periods: 2, goal: 3, kinds: ['direct', 'substitute', 'approved'], reward: 'manual' });
+  assert.deepEqual(listA.rules, { periods: 2, goal: 3, kinds: ['direct', 'substitute', 'approved'], reward: 'manual', eventKinds: ['regular', 'flash', 'match'] });
   assert.deepEqual(listA.members, [a.member]);
   assert.deepEqual(listA.notices, [a.notice]);
   const detailA = await (await a.admin(eventA)).json();
@@ -379,7 +379,7 @@ test('member overview requires login and limits records to published upcoming ev
   assert.equal(list.headers.get('Set-Cookie'), null);
   const result = await list.json();
   assert.deepEqual(result.events, published.slice(0, 12).map(({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime }) =>
-    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: true, open: true, eligible: true, mySlot: null,
+    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: true, kind: 'regular', open: true, eligible: true, mySlot: null,
       counts: { early: 0, late: 0, no: 0, lunch: 0 } })
   ));
   // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.

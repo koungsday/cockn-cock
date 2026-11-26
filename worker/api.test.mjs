@@ -501,24 +501,25 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
 
   // 모임 규칙: the defaults are how the table counted before; a club can cut the half by month, count only some 인정
   // 방식, and show 수령 대상 to whoever met the goal in every 구간.
-  const defaults = {periods:2, goal:3, kinds:['direct', 'substitute', 'approved'], reward:'manual'};
+  const defaults = {periods:2, goal:3, kinds:['direct', 'substitute', 'approved'], reward:'manual', eventKinds:['regular', 'flash', 'match']};
   assert.deepEqual((await admin.request('/api/admin/rules')).rules, defaults);
   assert.deepEqual((await admin.request('/api/admin')).rules, defaults);
   for (const body of [{...defaults, periods:4}, {...defaults, goal:0}, {...defaults, goal:21}, {...defaults, kinds:[]},
-    {...defaults, kinds:['direct', 'late']}, {...defaults, reward:'auto'}]) {
+    {...defaults, kinds:['direct', 'late']}, {...defaults, reward:'auto'}, {...defaults, eventKinds:[]},
+    {...defaults, eventKinds:['regular', 'party']}, {periods:2, goal:3, kinds:['direct'], reward:'manual'}]) {
     await admin.request('/api/admin/rules', {method:'PUT', body, expect:400});
   }
   await admin.request(afterBoundary + '/settlement', {method:'PUT', body:patchSettlement});
-  const monthly = {periods:6, goal:1, kinds:['direct'], reward:'goal'};
+  const monthly = {periods:6, goal:1, kinds:['direct'], reward:'goal', eventKinds:['regular']};
   assert.deepEqual((await admin.request('/api/admin/rules', {method:'PUT', body:monthly})).rules, monthly);
   // July to December: 09-30 and 12-31 were direct; 10-01 was 대타, which this club no longer counts.
   const byMonth = (await admin.request(endpoint)).members[0];
   assert.deepEqual([byMonth.periods, byMonth.eligible], [[0, 0, 1, 0, 0, 1], false]);
-  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['substitute', 'direct'], reward:'goal'}});
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['substitute', 'direct'], reward:'goal', eventKinds:['match', 'regular']}});
   const whole = await admin.request(endpoint);
-  assert.deepEqual(whole.rules, {periods:1, goal:3, kinds:['direct', 'substitute'], reward:'goal'});
+  assert.deepEqual(whole.rules, {periods:1, goal:3, kinds:['direct', 'substitute'], reward:'goal', eventKinds:['regular', 'match']});
   assert.deepEqual([whole.members[0].periods, whole.members[0].eligible], [[3], true]);
-  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['direct', 'substitute'], reward:'manual'}});
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:3, kinds:['direct', 'substitute'], reward:'manual', eventKinds:['regular']}});
   assert.equal((await admin.request(endpoint)).members[0].eligible, false);
 });
 
@@ -597,7 +598,7 @@ test('members see vote counts without names and their own half-year record', asy
   const row = table.find(item => item.id === members[0].id);
   assert.deepEqual(row.periods, [firstPeriod ? 1 : 0, firstPeriod ? 0 : 1]);
   // 내 기록 follows the 모임 규칙 too: one 구간, one 대타 needed, 수령 대상 shown.
-  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:1, kinds:['substitute'], reward:'goal'}});
+  await admin.request('/api/admin/rules', {method:'PUT', body:{periods:1, goal:1, kinds:['substitute'], reward:'goal', eventKinds:['regular', 'flash', 'match']}});
   const ruled = (await first.request('/api/public')).record;
   assert.deepEqual([ruled.periods, ruled.goal, ruled.reward, ruled.eligible], [[marks], 1, 'goal', true]);
 });
@@ -653,4 +654,116 @@ test('concurrent schedule patches do not silently overwrite one another', async 
   const details = await admin.request(path);
   assert.equal(details.event.open, edits[0].error ? true : false);
   assert.equal(details.event.notes, edits[1].error ? event.notes : '새로운 가상 안내');
+});
+
+// 상단 고정 (FLOW.md 4·5·9): three events and three notices at most, the fourth asks first and then lets go of the
+// longest-pinned one; a confirmed 마무리 leaves the 진행 중인 일정 and cannot be pinned.
+test('organisers pin up to three events and three notices, oldest first, and a fourth replaces the oldest only when asked', async t => {
+  const {client, DB} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const events = [];
+  for (let index = 0; index < 5; index += 1) {
+    events.push((await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...futureEvent(), title:'가상 고정 ' + index}})).event);
+  }
+  assert.equal(events[0].pinnedAt, null);
+  const pin = (event, body, expect = 200) => admin.request('/api/admin/events/' + event.id, {method:'PATCH', body, expect});
+  for (const event of events.slice(0, 3)) assert.ok((await pin(event, {pinned:true})).pinnedAt);
+  const fourth = await pin(events[3], {pinned:true}, 409);
+  assert.match(fourth.error, /3개까지/);
+  assert.match(fourth.error, /가상 고정 0/);
+  const pinnedIds = async () => (await admin.request('/api/admin')).events.filter(event => event.pinnedAt)
+    .sort((a, b) => a.pinnedAt - b.pinnedAt).map(event => event.title);
+  assert.deepEqual(await pinnedIds(), ['가상 고정 0', '가상 고정 1', '가상 고정 2']);
+  const replaced = await pin(events[3], {pinned:true, replaceOldest:true});
+  assert.deepEqual(replaced.released, {id:events[0].id, title:'가상 고정 0'});
+  assert.deepEqual(await pinnedIds(), ['가상 고정 1', '가상 고정 2', '가상 고정 3']);
+  // Pinning again keeps its place; letting go frees one.
+  assert.equal((await pin(events[1], {pinned:true})).released, null);
+  assert.deepEqual(await pinnedIds(), ['가상 고정 1', '가상 고정 2', '가상 고정 3']);
+  await pin(events[2], {pinned:false});
+  await pin(events[4], {pinned:true});
+  assert.deepEqual(await pinnedIds(), ['가상 고정 1', '가상 고정 3', '가상 고정 4']);
+  // The pin is its own change: it does not ride on a form save, and a form save does not touch it.
+  await pin(events[1], {pinned:false, title:'다른 제목'}, 400);
+  await pin(events[1], {title:'가상 고정 1 수정'});
+  assert.ok((await admin.request('/api/admin/events/' + events[1].id)).event.pinnedAt);
+  // A confirmed 마무리 takes the event out: it frees its place and cannot be pinned again.
+  const lastWeek = new Date(Date.now() + 9 * 60 * 60 * 1000 - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const {event: past} = await admin.request('/api/admin/events', {
+    method:'POST', expect:201, body:{...futureEvent(), title:'가상 지난 고정', date:lastWeek, deadline:lastWeek + 'T09:00'}
+  });
+  await pin(events[4], {pinned:false});
+  await pin(past, {pinned:true});
+  const settlement = {priorSingles:10, priorTubes:1, remainingSingles:2, courtDonation:0, confirmed:true};
+  await admin.request('/api/admin/events/' + past.id + '/settlement', {method:'PUT', body:settlement});
+  assert.deepEqual(await pinnedIds(), ['가상 고정 1 수정', '가상 고정 3']);
+  await pin(events[0], {pinned:true});
+  assert.deepEqual(await pinnedIds(), ['가상 고정 1 수정', '가상 고정 3', '가상 고정 0']);
+  const closed = await pin(past, {pinned:true}, 409);
+  assert.match(closed.error, /마무리를 확정한 일정/);
+  await admin.request('/api/admin/events/00000000-0000-4000-8000-000000000000', {method:'PATCH', body:{pinned:true}, expect:404});
+
+  // Notices: pinned first in the order pinned, then the newest.
+  const notices = [];
+  for (let index = 0; index < 4; index += 1) {
+    notices.push((await admin.request('/api/admin/notices', {method:'POST', expect:201, body:{title:'가상 공지 ' + index, body:'본문', published:true}})).notice);
+  }
+  const pinNotice = (notice, body, expect = 200) => admin.request('/api/admin/notices/' + notice.id, {method:'PATCH', body, expect});
+  await pinNotice(notices[1], {pinned:true});
+  await pinNotice(notices[0], {pinned:true});
+  const listed = (await admin.request('/api/admin')).notices.map(notice => notice.title);
+  assert.deepEqual(listed, ['가상 공지 1', '가상 공지 0', '가상 공지 3', '가상 공지 2']);
+  await pinNotice(notices[2], {pinned:true});
+  assert.match((await pinNotice(notices[3], {pinned:true}, 409)).error, /가상 공지 1/);
+  await pinNotice(notices[3], {pinned:true, replaceOldest:true});
+  assert.deepEqual((await admin.request('/api/admin')).notices.filter(notice => notice.pinnedAt).map(notice => notice.title),
+    ['가상 공지 0', '가상 공지 2', '가상 공지 3']);
+  await pinNotice(notices[0], {title:'바꾼 제목'}, 400);
+  await admin.request('/api/admin/notices/' + notices[0].id, {method:'POST', body:{pinned:true}, expect:405});
+
+  const log = (await DB.prepare("SELECT action, summary FROM audit_log WHERE action IN ('event.pin', 'notice.pin') ORDER BY id").all()).results;
+  assert.ok(log.some(row => row.action === 'event.pin' && /가상 고정 3 · 고정 \(가상 고정 0 고정 해제\)/.test(row.summary)));
+  assert.ok(log.some(row => row.action === 'notice.pin' && row.summary === '가상 공지 2 · 고정'));
+});
+
+// 일정 종류 (FLOW.md 6): every event is 정기 unless chosen, and only the kinds the 모임 규칙 count go into 줄서기 인정,
+// the 반기 집계 and 출석 in 내 기록.
+test('event kinds default to 정기 and the 모임 규칙 choose which kinds count', async t => {
+  const {client} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const {member} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name:'가상 종류 회원', birthday:'19850505'}});
+  const year = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear() - 1;
+  const settlement = {priorSingles:10, priorTubes:1, remainingSingles:2, courtDonation:0, confirmed:true};
+  const ids = {};
+  for (const [kind, date] of [[undefined, '08-02'], ['flash', '08-05'], ['social', '08-09']]) {
+    const {event} = await admin.request('/api/admin/events', {
+      method:'POST', expect:201, body:{...futureEvent(), date:year + '-' + date, deadline:year + '-' + date + 'T09:00', ...(kind && {kind})}
+    });
+    ids[kind ?? 'regular'] = event.id;
+    assert.equal(event.kind, kind ?? 'regular');
+    const path = '/api/admin/events/' + event.id;
+    await admin.request(path + '/attendance/' + member.id, {method:'PUT', body:{present:true, recognition:'direct'}});
+    await admin.request(path + '/settlement', {method:'PUT', body:settlement});
+  }
+  await admin.request('/api/admin/events', {method:'POST', expect:400, body:{...futureEvent(), kind:'party'}});
+  const {event: upcoming} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()});
+  assert.equal((await admin.request('/api/admin/events/' + upcoming.id, {method:'PATCH', body:{kind:'match'}})).event.kind, 'match');
+
+  const endpoint = '/api/admin/progress?year=' + year + '&half=2';
+  // The default counts 정기·번개·대회: the 모임 (social) is left out.
+  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [2, 0]);
+  const rules = {periods:2, goal:3, kinds:['direct', 'substitute', 'approved'], reward:'manual'};
+  await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['regular', 'flash', 'match', 'social']}});
+  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [3, 0]);
+  await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['regular']}});
+  assert.deepEqual((await admin.request(endpoint)).members[0].periods, [1, 0]);
+
+  // 내 기록's 출석 follows the same rule (this year's months only count when the events are this year).
+  const self = client();
+  await self.login('가상 종류 회원', '19850505');
+  assert.equal((await self.request('/api/public')).record.attendance.total, 1);
+  await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['flash', 'social']}});
+  assert.equal((await self.request('/api/public')).record.attendance.total, 2);
 });
