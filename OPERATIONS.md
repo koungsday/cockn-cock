@@ -85,7 +85,7 @@ npx wrangler deploy --config worker/wrangler.production.local.json --secrets-fil
 `worker/migrations/`에 새 파일이 들어간 릴리스는 코드보다 DB를 먼저 바꿉니다. 새 코드는 새 구조를 전제로 해서, 코드만 먼저 올리면 실사용 저장이 실패합니다.
 
 1. 로컬에서 `npm run live:db`로 적용하고 `npm run live:test`와 화면으로 확인합니다. 마이그레이션은 기존 행을 넣은 상태에서 검사합니다(`worker/migrations.test.mjs`).
-2. 운영 DB를 내보내 백업합니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다.
+2. 운영 DB를 내보내 백업합니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다. 이 명령은 **새 마이그레이션 파일이 있는 체크아웃**(PR 브랜치 작업 폴더나 머지한 `main`)에서 실행합니다. 설정의 마이그레이션 폴더가 그 설정 파일 옆의 `migrations/`라서, 파일이 없는 폴더에서는 적용할 것이 있어도 "No migrations to apply"로 보입니다.
 3. `npm run deploy`로 배포합니다.
 
 `0003_one_database.sql`(모든 모임이 D1 하나를 씀)은 이 순서 대신 [PLATFORM.md](PLATFORM.md)의 2단계 이전 절차로 새 D1에 옮깁니다.
