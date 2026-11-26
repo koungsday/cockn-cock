@@ -138,9 +138,8 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .menu-actions { display: grid; gap: 8px; }
 .login-menu-dialog[open] { inset: calc(var(--site-header-block) + .5rem) 0 auto; width: min(25rem, calc(100% - 32px)); margin-block: 0; }
 
-/* Member screens live in share.css (member home, records, back link) so the demo uses the same components. In the
-   shell they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content area's own padding. */
-.admin-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
+/* Member screens live in share.css (member home, records, back link, their column in the shell) so the demo uses the
+   same components. */
 /* 내 응답 in the organisers' 일정 상세 (views.mjs eventScreen): the vote form is the panel's body, no divider above it. */
 #my-vote .public-form { margin-top: 0; padding-top: 0; border-top: 0; }
 .message-actions { margin-top: 16px; }

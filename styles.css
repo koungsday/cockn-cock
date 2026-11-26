@@ -52,6 +52,10 @@ p { line-height: 1.58; }
 .breadcrumb-parent { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .breadcrumb-divider { color: var(--muted); }
 .breadcrumb strong { font-weight: 750; white-space: nowrap; }
+/* 가상 체험 보기 전환 (app.js viewSwitch): the live club decides the menus from the sign-in instead. On a narrow phone
+   the switch and the club's name keep the top bar; the 가상 데이터 체험 label gives way (the pages still say so). */
+.view-switch { display: inline-flex; gap: 2px; }
+@media (max-width: 520px) { .topbar .demo-label { display: none; } }
 .demo-label { display: inline-flex; align-items: center; gap: 7px; color: #435e4c; background: #edf3e8; border: 1px solid #e2ebdf; padding: 6px 10px; border-radius: 99px; font-size: .77rem; font-weight: 700; white-space: nowrap; }
 .demo-label i, .featured-kicker i, .poll-status i { width: 6px; height: 6px; border-radius: 50%; background: #619c66; }
 .main-content { max-width: 1400px; margin: 0 auto; padding: 33px clamp(20px,3.2vw,50px) 44px; }

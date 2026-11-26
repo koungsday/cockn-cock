@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { renderCatalog } from '../platform/catalog.mjs';
-import { renderDemoClub } from '../platform/demo-club.mjs';
 import { CLUBS, PLATFORM_NAME } from '../platform/clubs.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -24,7 +23,6 @@ if (!demoClub) throw new Error('The demo club is missing from the catalog.');
 const clubPath = `clubs/${demoClub.slug}/`;
 const clubUrl = new URL(clubPath, site);
 const adminPath = clubPath + 'admin/';
-const adminUrl = new URL(adminPath, site);
 
 const window = { localStorage: { getItem: () => null } };
 runInNewContext(await readFile(join(root, 'state.js'), 'utf8'), { window }, { filename: 'state.js' });
@@ -66,7 +64,7 @@ function shareHtml(entry) {
   const title = `${category} · ${item.title} | ${demoClub.name} · ${PLATFORM_NAME}`;
   const canonical = shareUrl(kind, item.id);
   const image = new URL(`assets/kakao-${kind}.png`, site);
-  const demoRoute = `${adminUrl.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
+  const demoRoute = `${clubUrl.pathname}#public-${kind}/${encodeURIComponent(item.id)}`;
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -138,12 +136,13 @@ const flowNames = [...flowSource.matchAll(/^export function (\w+)/gm)].map(match
 if (!flowNames.includes('flowOrder') || !flowNames.includes('memberOrder')) throw new Error('The flow rules are missing.');
 await writeFile(join(dist, 'flow.js'), `(() => {\n${flowSource.replace(/^export function /gm, 'function ')}\nwindow.clubFlow = { ${flowNames.join(', ')} };\n})();\n`);
 await copyFile(join(root, 'platform/recent-club.js'), join(dist, 'recent-club.js'));
+// One club address for both views, as the live club (ROLES.md 3단계): the member view at #member, the organisers' at #home.
 await writeFile(join(dist, 'index.html'), renderCatalog({ basePath: site.pathname, mode: 'demo', demo: {
-  member: clubUrl.pathname, admin: `${adminUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
+  member: `${clubUrl.pathname}#member`, admin: `${clubUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
 } }));
 await writeFile(join(dist, 'legacy-links.js'), `
 if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
-  location.replace(${JSON.stringify(adminUrl.pathname)} + location.search + location.hash);
+  location.replace(${JSON.stringify(clubUrl.pathname)} + location.search + location.hash);
 }
 `);
 
@@ -157,12 +156,21 @@ const clubIndex = index
   .replace(/(href|src)="([a-z.-]+\.(?:js|css))"/g, (_, attribute, file) => `${attribute}="${escape(site.pathname)}${file}"`)
   .replace('</head>', `  <meta name="platform-home" content="${escape(site.pathname)}">\n</head>`);
 await mkdir(join(dist, adminPath), { recursive: true });
-const { today, demoNow } = window.clubModel;
-await writeFile(join(dist, clubPath, 'index.html'), renderDemoClub({
-  club: demoClub, basePath: site.pathname, events: seed.events, notices: seed.notices, dateLabel,
-  now: { day: today, minute: demoNow },
-}));
-await writeFile(join(dist, adminPath, 'index.html'), clubIndex);
+await writeFile(join(dist, clubPath, 'index.html'), clubIndex);
+// The old 운영 화면 address (bookmarks, the intro's earlier links) opens the one club page with its section, as the live
+// /admin/ redirect does.
+await writeFile(join(dist, adminPath, 'index.html'), `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>${escape(demoClub.name)} · ${escape(PLATFORM_NAME)}</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="${escape(clubUrl.href)}">
+  <script>location.replace(${JSON.stringify(clubUrl.pathname)} + location.search + location.hash);</script>
+</head>
+<body><p><a href="${escape(clubUrl.pathname)}">${escape(demoClub.name)} 모임 화면으로</a></p></body>
+</html>
+`);
 const publishedShares = Object.fromEntries(entries.map(({ kind, item, publicFields }) => [
   kind,
   {

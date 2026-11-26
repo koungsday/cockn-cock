@@ -164,26 +164,21 @@
     <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
   }
 
+  // 회원 보기 (ROLES.md 3단계): the live member screens (worker/public/views.mjs) inside the same shell, one centred column
+  // of cards. Links are the shell's own routes, so the demo opens them in place.
+  function memberPage(content, helpers, back = null) {
+    const { escape } = helpers;
+    return `<div class="public-share-page member-page">${back ? `<a class="member-back" href="#${escape(back[0])}" data-route="${escape(back[0])}">${helpers.icon('arrow-left', 18)} ${back[1]}</a>` : ''}${content}</div>`;
+  }
+
   function renderPublic(route, state, helpers) {
     const kind = route.page === 'public-vote' ? 'vote' : 'notice';
     const item = content(kind, route.id, state);
     const escape = helpers.escape;
-    const masthead = `
-      <div class="public-masthead">
-        <span class="public-brand">${mark(helpers)} <strong>썬콕19</strong></span>
-        <span class="public-example">${helpers.platformHome ? `<a href="${escape(helpers.platformHome)}">콕콕콕! 모임 목록</a>` : '멤버 화면 예시'}</span>
-      </div>
-      <button class="public-return" type="button" data-route="${escape(helpers.returnFromPublic ?? 'home')}">운영 화면으로</button>`;
-
+    const back = kind === 'vote' ? ['member-events', '일정'] : ['member-notices', '공지'];
     if (!item) {
-      return `
-        <section class="public-share-page">
-          ${masthead}
-          <div class="public-share-card">
-            <h1>공유 내용을 찾을 수 없어요</h1>
-            <p>모임 운영자에게 링크를 다시 받아 주세요.</p>
-          </div>
-        </section>`;
+      return memberPage(`<div class="public-share-card"><div class="public-share-content">
+        <h1 tabindex="-1">공유 내용을 찾을 수 없어요</h1><p>모임 운영자에게 링크를 다시 받아 주세요.</p></div></div>`, helpers, back);
     }
 
     const description = kind === 'vote'
@@ -197,22 +192,103 @@
         ${voteForm(item, state, helpers)}`
       : `<p class="public-share-body">${escape(item.body)}</p>`;
 
-    return `
-      <section class="public-share-page">
-        ${masthead}
+    return memberPage(`
         <article class="public-share-card">
           <header class="public-story-head share-art--${kind}">
             <span class="public-share-type">${kind === 'vote' ? (item.cancelled ? '취소된 일정' : '참석 투표') : '모임 공지'}</span>
-            <h1>${escape(item.title)}</h1>
+            <h1 tabindex="-1">${escape(item.title)}</h1>
             ${kind === 'notice' ? `<time datetime="${escape(item.date)}">${escape(helpers.dateLabel(item.date))}</time>` : ''}
             ${decoration()}
           </header>
           <div class="public-share-content">
             ${description}
           </div>
-        </article>
-      </section>`;
+        </article>`, helpers, back);
   }
 
-  window.clubShare = { renderPublic, renderShare, linkFor };
+  // The member's events as the live listPublic gives them: upcoming and not wrapped up. The demo has no sign-in, so
+  // every open vote waits for the visitor; one they answered here (publicReceipts) reads 응답 완료.
+  function memberEvents(state, helpers) {
+    const now = helpers.flowNow;
+    const listed = state.events.filter(event => event.date >= now.day && !event.finalized).map(event => ({
+      ...event, canVote: event.pollOpen && !event.cancelled && `${event.deadline}T${event.deadlineTime}` > now.minute,
+      deadlineDate: event.deadline, deadline: `${event.deadline}T${event.deadlineTime}`, eligible: true,
+      mySlot: helpers.publicReceipts?.[event.id]?.vote ?? null,
+    }));
+    return window.clubFlow.memberOrder(listed, now);
+  }
+
+  const slotWords = { early: '선발', late: '후발' };
+  // 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it (the live memberEventState).
+  function eventState(event) {
+    if (event.cancelled) return { action: '일정 확인', primary: false, row: '취소됨', note: '이 일정은 취소됐어요.' };
+    if (event.canVote && event.mySlot) return { action: '응답 변경', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong> · 마감 전까지 바꿀 수 있어요.` };
+    if (event.canVote) return { action: '투표하기', primary: true, row: '투표하기', note: '예시 회원을 골라 응답해 볼 수 있어요.' };
+    return { action: '일정 확인', primary: false, row: '일정 확인', note: event.pollOpen ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
+  }
+
+  function memberRoutes(helpers) {
+    const { escape, dateLabel } = helpers;
+    const link = (kind, id) => `href="#public-${kind}/${escape(id)}" data-route="public-${kind}/${escape(id)}"`;
+    const when = event => `${dateLabel(event.date)} ${event.time}–${event.endTime}`;
+    const deadline = event => `${dateLabel(event.deadlineDate)} ${event.deadline.slice(11)}`;
+    const eventRow = event => {
+      const { row } = eventState(event);
+      const tone = row === '투표하기' ? ' member-record-open' : row === '응답 완료' ? ' member-record-done' : '';
+      return `<li class="member-record"><a class="member-record-link" ${link('vote', event.id)}>
+        <span><strong>${helpers.pinMark(event)}${escape(event.title)}</strong><span class="member-record-meta"><time datetime="${escape(event.date)}">${escape(helpers.kindPrefix(event) + when(event))}</time><span>${escape(event.place)}</span>${event.canVote ? `<span>투표 마감 ${escape(deadline(event))}</span>` : ''}</span></span>
+        <span class="member-record-action${tone}">${row}</span></a></li>`;
+    };
+    const noticeRow = notice => `<li class="member-record"><a class="member-record-link" ${link('notice', notice.id)}>
+        <span><strong>${helpers.pinMark(notice)}${escape(notice.title)}</strong><time class="member-record-meta" datetime="${escape(notice.date)}">${escape(dateLabel(notice.date))}</time></span>
+        <span class="member-record-arrow" aria-hidden="true">${helpers.icon('chevron-right', 18)}</span></a></li>`;
+    const listCard = (id, title, rows, empty, heading = 'h2') => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
+      <${heading} id="${id}"${heading === 'h1' ? ' tabindex="-1"' : ''}>${title}</${heading}>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
+    const nextCard = event => {
+      const { action, primary, note } = eventState(event);
+      const kind = event.cancelled ? '취소된 일정' : event.canVote ? '참석 투표' : event.date === helpers.flowNow.day ? '오늘 일정' : '다음 일정';
+      return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
+        <header class="public-story-head share-art--vote">${decoration()}<span class="public-share-type">${kind}${helpers.pinMark(event)}</span>
+          <h2 id="member-next-title" class="public-title">${escape(event.title)}</h2><time datetime="${escape(event.date)}">${escape(when(event))}</time></header>
+        <div class="public-share-content">
+          <dl class="public-event-facts"><div><dt>장소</dt><dd>${escape(event.place)}</dd></div><div><dt>투표 마감</dt><dd>${escape(deadline(event))}</dd></div></dl>${countsBlock(event, escape)}
+          <p class="member-answer">${note}</p>
+          <a class="share-button ${primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" ${link('vote', event.id)}>${action}</a>
+        </div></article>`;
+    };
+    return { eventRow, noticeRow, listCard, nextCard };
+  }
+
+  const noEvents = '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.';
+  const pinnedFirst = notices => [...notices].sort((a, b) => (a.pinnedAt ?? Infinity) - (b.pinnedAt ?? Infinity) || b.date.localeCompare(a.date));
+
+  // 회원 보기 routes: #member (홈), #member-events (일정), #member-notices (공지), #member-record (내 기록), and the
+  // vote and notice they open (#public-vote/<id>, #public-notice/<id>, also what the 카톡 links lead to).
+  function renderMember(route, state, helpers) {
+    if (route.page === 'public-vote' || route.page === 'public-notice') return renderPublic(route, state, helpers);
+    const { eventRow, noticeRow, listCard, nextCard } = memberRoutes(helpers);
+    const events = memberEvents(state, helpers);
+    if (route.page === 'member-events') return memberPage(listCard('member-events', '일정', events.map(eventRow), noEvents, 'h1'), helpers);
+    if (route.page === 'member-notices') {
+      return memberPage(listCard('member-notices', '공지', pinnedFirst(state.notices).map(noticeRow), '게시된 공지가 없어요.', 'h1'), helpers);
+    }
+    if (route.page === 'member-record') {
+      return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-record"><div class="public-share-content">
+        <h1 id="member-record" tabindex="-1">내 기록</h1>
+        <p class="public-form-note">가상 체험에는 로그인이 없어 내 기록을 보여 주지 않아요. 실사용에서는 로그인한 회원에게 이번 해 출석, 반기 줄서기 인정, 콕 수령이 보여요.</p>
+        </div></section>`, helpers);
+    }
+    // 회원 홈 (FLOW.md 4·5): the big card, 응답할 투표 n개, 이후 일정 and 공지 with the pinned first.
+    const [next, ...others] = events;
+    const waiting = others.filter(window.clubFlow.awaitingVote);
+    const later = others.filter(event => !window.clubFlow.awaitingVote(event));
+    return memberPage(`<h1 class="sr-only" tabindex="-1">썬콕19 모임 홈</h1>
+      ${next ? nextCard(next) : listCard('member-events', '일정', [], noEvents)}
+      ${waiting.length ? listCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(eventRow), '') : ''}
+      ${later.length ? listCard('member-events', '이후 일정', later.map(eventRow), '') : ''}
+      ${listCard('member-notices', '공지', pinnedFirst(state.notices).map(noticeRow), '게시된 공지가 없어요.')}
+      <p class="public-form-note">체험 응답은 이 브라우저에만 저장돼요.</p>`, helpers);
+  }
+
+  window.clubShare = { renderPublic, renderMember, renderShare, linkFor };
 })();
