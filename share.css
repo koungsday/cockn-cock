@@ -704,6 +704,14 @@
 .member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: 6px 4px; border-radius: 8px; background: #e2efdc; box-shadow: inset 0 0 0 1px #458563; color: #193b27; font-weight: 750; font-variant-numeric: tabular-nums; text-align: center; }
 .member-mark small { color: #28583e; font-size: .75rem; font-weight: 700; word-break: keep-all; }
 .member-mark-empty { background: #f1f5ef; box-shadow: none; }
+/* 내 기록 출석 by month (views.mjs attendanceMonths): a track per month, filled from the bottom in 응답 현황's green. */
+.member-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; align-items: end; }
+.member-month { display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.member-month small { min-height: 1.1em; color: #193b27; font-size: .72rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.member-month svg { display: block; width: 100%; height: 56px; border-radius: 4px; background: #e9eee7; overflow: hidden; }
+.member-month rect { fill: #458563; }
+.member-month > span { color: #496354; font-size: .72rem; font-variant-numeric: tabular-nums; }
+.member-month-now > span { color: #193b27; font-weight: 800; }
 .member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
 .member-pin h2 { font-size: 1.05rem; }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }
