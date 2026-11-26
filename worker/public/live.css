@@ -168,6 +168,17 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .login-pending { display: flex; align-items: center; color: var(--muted); font-size: .9rem; font-weight: 650; }
 .login-pending .shuttle-inline { color: var(--court); }
 
+/* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
+.console-login input[name] { width: 100%; min-height: 46px; }
+/* The club sign-in label row is as tall as its help button (.icon-button: 38px, 44px on touch); this card has no button. */
+.console-login .login-label-row { min-height: 38px; }
+@media (pointer: coarse) { .console-login .login-label-row { min-height: var(--touch-target); } }
+.console-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(18px, 3vw, 30px) 0 calc(48px + var(--safe-bottom)); display: grid; gap: 12px; }
+.console-page .page-head { margin-bottom: 4px; }
+/* Four numbers per club: one row on wide screens, two by two on a phone so a date never splits. */
+.console-page .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 520px) { .console-page .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .message {
   position: fixed; z-index: 20; left: 50%; bottom: calc(18px + var(--safe-bottom)); transform: translateX(-50%);
   width: max-content; max-width: min(520px, calc(100% - 32px)); padding: 12px 15px; border-radius: 10px;

@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 모임 등록 | `platform/clubs.mjs` 배열(썬콕19 하나) + 모임별 비밀값 3개(운영진 ID·번호, 인증 pepper) + D1 `clubs` 행 + 배포. 데이터는 모든 모임이 D1 하나를 함께 쓴다(2단계) | `platform/clubs.mjs`, `worker/index.mjs` `scopeEnv`, `worker/migrations/0003_one_database.sql` |
 | 운영진 | 모임마다 환경 변수 계정 1개. 세션 이름은 '운영진' 고정 | `worker/auth.mjs` `adminSettings` |
-| 총괄 화면·변경 기록 | 없음 | — |
+| 총괄 화면 | `/console/` 로그인 + 모임별 숫자(활동 회원·운영진 계정·최근/다음 회차)와 설정 상태. 모임 만들기·초대는 아직 없다(5단계). 변경 기록은 4단계 | `worker/console.mjs` |
 | 운영 D1 | `cockcockcock`(2026-11-26 전환). 옛 `suncok19`(표 12개, 160kB)는 2026-12-26까지 보관한 뒤 백업 파일과 함께 지운다 | `wrangler d1 info`, 아래 이전 기록 |
 | 쿠키 | 모임 슬러그 + 역할(`__Host-suncok19-member` 등), `Path=/` | `worker/auth.mjs` `cookieName` |
 
@@ -48,11 +48,11 @@ EV 앱에서 가져오지 않는 것:
 ## 데이터 (D1 하나)
 
 - **모임 id는 슬러그다.** 쿠키 이름·공유 링크·운영진 앱 시작 주소가 이미 슬러그를 쓰므로 바꾸지 않는다. 서버는 URL의 모임을 `CLUB_SCOPE`로 넘기고, 모든 조회와 저장을 그 모임으로 한정한다.
-- **플랫폼 표**: `clubs`는 2단계에서 id만 둔다. 이름·부제·요일·기본 장소·상태·pepper 출처·만든 시각은 4단계에서 `platform/clubs.mjs`에서 옮겨 온다. `organizers`(모임, 성함, 번호 해시, 임시 번호 여부, 활동 여부)와 `audit_log`는 3단계, `club_hosts`는 5단계에 만든다.
+- **플랫폼 표**: `clubs`는 2단계에서 id만 둔다. 이름·부제·요일·기본 장소·상태·pepper 출처·만든 시각은 5단계에서 `platform/clubs.mjs`에서 옮겨 온다. 총괄 로그인 세션은 `console_sessions`(3단계)에 둔다. `organizers`(모임, 성함, 번호 해시, 임시 번호 여부, 활동 여부)와 `audit_log`는 4단계, `club_hosts`는 6단계에 만든다.
 - **모임 표**: 뿌리 표 `members`·`sessions`·`events`·`notices`에 `club_id`(기본값 없음, `clubs` 외래키)를 넣는다. 빠뜨리면 저장이 실패한다. 하위 표 `roster`·`votes`·`attendance`·`guests`·`settlements`는 회차 id로, `rewards`는 회원 id로만 닿는다. 회차·회원·공지·게스트 id는 무작위 UUID라 모임 사이에 겹치지 않는다.
 - **규칙**: 서버의 목록 조회는 모두 `club_id` 조건을 붙인다. id 조회는 `(id, club_id)`를 함께 확인한다. 하위 표는 뿌리 표와 이어서 확인한다(예: 출석·대신 응답은 회차의 `club_id`까지 본다). `worker/tenancy.test.mjs`가 두 모임을 한 DB에 두고, 다른 모임의 회원·회차·공지·출석·응답·게스트·마무리·콕 수령을 id로 읽거나 바꾸면 404인지 확인한다.
 - **유일성**: 이름 중복 검사는 같은 모임 안에서만 한다. 다른 모임에 같은 이름·생년월일 회원이 있어도 등록과 번호 변경이 된다. `members.code_hash`는 읽는 곳이 없어 0003에서 뺐다. 인덱스는 `(club_id, …)`로 시작한다.
-- **인증 pepper**: 2단계는 모임별 비밀값(`CLUB_AUTH_PEPPER`)을 그대로 쓴다. 회원 번호와 로그인 세션이 이전 뒤에도 유지된다. 4단계에서 새 모임을 만들 때는 플랫폼 비밀값 `PLATFORM_AUTH_PEPPER`에서 모임 id로 파생한다(HMAC). 썬콕19는 기존 값을 계속 쓴다(`clubs.pepper_binding`).
+- **인증 pepper**: 2단계는 모임별 비밀값(`CLUB_AUTH_PEPPER`)을 그대로 쓴다. 회원 번호와 로그인 세션이 이전 뒤에도 유지된다. 5단계에서 새 모임을 만들 때는 플랫폼 비밀값 `PLATFORM_AUTH_PEPPER`에서 모임 id로 파생한다(HMAC). 썬콕19는 기존 값을 계속 쓴다(`clubs.pepper_binding`).
 
 ## 인증
 
@@ -60,7 +60,12 @@ EV 앱에서 가져오지 않는 것:
 - 모임 운영진: 같은 로그인 화면에서 성함 + 6자리로 들어오고, `organizers` 표에서 확인한다.
   - 지금의 환경 변수 운영진(`CLUB_ADMIN_ID`·`CLUB_ADMIN_PIN`)은 이전할 때 첫 운영진 한 명으로 옮긴다.
   - 초대는 총괄이나 기존 운영진이 임시 번호를 받아 개인 메시지로 전달하고, 받은 사람이 첫 로그인 때 바꾼다.
-- 총괄: `/console/` 전용 로그인이다. 아이디와 12자 이상 비밀번호를 Worker 비밀값(`PLATFORM_ADMIN_ID`·`PLATFORM_ADMIN_PASSWORD`)으로 두고, 시도 제한을 적용한다. 쿠키는 `__Host-console`, 최대 12시간이다.
+- 총괄: `/console/` 전용 로그인이다(3단계, `worker/console.mjs`). 모임 로그인과 화면·쿠키·세션 표가 모두 따로다.
+  - 아이디는 `PLATFORM_ADMIN_ID`, 비밀번호는 원문 대신 PBKDF2 값만 `PLATFORM_ADMIN_PASSWORD_HASH`에 둔다(둘 다 Worker 비밀값).
+  - 설정은 원래 폴더 터미널에서 `npm run console:password`를 실행하고 아이디와 12자 이상 비밀번호를 입력한다. 입력한 글자는 보이지 않고, 비밀번호는 파일이나 명령 인자에 남지 않는다. 바꾸면 모든 총괄 로그인이 끊긴다.
+  - 시도 제한: 한 곳에서 10번, 전체 20번 틀리면 15분 잠긴다(운영 번호와 같은 방식).
+  - 쿠키는 `__Host-console`(`SameSite=Strict`, 12시간)이고, 로그아웃하면 서버 세션도 지운다.
+  - 폼 제출만 쓰고 스크립트는 없다. 다른 출처의 제출은 거절한다. 이 때문에 총괄 화면만 `Referrer-Policy: same-origin`이다. `no-referrer` 페이지의 폼 제출은 Origin이 `null`로 와서 정상 제출까지 막혔다(Chromium에서 확인).
 
 ## 변경 기록 (`audit_log`)
 
@@ -79,9 +84,12 @@ EV 앱에서 가져오지 않는 것:
 | --- | --- | --- | --- |
 | 1 | 소개 홈에서 등록 모임 목록을 빼고 '최근 모임'을 둔다 | 없음 | 완료(#16) |
 | 2 | D1 하나로 전환. 동작은 그대로 두고 저장 위치만 바꾼다 | 새 D1 `cockcockcock` + 썬콕19 데이터 이전(`0003_one_database.sql`) | 완료(#17, 2026-11-26) |
-| 3 | 운영진 개인 계정 + 변경 기록 | 표 추가 | 대기 |
-| 4 | 총괄 콘솔(모임 만들기·운영진 초대·정지·기록 보기) | 없음 | 대기 |
-| 5 | `/go/` 입구, 도메인 연결 | `club_hosts` | 도메인 결정 뒤 |
+| 3 | 총괄 로그인 + 모임 숫자 목록(`/console/`) | `console_sessions`(`0004_console_sessions.sql`) | 진행 |
+| 4 | 운영진 개인 계정 + 변경 기록 | `organizers`, `audit_log` | 대기 |
+| 5 | 콘솔에서 모임 만들기·운영진 초대·정지·기록 보기 | `clubs` 열 추가 | 대기 |
+| 6 | `/go/` 입구, 도메인 연결 | `club_hosts` | 도메인 결정 뒤 |
+
+순서를 바꿨다(2026-11-26, 사용자 승인). 총괄이 "모임을 발급한다"를 먼저 손에 잡히게 하려고, 총괄 로그인과 모임 목록을 운영진 계정보다 앞에 둔다.
 
 ### 2단계 운영 데이터 이전
 

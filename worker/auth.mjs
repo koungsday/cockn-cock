@@ -160,7 +160,7 @@ async function sessionInsert(env, user) {
   return { token, statement };
 }
 
-async function reserveAttempt(env, key, limit) {
+export async function reserveAttempt(env, key, limit) {
   const now = currentSeconds();
   const result = await sql(env.DB, `
     INSERT INTO attempts (key, count, expires_at) VALUES (?, 1, ?)
@@ -174,7 +174,7 @@ async function reserveAttempt(env, key, limit) {
   return result.expires_at;
 }
 
-function releaseAttempt(env, key, expiresAt) {
+export function releaseAttempt(env, key, expiresAt) {
   // Keep the counter at zero by deleting the single remaining reservation.
   return [
     sql(env.DB, 'DELETE FROM attempts WHERE key = ? AND expires_at = ? AND count = 1', key, expiresAt),

@@ -9,7 +9,8 @@
     "live:db": "wrangler d1 migrations apply DB --config worker/wrangler.jsonc --local",
     "live:test": "node --test worker/*.test.mjs pages/*.test.mjs",
     "live:verify": "node scripts/verify-live.mjs",
-    "deploy": "node scripts/deploy-live.mjs"
+    "deploy": "node scripts/deploy-live.mjs",
+    "console:password": "node scripts/console-password.mjs"
   },
   "devDependencies": {
     "wrangler": "4.168.0"

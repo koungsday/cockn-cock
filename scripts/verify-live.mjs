@@ -31,6 +31,12 @@ const introHtml = await intro.text();
 assert(!introHtml.includes(`href="${home}"`) && !introHtml.includes(club.name), 'the intro home lists no clubs');
 assert(introHtml.includes('<script src="/recent-club.js" defer></script>'), 'the intro home loads the recent-club script');
 assert.doesNotMatch(introHtml, /CLUB_AUTH_PEPPER|CLUB_ADMIN_ID|CLUB_ADMIN_PIN|_DB\b/);
+// PLATFORM.md 총괄 콘솔: answers (503 until its login secrets are set), is never cached or indexed, and the intro does not link it.
+const consolePage = await get('/console/');
+assert([200, 503].includes(consolePage.status), `the console answers (${consolePage.status})`);
+assert.equal(consolePage.headers.get('cache-control'), 'no-store');
+assert.equal(consolePage.headers.get('x-robots-tag'), 'noindex, nofollow');
+assert(!introHtml.includes('/console'), 'the intro home does not link the console');
 const recentScript = await get('/recent-club.js');
 assert.equal(recentScript.status, 200, 'the recent-club script is served');
 assert.match(recentScript.headers.get('content-type') ?? '', /javascript/);
@@ -90,5 +96,5 @@ for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', pr
   assert.equal(bytes.readUInt32BE(20), 630);
 }
 
-console.log(`Verified ${origin.origin}: member/admin shells, UI release hashes, fonts, protected API, app manifest, share images${
+console.log(`Verified ${origin.origin}: member/admin shells, console, UI release hashes, fonts, protected API, app manifest, share images${
   process.env.CLUB_VOTE_PATH || process.env.CLUB_NOTICE_PATH ? ', selected share previews' : ''}.`);
