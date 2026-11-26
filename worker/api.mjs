@@ -2,6 +2,7 @@ import {
   ApiError, changeOrganizerPin, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
   matchingCredentials, membersNamed, organizerUses, readSession, sql, temporaryPin
 } from './auth.mjs';
+import { audit, organizerActor } from './audit.mjs';
 
 const identifier = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const publicPath = new RegExp(`^/api/public/(vote|notice)/(${identifier})$`);
@@ -633,35 +634,116 @@ async function setReward(db, club, body) {
   return { rewarded };
 }
 
-async function routeAdmin(db, env, url, method, body) {
+// 변경 기록 summaries (worker/audit.mjs): names, dates and states only, never birthdays or PINs.
+const slotWords = { early: '선발', late: '후발', no: '불참' };
+const markWords = { direct: '직접', substitute: '대타', approved: '별도 승인' };
+const guestWords = { pending: '신청', confirmed: '확정', arrived: '도착', cancelled: '취소' };
+const eventWords = {
+  title: '제목', date: '날짜', time: '시간', endTime: '시간', place: '장소', deadline: '투표 마감',
+  earlyTime: '집합 시간', lateTime: '집합 시간', notes: '안내'
+};
+
+function eventLine(event) {
+  return `${Number(event.date.slice(5, 7))}월 ${Number(event.date.slice(8, 10))}일 ${event.title}`;
+}
+
+async function eventLabel(db, club, id) {
+  const event = await sql(db, 'SELECT date, title FROM events WHERE id = ? AND club_id = ?', id, club).first();
+  return event ? eventLine(event) : '';
+}
+
+async function memberLabel(db, club, id) {
+  return (await sql(db, 'SELECT name FROM members WHERE id = ? AND club_id = ?', id, club).first())?.name ?? '';
+}
+
+function eventChanges(body) {
+  const words = [...new Set(Object.keys(body).map(key => eventWords[key]).filter(Boolean))];
+  if (body.published !== undefined) words.push(body.published ? '공개' : '비공개');
+  if (body.open !== undefined) words.push(body.open ? '투표 열기' : '투표 닫기');
+  return words.join(', ');
+}
+
+async function routeAdmin(db, env, url, method, body, user) {
   const path = url.pathname;
   const club = env.CLUB_SCOPE;
+  const record = (action, target, describe) => audit(db, club, organizerActor(user), action, target, describe);
   if (path === '/api/admin' && method === 'GET') return json(await listAdmin(db, club));
-  if (path === '/api/admin/members' && method === 'POST') return json(await addMember(env, body), 201);
-  if (path === '/api/admin/events' && method === 'POST') return json(await addEvent(db, club, body), 201);
-  if (path === '/api/admin/notices' && method === 'POST') return json(await saveNotice(db, club, body), body.id ? 200 : 201);
+  if (path === '/api/admin/members' && method === 'POST') {
+    const result = await addMember(env, body);
+    await record('member.add', result.member.id, () => result.member.name);
+    return json(result, 201);
+  }
+  if (path === '/api/admin/events' && method === 'POST') {
+    const result = await addEvent(db, club, body);
+    await record('event.add', result.event.id, () => eventLine(result.event));
+    return json(result, 201);
+  }
+  if (path === '/api/admin/notices' && method === 'POST') {
+    const result = await saveNotice(db, club, body);
+    await record(body.id ? 'notice.update' : 'notice.add', result.notice.id,
+      () => `${result.notice.title} · ${result.notice.published ? '공개' : '비공개'}`);
+    return json(result, body.id ? 200 : 201);
+  }
   if (path === '/api/admin/progress') {
     if (method === 'GET') {
       const { year, half } = parsePeriod(url.searchParams.get('year'), url.searchParams.get('half'));
       return json(await progress(db, club, year, half));
     }
-    if (method === 'PUT') return json(await setReward(db, club, body));
+    if (method === 'PUT') {
+      const result = await setReward(db, club, body);
+      await record('reward.set', body.memberId, async () =>
+        `${Number(body.year)}년 ${Number(body.half)}반기 · ${await memberLabel(db, club, body.memberId)} · ${result.rewarded ? '수령' : '취소'}`);
+      return json(result);
+    }
   }
   const member = memberPath.exec(path);
   if (member) {
-    if (method === 'PATCH' && !member[2]) return json(await updateMember(env, member[1], body));
-    if (method === 'POST' && member[2]) return json(await resetMember(env, member[1]));
+    if (method === 'PATCH' && !member[2]) {
+      const result = await updateMember(env, member[1], body);
+      const change = [body.name !== undefined && '이름', body.active !== undefined && (body.active ? '다시 활동' : '활동 중지')].filter(Boolean);
+      await record('member.update', member[1], () => `${result.member.name}${change.length ? ' · ' + change.join(', ') : ''}`);
+      return json(result);
+    }
+    if (method === 'POST' && member[2]) {
+      const result = await resetMember(env, member[1]);
+      await record('member.reset', member[1], () => memberLabel(db, club, member[1]));
+      return json(result);
+    }
     methodNotAllowed();
   }
   const event = eventPath.exec(path);
   if (!event) missing();
   const [, id, resource, memberId] = event;
   if (!resource && method === 'GET') return json(await eventDetails(db, club, id));
-  if (!resource && method === 'PATCH') return json(await updateEvent(db, club, id, body));
-  if (resource === 'attendance' && memberId && method === 'PUT') return json(await setAttendance(db, club, id, memberId, body));
-  if (resource === 'votes' && memberId && method === 'PUT') return json(await overrideVote(db, club, id, memberId, body));
-  if (resource === 'guests' && !memberId && method === 'POST') return json(await setGuest(db, club, id, body), body.id ? 200 : 201);
-  if (resource === 'settlement' && !memberId && method === 'PUT') return json(await setSettlement(db, club, id, body));
+  if (!resource && method === 'PATCH') {
+    const result = await updateEvent(db, club, id, body);
+    await record('event.update', id, () => `${eventLine(result.event)} · ${eventChanges(body)}`);
+    return json(result);
+  }
+  if (resource === 'attendance' && memberId && method === 'PUT') {
+    const result = await setAttendance(db, club, id, memberId, body);
+    const { present, recognition } = result.attendance;
+    await record('attendance.set', memberId, async () => `${await eventLabel(db, club, id)} · ${await memberLabel(db, club, memberId)} · ${
+      present === true ? '출석' : present === false ? '불참' : '미확인'}${recognition ? ` (${markWords[recognition]} 인정)` : ''}`);
+    return json(result);
+  }
+  if (resource === 'votes' && memberId && method === 'PUT') {
+    const result = await overrideVote(db, club, id, memberId, body);
+    await record('vote.override', memberId, async () => `${await eventLabel(db, club, id)} · ${await memberLabel(db, club, memberId)} · ${
+      result.vote ? `${slotWords[result.vote.slot]}${result.vote.lunch ? ', 점심' : ''}` : '응답 지움'}`);
+    return json(result);
+  }
+  if (resource === 'guests' && !memberId && method === 'POST') {
+    const result = await setGuest(db, club, id, body);
+    await record(body.id ? 'guest.update' : 'guest.add', result.guest.id, async () => `${await eventLabel(db, club, id)} · ${
+      result.guest.name} · ${guestWords[result.guest.status]}${result.guest.paid ? ', 납부' : ''}`);
+    return json(result, body.id ? 200 : 201);
+  }
+  if (resource === 'settlement' && !memberId && method === 'PUT') {
+    const result = await setSettlement(db, club, id, body);
+    await record('settlement.save', id, async () => `${await eventLabel(db, club, id)} · ${result.settlement.confirmed ? '확정' : '확정 전 저장'}`);
+    return json(result);
+  }
   methodNotAllowed();
 }
 
@@ -712,11 +794,12 @@ async function route(request, env) {
     if (path === '/api/admin/pin') {
       if (method !== 'POST') methodNotAllowed();
       const session = await changeOrganizerPin(request, env, user, body);
+      await audit(env.DB, env.CLUB_SCOPE, organizerActor(user), 'organizer.pin', user.id, () => user.name);
       return json({ user: session.user }, 200, session.cookie);
     }
     // A temporary PIN from the console opens only the PIN change (PLATFORM.md 인증).
     if (user.mustChange) throw new ApiError(403, '먼저 임시 번호를 내 번호로 바꿔 주세요.');
-    return routeAdmin(env.DB, env, url, method, body);
+    return routeAdmin(env.DB, env, url, method, body, user);
   }
   const vote = votePath.exec(path);
   if (vote) return json(await memberVote(env.DB, env.CLUB_SCOPE, method, vote[1], requireUser(user, 'member'), body));
