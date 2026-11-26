@@ -350,7 +350,9 @@ test('reissue, removal and a pause take effect at once', async t => {
 
 test('/go opens a club from its address, and only an open one', async t => {
   const { env, receive, signIn } = await setup(t);
-  for (const path of ['/go?club=first-club', '/go?club=%20First-Club%20', '/go/first-club', '/go?club=clubs/first-club/']) {
+  const pasted = encodeURIComponent('https://cockcockcock.pages.dev/clubs/first-club/vote/00000000-0000-4000-8000-000000000000');
+  for (const path of ['/go?club=first-club', '/go?club=%20First-Club%20', '/go/first-club', '/go?club=clubs/first-club/',
+    `/go?club=${pasted}`, '/go?club=cockcockcock.pages.dev%2Fclubs%2Ffirst-club%2Fadmin%2F']) {
     const moved = await receive(path);
     assert.equal(moved.status, 303, path);
     assert.equal(moved.headers.get('Location'), origin + '/clubs/first-club/', path);
@@ -363,6 +365,8 @@ test('/go opens a club from its address, and only an open one', async t => {
   assert.equal((await receive('/go', { method: 'POST', form: {} })).status, 405);
   const cookie = cookieOf(await signIn({ id: 'console-fixture', password }));
   await receive('/console/clubs/second-club/status', { method: 'POST', form: { status: 'suspended' }, cookie });
-  assert.equal((await receive('/go?club=second-club')).status, 404, 'a paused club is not opened');
+  const paused = await receive('/go?club=second-club');
+  assert.equal(paused.status, 403, 'a paused club is not opened');
+  assert.match(await paused.text(), /이 모임은 지금 쉬고 있어요/, 'the same words as the club page');
   assert.equal(env.DB.sqlite.prepare("SELECT status FROM clubs WHERE id = 'second-club'").get().status, 'suspended');
 });

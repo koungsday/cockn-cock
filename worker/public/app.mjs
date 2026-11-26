@@ -196,8 +196,10 @@ function renderAccount() {
   }
   const user = state.user;
   clubLink.href = user.role === 'admin' ? club.admin : club.home;
-  // The admin shell carries its own menu and sign-out; members keep them in the site header.
-  account.innerHTML = user.role === 'admin' ? '' : `<span class="account-name">${esc(user.name)}</span>
+  // The admin shell carries its own menu and sign-out; members keep them in the site header, and so does an organiser
+  // on 내 번호 정하기 (no shell yet), so a temporary sign-in on someone else's phone can still be ended.
+  account.innerHTML = user.role === 'admin' ? (user.mustChange ? button('로그아웃', 'logout', { css: 'text small' }) : '')
+    : `<span class="account-name">${esc(user.name)}</span>
     ${button('PIN 관리', 'pin', { css: 'text small' })}${button('로그아웃', 'logout', { css: 'text small' })}`;
 }
 
@@ -939,6 +941,9 @@ async function run(work, control) {
         field.setAttribute('aria-invalid', 'true');
         field.setAttribute('aria-describedby', inline.id);
         field.focus({ preventScroll: true });
+      } else if (!field && form?.contains(inline)) {
+        // A form on the page (내 번호 정하기): back to its first field so the retry starts where the error points.
+        form.querySelector('input:not([type="hidden"])')?.focus({ preventScroll: true });
       }
     } else {
       showMessage(error.message, true);

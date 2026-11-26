@@ -171,10 +171,13 @@ export function createWorker(legacyClubs = CLUBS, { legacyClub = 'suncok19' } = 
         if (path !== '/go') {
           try { typed = decodeURIComponent(path.slice(4)); } catch { typed = ''; }
         }
-        const slug = typed.trim().replace(/^\/+|\/+$/g, '').replace(/^clubs\//, '').toLowerCase();
+        // A whole pasted link (https://…/clubs/<주소>/vote/…) is fine too: only the club part is used.
+        const link = typed.match(/(?:^|\/)clubs\/([^/?#\s]+)/i);
+        const slug = (link ? link[1] : typed).trim().replace(/^\/+|\/+$/g, '').toLowerCase();
         const club = slug.length <= 64 && slugPattern.test(slug) ? await findClub(env, slug) : null;
         if (club?.status === 'active') return Response.redirect(new URL(`/clubs/${slug}/`, url.origin), 303);
-        return errorPage(request, 404, '모임 주소를 찾을 수 없어요', '카톡으로 받은 링크에서 /clubs/ 뒤의 영문 주소를 다시 확인해 주세요.');
+        if (club) return errorPage(request, 403, '이 모임은 지금 쉬고 있어요', '총괄 관리자에게 문의해 주세요.');
+        return errorPage(request, 404, '모임 주소를 찾을 수 없어요', '카톡으로 받은 링크를 그대로 붙여 넣거나, /clubs/ 뒤의 영문 주소를 넣어 주세요.');
       }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();
