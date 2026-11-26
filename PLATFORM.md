@@ -8,14 +8,14 @@
 - **데이터는 D1 하나에 모은다.** 모임을 만들 때 코드 수정·D1 생성·배포가 필요 없게 한다. (사용자 승인, 2026-11-26)
 - 참고한 구현: 사용자의 `ev-vw-k.com`(아파트 전기차 충전). `SUPER`·`SITE_ADMIN` 2단계 역할, 사이트별 관리자 계정, `admin_logs` 변경 기록, 주소가 바뀌어도 QR을 유지하는 `/go/[siteId]` 입구. `ston`은 브랜드 모노레포이고 서비스별 서브도메인 계획만 있다.
 
-## 지금 구조 (2026-11-26 확인)
+## 지금 구조
 
 | 항목 | 지금 | 근거 |
 | --- | --- | --- |
-| 모임 등록 | `platform/clubs.mjs` 배열(썬콕19 하나) + 모임별 D1 바인딩 + 비밀값 3개(운영진 ID·번호, 인증 pepper) + 배포 | `platform/clubs.mjs`, `worker/index.mjs` `scopeEnv` |
+| 모임 등록 | `platform/clubs.mjs` 배열(썬콕19 하나) + 모임별 비밀값 3개(운영진 ID·번호, 인증 pepper) + D1 `clubs` 행 + 배포. 데이터는 모든 모임이 D1 하나를 함께 쓴다(2단계) | `platform/clubs.mjs`, `worker/index.mjs` `scopeEnv`, `worker/migrations/0003_one_database.sql` |
 | 운영진 | 모임마다 환경 변수 계정 1개. 세션 이름은 '운영진' 고정 | `worker/auth.mjs` `adminSettings` |
 | 총괄 화면·변경 기록 | 없음 | — |
-| 운영 D1 | `suncok19`: 표 12개, 160kB, 24시간 읽기 842·쓰기 133 질의 | `wrangler d1 info suncok19` |
+| 운영 D1 (2단계 이전 전, 2026-11-26) | `suncok19`: 표 12개, 160kB, 24시간 읽기 842·쓰기 133 질의 | `wrangler d1 info suncok19` |
 | 쿠키 | 모임 슬러그 + 역할(`__Host-suncok19-member` 등), `Path=/` | `worker/auth.mjs` `cookieName` |
 
 ## 역할
@@ -47,11 +47,12 @@ EV 앱에서 가져오지 않는 것:
 
 ## 데이터 (D1 하나)
 
-- **플랫폼 표**: `clubs`(슬러그, 이름, 부제, 요일, 기본 장소, 상태, pepper 출처, 만든 시각), `organizers`(모임, 성함, 번호 해시, 임시 번호 여부, 활동 여부), `audit_log`, 나중에 `club_hosts`.
-- **모임 표**: 뿌리 표 `members`·`events`·`notices`·`sessions`·`rewards`에 `club_id`를 넣는다. 하위 표 `roster`·`votes`·`attendance`·`guests`·`settlements`는 뿌리 id로만 접근한다. 회차·회원·공지·게스트 id는 무작위 UUID라 모임 사이에 겹치지 않는다.
-- **규칙**: 서버의 목록 조회는 모두 `club_id` 조건을 붙인다. id 조회는 `(id, club_id)`를 함께 확인한다. `worker/tenancy.test.mjs`에 "다른 모임의 id로 접근하면 404" 사례를 뿌리 표마다 둔다.
-- **유일성**: `members.code_hash`는 `(club_id, code_hash)`로 바꾼다. 인덱스도 `(club_id, …)`로 시작한다.
-- **인증 pepper**: 새 모임은 플랫폼 비밀값 `PLATFORM_AUTH_PEPPER`에서 모임 id로 파생한다(HMAC). 썬콕19는 기존 `CLUB_AUTH_PEPPER`를 계속 써서(`clubs.pepper_binding`) 회원 번호와 로그인이 그대로 유지된다.
+- **모임 id는 슬러그다.** 쿠키 이름·공유 링크·운영진 앱 시작 주소가 이미 슬러그를 쓰므로 바꾸지 않는다. 서버는 URL의 모임을 `CLUB_SCOPE`로 넘기고, 모든 조회와 저장을 그 모임으로 한정한다.
+- **플랫폼 표**: `clubs`는 2단계에서 id만 둔다. 이름·부제·요일·기본 장소·상태·pepper 출처·만든 시각은 4단계에서 `platform/clubs.mjs`에서 옮겨 온다. `organizers`(모임, 성함, 번호 해시, 임시 번호 여부, 활동 여부)와 `audit_log`는 3단계, `club_hosts`는 5단계에 만든다.
+- **모임 표**: 뿌리 표 `members`·`sessions`·`events`·`notices`에 `club_id`(기본값 없음, `clubs` 외래키)를 넣는다. 빠뜨리면 저장이 실패한다. 하위 표 `roster`·`votes`·`attendance`·`guests`·`settlements`는 회차 id로, `rewards`는 회원 id로만 닿는다. 회차·회원·공지·게스트 id는 무작위 UUID라 모임 사이에 겹치지 않는다.
+- **규칙**: 서버의 목록 조회는 모두 `club_id` 조건을 붙인다. id 조회는 `(id, club_id)`를 함께 확인한다. 하위 표는 뿌리 표와 이어서 확인한다(예: 출석·대신 응답은 회차의 `club_id`까지 본다). `worker/tenancy.test.mjs`가 두 모임을 한 DB에 두고, 다른 모임의 회원·회차·공지·출석·응답·게스트·마무리·콕 수령을 id로 읽거나 바꾸면 404인지 확인한다.
+- **유일성**: 이름 중복 검사는 같은 모임 안에서만 한다. 다른 모임에 같은 이름·생년월일 회원이 있어도 등록과 번호 변경이 된다. `members.code_hash`는 읽는 곳이 없어 0003에서 뺐다. 인덱스는 `(club_id, …)`로 시작한다.
+- **인증 pepper**: 2단계는 모임별 비밀값(`CLUB_AUTH_PEPPER`)을 그대로 쓴다. 회원 번호와 로그인 세션이 이전 뒤에도 유지된다. 4단계에서 새 모임을 만들 때는 플랫폼 비밀값 `PLATFORM_AUTH_PEPPER`에서 모임 id로 파생한다(HMAC). 썬콕19는 기존 값을 계속 쓴다(`clubs.pepper_binding`).
 
 ## 인증
 
@@ -76,20 +77,47 @@ EV 앱에서 가져오지 않는 것:
 
 | 단계 | 내용 | DB 변경 | 상태 |
 | --- | --- | --- | --- |
-| 1 | 소개 홈에서 등록 모임 목록을 빼고 '최근 모임'을 둔다 | 없음 | 진행 |
-| 2 | D1 하나로 전환. 동작은 그대로 두고 저장 위치만 바꾼다 | 새 D1 + 썬콕19 데이터 이전 | 대기 |
+| 1 | 소개 홈에서 등록 모임 목록을 빼고 '최근 모임'을 둔다 | 없음 | 완료(#16) |
+| 2 | D1 하나로 전환. 동작은 그대로 두고 저장 위치만 바꾼다 | 새 D1 `cockcockcock` + 썬콕19 데이터 이전(`0003_one_database.sql`) | 코드 준비, 운영 이전 대기 |
 | 3 | 운영진 개인 계정 + 변경 기록 | 표 추가 | 대기 |
 | 4 | 총괄 콘솔(모임 만들기·운영진 초대·정지·기록 보기) | 없음 | 대기 |
 | 5 | `/go/` 입구, 도메인 연결 | `club_hosts` | 도메인 결정 뒤 |
 
-2단계 운영 데이터 이전 절차는 **실행 직전에 사용자 확인을 받는다**.
-1. 쓰기가 적은 시간을 정해 단체방에 알린다.
-2. `wrangler d1 export suncok19 --remote`로 내보낸다.
-3. 변환 스크립트로 `club_id`를 붙여 새 D1에 넣는다.
-4. 표마다 행 수를 비교한다.
-5. 새 바인딩으로 배포한다.
-6. 회원 로그인·투표, 운영 홈·출석을 실제 주소에서 확인한다.
-7. 옛 D1은 30일 보관한다. 되돌리기는 이전 Worker 버전으로 `wrangler rollback`이다. 전환 뒤 새로 쓴 기록은 옛 D1에 없으니, 되돌리면 그 기록은 사라진다.
+### 2단계 운영 데이터 이전
+
+**실행 직전에 사용자 확인을 받는다.** PR은 이전과 함께 머지한다. 먼저 머지하면 다른 배포가 막힌다(`npm run deploy`는 운영 D1에 적용하지 않은 마이그레이션이 있으면 멈춘다).
+
+변환은 마이그레이션 `0003_one_database.sql` 하나다. 옛 DB를 통째로 복사한 새 DB에 이것을 적용한다. 옛 DB는 건드리지 않는다.
+- `worker/migrations.test.mjs`: 모든 표에 행을 넣은 옛 구조에 0003을 적용해, 행·rowid가 그대로이고 외래키 위반이 없는지 확인한다.
+- 같은 순서를 로컬 D1 두 개로 연습했다(2026-11-26). 내보낸 파일에 마이그레이션 기록이 들어 있어 새 DB에서는 0003만 적용 대기로 남았다. 표 11개의 행 수가 같았고 공지·게스트 순서도 유지됐다.
+- 원격에서는 아직 실행하지 않았다.
+
+1. 쓰기가 적은 시간을 정해 단체방에 알린다. 내보내는 동안 옛 DB 요청이 막히고, 내보낸 뒤 이전이 끝날 때까지 들어온 저장은 새 DB에 없다.
+2. 옛 DB를 내보내고 행 수를 적는다. 운영 설정은 아직 `suncok19`를 가리킨다. 내보낸 파일에는 회원 성함과 인증 검증값이 있으니 저장소 밖 권한 제한 폴더에 두고, 옛 DB와 함께 30일 뒤 지운다.
+3. 새 DB를 만들고(`npx wrangler d1 create cockcockcock --location apac`), 운영 설정 `worker/wrangler.production.local.json`의 `database_name`·`database_id`를 새 값으로 바꾼다.
+4. 새 DB에 내보낸 파일을 넣는다. 적용 대기가 `0003_one_database.sql` 하나인지 확인하고 적용한다.
+5. 새 DB의 행 수를 2번과 비교한다. 표 11개가 모두 같아야 한다.
+6. `npm run deploy`로 배포한다.
+7. 실제 주소에서 회원 로그인·투표, 운영 홈·출석을 확인한다.
+
+```sh
+P=worker/wrangler.production.local.json
+COUNTS="SELECT (SELECT COUNT(*) FROM members) AS members, (SELECT COUNT(*) FROM sessions) AS sessions, (SELECT COUNT(*) FROM attempts) AS attempts, (SELECT COUNT(*) FROM events) AS events, (SELECT COUNT(*) FROM roster) AS roster, (SELECT COUNT(*) FROM votes) AS votes, (SELECT COUNT(*) FROM attendance) AS attendance, (SELECT COUNT(*) FROM guests) AS guests, (SELECT COUNT(*) FROM settlements) AS settlements, (SELECT COUNT(*) FROM notices) AS notices, (SELECT COUNT(*) FROM rewards) AS rewards"
+npx wrangler d1 export DB --remote --config $P --output <백업 폴더>/suncok19.sql   # 2
+npx wrangler d1 execute DB --remote --config $P --json --command "$COUNTS"       # 2
+npx wrangler d1 execute DB --remote --config $P --file <백업 폴더>/suncok19.sql  # 4 (설정을 새 DB로 바꾼 뒤)
+npx wrangler d1 migrations list DB --remote --config $P                           # 4
+npx wrangler d1 migrations apply DB --remote --config $P                          # 4
+npx wrangler d1 execute DB --remote --config $P --json --command "$COUNTS"       # 5
+```
+
+D1은 `UNION ALL`을 길게 잇는 질의를 거절한다("too many terms in compound SELECT"). 그래서 행 수는 한 줄 질의로 센다.
+
+되돌리기는 두 가지를 함께 한다.
+- `npx wrangler rollback --config worker/wrangler.production.local.json`: 이전 Worker 버전과 옛 DB 연결로 돌아간다.
+- 운영 설정의 `database_name`·`database_id`도 `suncok19`로 되돌린다. 그대로 두면 다음 배포가 옛 코드를 새 구조에 올린다.
+
+전환 뒤 새로 쓴 기록은 옛 DB에 없으니, 되돌리면 그 기록은 사라진다.
 
 ## 정할 것
 

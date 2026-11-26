@@ -1,13 +1,13 @@
 import { strict as assert } from 'node:assert';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { handleApi } from './api.mjs';
 import { credentialHash } from './auth.mjs';
 
-const migrations = await Promise.all(['0001.sql', '0002_member_name.sql'].map(
-  file => readFile(new URL('./migrations/' + file, import.meta.url), 'utf8')
-));
+const migrationFolder = new URL('./migrations/', import.meta.url);
+const migrations = await Promise.all((await readdir(migrationFolder)).filter(file => file.endsWith('.sql')).sort()
+  .map(file => readFile(new URL(file, migrationFolder), 'utf8')));
 const origin = 'https://club.test';
 const adminId = 'fixture-organizer';
 const adminPin = '583471';
@@ -56,7 +56,7 @@ function setup(t) {
   const DB = makeDatabase();
   t.after(() => DB.close());
   const env = {
-    DB, CLUB_ADMIN_ID: adminId, CLUB_ADMIN_PIN: adminPin,
+    DB, CLUB_SCOPE: 'suncok19', CLUB_ADMIN_ID: adminId, CLUB_ADMIN_PIN: adminPin,
     CLUB_AUTH_PEPPER: 'local-test-cryptographic-pepper-not-a-hosted-secret'
   };
   function client(ip = '203.0.113.10') {
@@ -390,9 +390,9 @@ test('six-digit birthday enrollments preserve full entry and block duplicates of
   const salt = 'fictional-existing-birthday-salt';
   const hash = await credentialHash(env, '19880131', salt);
   await DB.prepare(`
-    INSERT INTO members (id, name, code_hash, credential_salt, credential_hash, credential_version)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(legacyId, legacyName, 'existing-fixture-code', salt, hash, 'existing-fixture-version').run();
+    INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version)
+    VALUES (?, 'suncok19', ?, ?, ?, ?)
+  `).bind(legacyId, legacyName, salt, hash, 'existing-fixture-version').run();
   await admin.request('/api/admin/members', {
     method:'POST', body:{ name:legacyName, birthday:'880131' }, expect:409
   });

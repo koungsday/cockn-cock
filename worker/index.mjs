@@ -97,10 +97,10 @@ function registryIndex(clubs) {
     if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
       throw new Error('Each registered club must have a unique slug.');
     }
-    const keys = [club.databaseBinding, club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
+    const keys = [club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
     for (const key of keys) {
       if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
-        throw new Error('Each registered club must use distinct database and secret bindings.');
+        throw new Error('Each registered club must use distinct secret bindings.');
       }
       bindings.add(key);
     }
@@ -109,8 +109,9 @@ function registryIndex(clubs) {
   return bySlug;
 }
 
+// Every club shares the one D1 (PLATFORM.md). CLUB_SCOPE is the club's id there (its slug), and every query is limited to it.
 function scopeEnv(club, clubs, env) {
-  const db = env[club.databaseBinding];
+  const db = env.DB;
   const adminId = env[club.adminIdBinding];
   const adminPin = env[club.adminPinBinding];
   const authPepper = env[club.authPepperBinding];
@@ -120,8 +121,7 @@ function scopeEnv(club, clubs, env) {
 
   for (const other of clubs) {
     if (other.slug === club.slug) continue;
-    if (env[other.databaseBinding] === db || env[other.adminPinBinding] === adminPin ||
-        env[other.authPepperBinding] === authPepper) {
+    if (env[other.adminPinBinding] === adminPin || env[other.authPepperBinding] === authPepper) {
       return null;
     }
   }

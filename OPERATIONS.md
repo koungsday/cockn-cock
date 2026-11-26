@@ -2,7 +2,7 @@
 
 ## 월 구독료 없이 구성하는 방법
 
-공개 GitHub 저장소와 GitHub Pages는 가상 데이터로 데모를 운영합니다. 실사용 앱은 **Cloudflare Workers Free + D1 Free**를 사용합니다. 회원에게 공유할 주소는 [썬콕19](https://cockcockcock.pages.dev/clubs/suncok19/)입니다. 루트 [콕콕콕!](https://cockcockcock.pages.dev/)은 콕콕콕! 소개 홈이고, 등록 모임 목록은 두지 않습니다. 모임 화면을 연 적 있는 기기에는 그 모임 하나가 '최근 들어간 모임'으로 보입니다([PLATFORM.md](PLATFORM.md)). Cloudflare Pages가 같은 계정의 Worker에 요청을 전달하고, Worker가 썬콕19 전용 D1에서 로그인과 투표를 처리합니다.
+공개 GitHub 저장소와 GitHub Pages는 가상 데이터로 데모를 운영합니다. 실사용 앱은 **Cloudflare Workers Free + D1 Free**를 사용합니다. 회원에게 공유할 주소는 [썬콕19](https://cockcockcock.pages.dev/clubs/suncok19/)입니다. 루트 [콕콕콕!](https://cockcockcock.pages.dev/)은 콕콕콕! 소개 홈이고, 등록 모임 목록은 두지 않습니다. 모임 화면을 연 적 있는 기기에는 그 모임 하나가 '최근 들어간 모임'으로 보입니다([PLATFORM.md](PLATFORM.md)). Cloudflare Pages가 같은 계정의 Worker에 요청을 전달하고, Worker가 모든 모임이 함께 쓰는 D1 하나에서 모임별로 나눠 로그인과 투표를 처리합니다.
 
 Workers Free는 동적 요청 하루 10만 건과 요청당 CPU 10ms가 포함됩니다. D1 Free는 하루 읽기 500만 행, 쓰기 10만 행과 계정 전체 저장 공간 5GB가 포함됩니다. 무료 한도에 도달하면 해당 작업은 한도 갱신 때까지 오류가 날 수 있습니다. Free 요금제를 유지하고 유료 기능을 활성화하지 않습니다.
 
@@ -16,12 +16,12 @@ Vercel Hobby와 Supabase Free도 후보입니다. 다만 기존 Vercel Pro 팀�
 
 | 접근 주체 | 범위 |
 | --- | --- |
-| 배포 관리자 | 모임을 등록하고 각각의 D1과 운영진 성함·비밀번호·인증 비밀을 연결합니다. |
+| 배포 관리자 | 모임을 등록하고 운영진 성함·비밀번호·인증 비밀을 연결합니다. |
 | 모임 운영진 | 로그인한 모임의 회원·공지·투표·출석·게스트·정산을 관리합니다. |
 | 회원 | 로그인한 모임에서 게시된 공지와 일정을 보고 본인 투표를 제출하거나 변경합니다. |
 | 방문자 | 회원 로그인 화면과 카톡 링크의 모임명·공유 유형을 볼 수 있습니다. |
 
-새 모임을 추가할 때는 고유한 주소와 별도의 D1 데이터베이스 및 운영진 인증 설정을 사용합니다. 등록 모임은 공개 화면에 나열하지 않고, 빌드에서 각 D1의 명시적인 ID가 서로 다른지 확인합니다. 서버는 URL에서 등록된 모임을 찾고, 그 모임에 연결된 DB와 로그인 세션으로 요청을 처리합니다.
+새 모임을 추가할 때는 고유한 주소(슬러그)와 모임별 운영진 인증 설정을 쓰고, D1 `clubs` 표에 같은 슬러그의 행을 넣습니다. 등록 모임은 공개 화면에 나열하지 않습니다. 서버는 URL에서 등록된 모임을 찾고, 모든 조회와 저장을 그 모임(`club_id`)으로 한정합니다. 다른 모임의 기록 id로 요청하면 없는 기록처럼 404를 돌려줍니다. 두 모임의 운영 번호나 인증 비밀이 같으면 두 모임 모두 열지 않습니다.
 
 ## 캐시 규칙
 
@@ -68,17 +68,27 @@ npm run live:dev
 
 로컬에는 `worker/.dev.vars`에 운영진 성함 `CLUB_ADMIN_ID`, 6자리 운영 번호 `CLUB_ADMIN_PIN`, 32자 이상의 별도 난수 `CLUB_AUTH_PEPPER`를 둡니다. 로컬 파일은 Git에서 제외됩니다. 가상 회원으로 점검합니다.
 
-영구 운영 전에는 운영자가 Cloudflare에 로그인하고 **Workers Free**를 확인합니다. 전용 D1을 만들고 `worker/wrangler.jsonc`를 복사한 `worker/wrangler.production.local.json`에 반환된 `database_id`를 입력합니다. 운영용 초기 계정과 인증 비밀은 로컬용과 별개로 생성해 권한이 제한된 `worker/.dev.vars.production`에 저장합니다. 운영진에게는 성함과 운영 번호를 개인 경로로 전달합니다. 아래 명령은 각각의 별도 설정에서 마이그레이션과 초기 암호를 포함한 배포를 합니다.
+영구 운영 전에는 운영자가 Cloudflare에 로그인하고 **Workers Free**를 확인합니다. D1을 만들고 `worker/wrangler.jsonc`를 복사한 `worker/wrangler.production.local.json`에 반환된 `database_id`를 입력합니다. 운영용 초기 계정과 인증 비밀은 로컬용과 별개로 생성해 권한이 제한된 `worker/.dev.vars.production`에 저장합니다. 운영진에게는 성함과 운영 번호를 개인 경로로 전달합니다. 아래 명령은 각각의 별도 설정에서 마이그레이션과 초기 암호를 포함한 배포를 합니다.
 
 ```sh
 npx wrangler login
-npx wrangler d1 create suncok19 --location apac
+npx wrangler d1 create cockcockcock --location apac
 npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote
 npm run live:build
 npx wrangler deploy --config worker/wrangler.production.local.json --secrets-file worker/.dev.vars.production
 ```
 
-기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 한 컴퓨터에서 한 번에 하나만 실행됩니다(작업 폴더가 함께 쓰는 `.git/cockcockcock-deploy.lock`). 커밋하지 않은 변경이 있거나, GitHub `main`과 다른 코드거나, 지금 실사용에 있는 `live` 커밋보다 오래된 코드면 배포를 거부합니다. `main` 확인은 빌드 전과 Worker 업로드 직전에 두 번 합니다. 그다음 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. D1 스키마나 운영 계정 변경이 포함된 릴리스에서 해당 마이그레이션과 비밀 갱신을 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
+기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 한 컴퓨터에서 한 번에 하나만 실행됩니다(작업 폴더가 함께 쓰는 `.git/cockcockcock-deploy.lock`). 커밋하지 않은 변경이 있거나, GitHub `main`과 다른 코드거나, 지금 실사용에 있는 `live` 커밋보다 오래된 코드면 배포를 거부합니다. `main` 확인은 빌드 전과 Worker 업로드 직전에 두 번 합니다. 그다음 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. 다만 운영 D1에 적용하지 않은 마이그레이션이 있으면 빌드 전에 멈춥니다(아래 D1 구조 변경). 운영 계정 변경이 포함된 릴리스에서는 비밀 갱신을 따로 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
+
+## D1 구조 변경
+
+`worker/migrations/`에 새 파일이 들어간 릴리스는 코드보다 DB를 먼저 바꿉니다. 새 코드는 새 구조를 전제로 해서, 코드만 먼저 올리면 실사용 저장이 실패합니다.
+
+1. 로컬에서 `npm run live:db`로 적용하고 `npm run live:test`와 화면으로 확인합니다. 마이그레이션은 기존 행을 넣은 상태에서 검사합니다(`worker/migrations.test.mjs`).
+2. 운영 DB를 내보내 백업합니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다.
+3. `npm run deploy`로 배포합니다.
+
+`0003_one_database.sql`(모든 모임이 D1 하나를 씀)은 이 순서 대신 [PLATFORM.md](PLATFORM.md)의 2단계 이전 절차로 새 D1에 옮깁니다.
 
 ## 화면 변경과 출시 검증
 
