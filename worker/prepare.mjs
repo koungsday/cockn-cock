@@ -14,7 +14,7 @@ await copyFile(new URL('../platform/recent-club.js', import.meta.url), new URL('
 await mkdir(new URL('./assets/', site), { recursive: true });
 await cp(new URL('../assets/fonts/', import.meta.url), new URL('./assets/fonts/', site), { recursive: true });
 for (const file of [
-  'court.webp', 'kakao-vote.png', 'kakao-notice.png', 'admin-icon-192.png', 'admin-icon-512.png',
+  'court.webp', 'kakao-vote.png', 'kakao-notice.png', 'admin-icon-192.png', 'admin-icon-512.png', 'intro-member.webp', 'intro-admin.webp',
   'shuttlecock-icon-96.png', 'shuttlecock-icon-192.png', 'shuttlecock-icon-512.png',
 ]) {
   await copyFile(new URL('../assets/' + file, import.meta.url), new URL('./assets/' + file, site));

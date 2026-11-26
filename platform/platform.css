@@ -170,6 +170,9 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 .flow-steps p { margin-top: .2rem; color: var(--muted); font-size: .94rem; word-break: keep-all; }
 
 .role-grid { display: grid; gap: .9rem; }
+/* 소개 홈 화면 사진 (DESIGN.md): the 가상 체험 at phone width above each role's panel, never inside it. */
+.role-col { display: grid; grid-template-rows: auto 1fr; gap: .9rem; }
+.role-shot { display: block; width: min(100%, 17.5rem); height: auto; margin-inline: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
 .role-who { color: var(--action); font-size: .86rem; font-weight: 800; }
 .role-panel h3 { margin-top: .15rem; font-size: 1.2rem; }
 .role-steps { display: grid; gap: .55rem; margin: .9rem 0 0; padding-left: 1.3rem; word-break: keep-all; }
