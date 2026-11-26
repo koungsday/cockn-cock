@@ -4,6 +4,9 @@
   const app = document.querySelector('#app');
   const modal = document.querySelector('#dialog');
   const mobileNav = document.querySelector('#mobile-navigation');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const menuIcon = '<svg class="menu-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path class="menu-icon-top" d="M4 9h16"/><path class="menu-icon-bottom" d="M4 15h16"/></svg>';
+  let menuClosing = null;
   const toast = document.querySelector('#toast');
   const state = model.load();
   const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}};
@@ -35,8 +38,7 @@
     more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
     'check-circle':'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
-    plus:'<path d="M12 5v14M5 12h14"/>',
-    menu:'<path d="M4 6h16M4 12h16M4 18h16"/>'
+    plus:'<path d="M12 5v14M5 12h14"/>'
   };
 
   function icon(name, size=20) {
@@ -76,7 +78,7 @@
     const fromDialog = modal.open;
     if (target.startsWith('public-') && !before.page.startsWith('public-')) returnFromPublic = location.hash.slice(1) || 'home';
     const sameRoute = location.hash === '#' + target;
-    if (mobileNav.open) closeMobileMenu(sameRoute);
+    if (mobileNav.open) closeMobileMenu(sameRoute, !sameRoute);
     if (sameRoute) {
       if (fromDialog) modal.close();
       return;
@@ -127,15 +129,14 @@
       ${pages.slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
     </nav>`;
   }
+  // Same drawer as the live app (worker/public/app.mjs openAdminMenu): the top bar's two lines turn into × in place.
   function openMobileMenu(trigger) {
     if (mobileNav.open) return;
-    mobileNav.innerHTML = `<header class="mobile-nav-header">
-      ${brand()}
-      <button class="icon-button" type="button" data-action="close-menu" aria-label="메뉴 닫기" autofocus>${icon('x',24)}</button>
-    </header><div class="mobile-nav-links">
+    mobileNav.innerHTML = `<button class="icon-button menu-toggle" type="button" data-action="close-menu" aria-label="메뉴 닫기" autofocus>${menuIcon}</button>
+    <div class="menu-panel"><header class="mobile-nav-header">${brand()}</header><div class="mobile-nav-links">
       ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
       ${menuLinks(menuPage())}
-    </div>`;
+    </div></div>`;
 
     navScroll = Math.max(window.scrollY, 0);
     navTrigger = trigger;
@@ -156,9 +157,27 @@
       if (restoreFocus) navTrigger.focus({preventScroll:true});
     }
   }
-  function closeMobileMenu(restoreFocus = true) {
-    if (mobileNav.open) mobileNav.close();
-    unlockMobileMenu(restoreFocus);
+  // ×, Esc and the dim area slide the drawer back out; moving to another page closes it at once.
+  function closeMobileMenu(restoreFocus = true, instant = false) {
+    if (menuClosing) {
+      if (!instant) return;
+      clearTimeout(menuClosing);
+      menuClosing = null;
+    }
+    const finish = () => {
+      mobileNav.classList.remove('is-closing');
+      if (mobileNav.open) mobileNav.close();
+      unlockMobileMenu(restoreFocus);
+    };
+    if (!instant && mobileNav.open && !reducedMotion.matches) {
+      mobileNav.classList.add('is-closing');
+      menuClosing = setTimeout(() => {
+        menuClosing = null;
+        finish();
+      }, 220);
+      return;
+    }
+    finish();
   }
   function renderShell() {
     app.innerHTML = `
@@ -177,7 +196,7 @@
             <span class="breadcrumb-parent">모임 관리</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
           <div class="topbar-actions"><span class="demo-label"><i></i> 가상 데이터 체험</span>
-            <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${icon('menu',24)}</button></div>
+            <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${menuIcon}</button></div>
         </header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
         ${tabBar(menuPage())}
@@ -217,7 +236,7 @@
       <header class="dashboard-heading">
         <div><h1>운영 홈</h1><p>이번 회차의 진행 단계와 챙길 일을 가상 데이터로 체험하세요.</p></div>
         <div class="heading-actions"><span class="today-label">${icon('calendar',17)}${fullDate(today)}</span>
-          <button class="btn btn-primary" type="button" data-action="open-event">${icon('plus',18)} 모임 만들기</button>
+          <button class="btn btn-primary btn-icon" type="button" data-action="open-event" aria-label="모임 만들기" title="모임 만들기">${icon('plus',22)}</button>
         </div>
       </header>
       <div class="dashboard-grid">
@@ -404,6 +423,10 @@
   app.addEventListener('click', handleClick);
   modal.addEventListener('click', handleClick);
   mobileNav.addEventListener('click', handleClick);
+  // The dialog fills the screen, so a tap on its own surface is a tap on the dim area beside the drawer.
+  mobileNav.addEventListener('click', event => {
+    if (event.target === mobileNav) closeMobileMenu();
+  });
   mobileNav.addEventListener('cancel', event => {
     event.preventDefault();
     closeMobileMenu();
@@ -412,7 +435,7 @@
     if (!mobileNav.open) unlockMobileMenu(true);
   });
   window.matchMedia('(max-width: 700px)').addEventListener('change', event => {
-    if (!event.matches) closeMobileMenu(false);
+    if (!event.matches) closeMobileMenu(false, true);
   });
   function handleClick(ev) {
     const control = ev.target.closest('[data-route], [data-action]');

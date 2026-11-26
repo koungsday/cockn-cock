@@ -12,6 +12,15 @@
       return `<button class="btn btn-${tone}" type="button" data-action="${name}"${id ? ` data-id="${e(id)}"` : ''} ${extra}>${symbol ? icon(symbol) : ''}${text}</button>`;
     }
 
+    // Icon-only controls (DESIGN.md 5): + for the one create action in a page head, a magnifier to open a row.
+    function addButton(label, name) {
+      return `<button class="btn btn-primary btn-icon" type="button" data-action="${name}" aria-label="${e(label)}" title="${e(label)}">${icon('plus', 22)}</button>`;
+    }
+
+    function iconLink(symbol, label, route) {
+      return `<a class="btn btn-text btn-icon" href="#${e(route)}" data-route="${e(route)}" aria-label="${e(label)}" title="${e(label)}">${icon(symbol, 20)}</a>`;
+    }
+
     function routeLink(text, route, tone = 'text', symbol = '') {
       return `<a class="btn btn-${tone}" href="#${e(route)}" data-route="${e(route)}">${symbol ? icon(symbol) : ''}${text}</a>`;
     }
@@ -71,13 +80,13 @@
             <td><a class="record-title" href="#${eventPath(event)}" data-route="${eventPath(event)}">${e(event.title)}</a><small>${e(event.place)}</small></td>
             <td>${eventStatus(event)}</td>
             <td>${votes.yes}명 참석</td>
-            <td class="table-actions">${routeLink('보기', eventPath(event, event.finalized ? 'attendance' : 'poll'))}</td>
+            <td class="table-actions">${iconLink('search', `${event.title} 보기`, eventPath(event, event.finalized ? 'attendance' : 'poll'))}</td>
           </tr>`;
         });
       }
 
       const columns = ['일시', '일정', '상태', '참석 응답', '<span class="sr-only">일정 열기</span>'];
-      return heading('일정·참석 투표', '예정된 운동과 지난 출석 기록을 확인하세요.', action('새 일정', 'open-event', '', {tone: 'primary', symbol: 'plus'}))
+      return heading('일정·참석 투표', '예정된 운동과 지난 출석 기록을 확인하세요.', addButton('새 일정', 'open-event'))
         + panel('예정된 일정', upcoming.length ? table(columns, rows(upcoming)) : empty('예정된 일정이 없어요.'))
         + panel('지난 일정', past.length ? table(columns, rows(past)) : empty('지난 일정이 없어요.'));
     }
@@ -216,7 +225,7 @@
         <p class="preserve-lines">${e(notice.body)}</p>
         <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'link', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}</div>
       </article>`);
-      return heading('공지사항', '운동 일정 변경이나 모임 소식을 올리세요.', action('새 공지', 'open-notice', '', {tone: 'primary', symbol: 'plus'}))
+      return heading('공지사항', '운동 일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
     }
 
@@ -240,7 +249,7 @@
         <td>${e(dateLabel(member.joined))}</td>
         <td class="table-actions">${action('수정', 'open-member', member.id, {tone: 'text', extra: `aria-label="${e(member.name)} 정보 수정"`})}</td>
       </tr>`);
-      return heading('멤버 관리', '새 멤버를 추가하고 활동 상태를 관리하세요.', action('멤버 추가', 'open-member', '', {tone: 'primary', symbol: 'plus'}))
+      return heading('멤버 관리', '새 멤버를 추가하고 활동 상태를 관리하세요.', addButton('멤버 추가', 'open-member'))
         + panel('멤버 명단', rows.length ? table(['이름', '역할', '상태', '가입일', '<span class="sr-only">멤버 수정</span>'], rows) : empty('조건에 맞는 멤버가 없어요.'), {
           subtitle: `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, actions: controls
         });
