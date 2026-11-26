@@ -7,7 +7,7 @@ export const actionLabels = {
   'organizer.add': '운영진 추가', 'organizer.reset': '운영진 번호 재발급', 'organizer.remove': '운영진 해지',
   'organizer.pin': '운영진 번호 변경', 'organizer.adopt': '기존 운영진 계정 옮김',
   'member.add': '회원 등록', 'member.update': '회원 수정', 'member.reset': '회원 접속 재설정',
-  'event.add': '회차 만들기', 'event.update': '회차 수정', 'event.pin': '일정 상단 고정', 'notice.pin': '공지 상단 고정',
+  'event.add': '회차 만들기', 'event.update': '회차 수정', 'event.pin': '일정 상단 고정', 'event.cancel': '일정 취소', 'notice.pin': '공지 상단 고정',
   'vote.override': '대신 응답', 'attendance.set': '출석 기록',
   'guest.add': '게스트 추가', 'guest.update': '게스트 수정', 'settlement.save': '마무리',
   'notice.add': '공지 작성', 'notice.update': '공지 수정', 'reward.set': '콕 수령 기록', 'rules.update': '모임 규칙 변경',

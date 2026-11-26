@@ -4,8 +4,10 @@
 // now: { day: 'YYYY-MM-DD', minute: 'YYYY-MM-DDTHH:MM' }, both Korean time, as events store date and deadline.
 
 // draft 준비 (not public) · waiting 투표 대기 (public, closed, before the deadline) · voting 투표 중 · closed 투표 마감
-// (deadline passed, before the day) · today 당일 · wrapup 마무리 전 (day passed, 마무리 not confirmed) · done 끝.
+// (deadline passed, before the day) · today 당일 · wrapup 마무리 전 (day passed, 마무리 not confirmed) · done 끝 ·
+// cancelled 취소 (left the flow, FLOW.md 10).
 export function eventStage(event, now) {
+  if (event.cancelled) return 'cancelled';
   if (event.settled) return 'done';
   if (event.date < now.day) return 'wrapup';
   if (event.date === now.day) return 'today';
@@ -17,7 +19,7 @@ export function eventStage(event, now) {
 // FLOW.md 4장: 상단 고정(고정한 순서) → 오늘 → 마감 24시간 안의 투표 → 마무리 전(오래된 것부터) → 열린 투표 →
 // 비공개 준비 → 그 외 예정. Votes within a rank go by deadline, the rest by date and time.
 export function flowOrder(events, now) {
-  const pinned = events.filter(event => event.pinnedAt && eventStage(event, now) !== 'done')
+  const pinned = events.filter(event => event.pinnedAt && !finished(event, now))
     .sort((a, b) => a.pinnedAt - b.pinnedAt || a.id.localeCompare(b.id));
   return [...pinned, ...urgencyOrder(events.filter(event => !pinned.includes(event)), now)];
 }
@@ -33,8 +35,13 @@ function urgencyOrder(events, now) {
     return 5;
   };
   const key = event => [1, 3].includes(rank(event)) ? event.deadline : `${event.date}T${event.time}`;
-  return events.filter(event => eventStage(event, now) !== 'done')
+  return events.filter(event => !finished(event, now))
     .sort((a, b) => rank(a) - rank(b) || key(a).localeCompare(key(b)) || a.id.localeCompare(b.id));
+}
+
+// Finished events leave the 진행 중인 일정: a confirmed 마무리 or a cancel.
+export function finished(event, now) {
+  return ['done', 'cancelled'].includes(eventStage(event, now));
 }
 
 // Korean time now, as eventStage and flowOrder read it.
@@ -44,13 +51,13 @@ export function koreanNow(ms = Date.now()) {
 }
 
 // 회원 홈 (FLOW.md 4): 상단 고정(고정한 순서) → 오늘 → 응답하지 않은 열린 투표(마감 이른 순) → 응답한 열린 투표 →
-// 그 외 예정(날짜순). The events are the member's own listing (worker/api.mjs listPublic): published and upcoming.
+// 그 외 예정(날짜순) → 취소한 일정(날짜순). The events are the member's own listing (worker/api.mjs listPublic): published and upcoming.
 export function awaitingVote(event) {
   return event.canVote && event.eligible && !event.mySlot;
 }
 
 export function memberOrder(events, now) {
-  const rank = event => event.date === now.day ? 0 : awaitingVote(event) ? 1 : event.canVote ? 2 : 3;
+  const rank = event => event.cancelled ? 4 : event.date === now.day ? 0 : awaitingVote(event) ? 1 : event.canVote ? 2 : 3;
   const key = event => [1, 2].includes(rank(event)) ? event.deadline : `${event.date}T${event.time}`;
   const pinned = events.filter(event => event.pinnedAt).sort((a, b) => a.pinnedAt - b.pinnedAt || a.id.localeCompare(b.id));
   const rest = events.filter(event => !event.pinnedAt)

@@ -749,6 +749,23 @@ async function doAction(action, itemId, tab) {
       await update(path, 'PATCH', { pinned: true }, '맨 위에 고정했어요.');
       break;
     }
+    // 일정 취소 (FLOW.md 10): asked once, undone with 취소 풀기.
+    case 'cancel-event': {
+      const event = state.detail?.event;
+      if (!event || event.id !== itemId) return showSaved('회차가 바뀌어 새로 불러왔어요.');
+      openDialog('일정 취소', `<p>"${esc(event.title)}" 일정을 취소할까요? 투표가 닫히고 회원 화면에는 "취소됐어요"로 보여요. 받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
+        <p>취소 사유는 회차 수정의 공개 안내에 적으면 회원에게 보여요.</p>` + button('일정 취소하기', 'confirm-cancel-event', { id: itemId }));
+      break;
+    }
+    case 'confirm-cancel-event':
+      dialogOpener = null;
+      await update(`/api/admin/events/${id(itemId)}`, 'PATCH', { cancelled: true }, '일정을 취소했어요.');
+      main.querySelector('[data-action=restore-event]')?.focus({ preventScroll: true });
+      break;
+    case 'restore-event':
+      await update(`/api/admin/events/${id(itemId)}`, 'PATCH', { cancelled: false }, '취소를 풀었어요. 투표는 닫혀 있으니 필요하면 다시 열어 주세요.');
+      main.querySelector('[data-action=cancel-event]')?.focus({ preventScroll: true });
+      break;
     case 'confirm-pin-event':
     case 'confirm-pin-notice': {
       const path = action === 'confirm-pin-notice' ? `/api/admin/notices/${id(itemId)}` : `/api/admin/events/${id(itemId)}`;

@@ -169,6 +169,12 @@ p { line-height: 1.58; }
 .event-past summary { display: flex; align-items: center; gap: 4px; min-height: var(--touch-target); color: var(--muted); font-size: .9rem; font-weight: 750; cursor: pointer; }
 .event-past summary::-webkit-details-marker { display: none; }
 .event-past[open] summary svg { transform: rotate(90deg); }
+/* 일정 취소 on the 회차 화면: a quiet action under the facts; a cancelled event says so with the way back. */
+.event-cancel { margin-top: -4px; }
+.event-cancel .btn { padding-left: 0; }
+.event-cancelled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; border-top: 1px solid #edf0ec; color: var(--muted); font-size: .9rem; word-break: keep-all; }
+.event-cancelled p { flex: 1 1 14rem; }
+.event-cancelled strong { color: var(--ink); }
 .last-session { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 12px 0; }
 .last-session strong { font-size: .99rem; }
 .last-session p { margin-top: 2px; color: var(--muted); font-size: .83rem; }

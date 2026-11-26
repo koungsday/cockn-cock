@@ -767,3 +767,49 @@ test('event kinds default to 정기 and the 모임 규칙 choose which kinds cou
   await admin.request('/api/admin/rules', {method:'PUT', body:{...rules, eventKinds:['flash', 'social']}});
   assert.equal((await self.request('/api/public')).record.attendance.total, 2);
 });
+
+// 일정 취소 (FLOW.md 10): the event stays with its answers, closes its vote, leaves its pin and cannot be wrapped up or
+// reopened until the cancel is undone; members see it as cancelled and cannot answer.
+test('organisers cancel an event and undo it; a cancelled event keeps its answers but takes no votes or 마무리', async t => {
+  const {client, DB} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name:'가상 취소 회원', birthday:'19860606'}});
+  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()});
+  const path = '/api/admin/events/' + event.id;
+  assert.equal(event.cancelled, false);
+  const member = client();
+  await member.login('가상 취소 회원', '19860606');
+  await member.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'early', lunch:false}});
+  await admin.request(path, {method:'PATCH', body:{pinned:true}});
+
+  await admin.request(path, {method:'PATCH', body:{cancelled:true, notes:'우천'}, expect:400});
+  const cancelled = (await admin.request(path, {method:'PATCH', body:{cancelled:true}})).event;
+  assert.deepEqual([cancelled.cancelled, cancelled.open, cancelled.canVote, cancelled.pinnedAt], [true, false, false, null]);
+  // Answers stay; members see the event as cancelled and cannot answer.
+  assert.equal((await admin.request(path)).roster.find(row => row.slot).slot, 'early');
+  const listed = (await member.request('/api/public')).events.find(item => item.id === event.id);
+  assert.deepEqual([listed.cancelled, listed.canVote, listed.mySlot], [true, false, 'early']);
+  assert.equal((await member.request('/api/public/vote/' + event.id)).event.cancelled, true);
+  await member.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'late', lunch:false}, expect:[403, 404, 409]});
+  // No vote and no 마무리 until the cancel is undone; other edits still save.
+  assert.match((await admin.request(path, {method:'PATCH', body:{open:true}, expect:409})).error, /취소를 풀어/);
+  await admin.request(path, {method:'PATCH', body:{notes:'우천으로 취소해요'}});
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await admin.request(path, {method:'PATCH', body:{date:today, deadline:today + 'T00:00'}});
+  const settlement = {priorSingles:10, priorTubes:1, remainingSingles:2, courtDonation:0, confirmed:true};
+  assert.match((await admin.request(path + '/settlement', {method:'PUT', body:settlement, expect:409})).error, /취소한 일정은 마무리/);
+  assert.match((await admin.request(path, {method:'PATCH', body:{pinned:true}, expect:409})).error, /취소한 일정은 고정/);
+
+  // Undo: the event is live again with its vote still closed; it can be wrapped up, and then no longer cancelled.
+  const restored = (await admin.request(path, {method:'PATCH', body:{cancelled:false}})).event;
+  assert.deepEqual([restored.cancelled, restored.open], [false, false]);
+  await admin.request(path + '/settlement', {method:'PUT', body:settlement});
+  assert.match((await admin.request(path, {method:'PATCH', body:{cancelled:true}, expect:409})).error, /마무리를 확정한 일정/);
+  await admin.request('/api/admin/events/00000000-0000-4000-8000-000000000000', {method:'PATCH', body:{cancelled:true}, expect:404});
+
+  const log = (await DB.prepare("SELECT summary FROM audit_log WHERE action = 'event.cancel' ORDER BY id").all()).results.map(row => row.summary);
+  assert.equal(log.length, 2);
+  assert.match(log[0], / · 취소$/);
+  assert.match(log[1], / · 취소 풀기$/);
+});

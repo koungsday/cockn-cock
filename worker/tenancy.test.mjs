@@ -381,7 +381,7 @@ test('member overview requires login and limits records to published upcoming ev
   assert.equal(list.headers.get('Set-Cookie'), null);
   const result = await list.json();
   const shown = events => events.map(({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, open, pinnedAt }) =>
-    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: open, kind: 'regular', pinnedAt, open, eligible: true, mySlot: null,
+    ({ id, title, date, time, endTime, place, deadline, earlyTime, lateTime, canVote: open, kind: 'regular', pinnedAt, cancelled: false, open, eligible: true, mySlot: null,
       counts: { early: 0, late: 0, no: 0, lunch: 0 } }));
   assert.deepEqual(result.events, shown([...published.slice(0, 12), ...published.slice(13)]));
   // Lunch shows only as the counts' total (응답 현황), never as anyone's own choice.

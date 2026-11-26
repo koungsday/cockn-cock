@@ -1,6 +1,6 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { adminSkeleton, loadingCenter, memberSkeleton } from './skeleton.mjs';
-import { awaitingVote, eventStage, flowOrder, koreanNow, memberOrder } from './flow.mjs';
+import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -278,7 +278,9 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
-  if (event.canVote && eligible) {
+  if (event.cancelled) {
+    response = `<div class="public-form">${current}<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? ' 위 안내를 확인해 주세요.' : ''}</p></div>`;
+  } else if (event.canVote && eligible) {
     response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요', ['early', 'late'])}
       <p class="inline-error" role="alert" hidden></p>
       <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
@@ -286,7 +288,7 @@ export function memberVoteScreen(event, vote, eligible, club, voteSaved = false)
   } else if (event.canVote) {
     response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong> 운영진에게 참석 명단을 확인해 주세요.</p></div>';
   }
-  return memberPage(club, memberCard('vote', '참석 투표', event.title, '', facts + notes + response));
+  return memberPage(club, memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes + response));
 }
 
 export function noticeScreen(notice, club) {
@@ -298,6 +300,7 @@ const slotWords = { early: '선발', late: '후발', no: '불참' };
 
 // What the member can do with one event: 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it.
 function memberEventState(event) {
+  if (event.cancelled) return { action: '일정 확인', primary: false, row: '취소됨', note: '이 일정은 취소됐어요.' };
   if (event.canVote && event.eligible) {
     return event.mySlot
       ? { action: '응답 변경', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong> · 마감 전까지 바꿀 수 있어요.` }
@@ -310,7 +313,7 @@ function memberEventState(event) {
 
 function nextEventCard(event, club) {
   const state = memberEventState(event);
-  const kind = event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
+  const kind = event.cancelled ? '취소된 일정' : event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
   const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
   return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}${pinMark(event)}</span>
@@ -696,7 +699,7 @@ export function adminHome({ events, members, notices }, upcoming, club, last = n
     <div class="dashboard-grid dashboard-bottom">${homeFlows(events, upcoming?.event.id)}${lastPanel(last)}</div>
     <div class="dashboard-metrics" aria-label="모임 현황">
       ${metric('members', 'users', 'mint', '활동 회원', members.filter(member => member.active).length, '명')}
-      ${metric('event', 'calendar', 'sand', `${Number(month.slice(5))}월 회차`, events.filter(event => event.date.startsWith(month)).length, '회')}
+      ${metric('event', 'calendar', 'sand', `${Number(month.slice(5))}월 회차`, events.filter(event => event.date.startsWith(month) && !event.cancelled).length, '회')}
       ${metric('notices', 'megaphone', 'lavender', '공개 공지', notices.filter(notice => notice.published).length, '건')}
     </div>
     <div class="dashboard-bottom">
@@ -754,21 +757,22 @@ function eventLink(event, title, detail) {
   return `<li><button type="button" class="event-link" data-action="open-event" data-id="${esc(event.id)}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
 }
 
-// 일정 (#event): every unfinished event in the 운영 홈 order, then the finished ones folded under 지난 일정.
+// 일정 (#event): every unfinished event in the 운영 홈 order, then the finished ones (마무리 확정 or 취소) folded under
+// 끝난 일정, the latest first.
 function eventList(events) {
   const now = koreanNow();
   const flows = flowOrder(events, now);
-  const past = events.filter(event => event.settled)
+  const past = events.filter(event => finished(event, now))
     .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
   const rows = flows.map(event => {
     const { title, detail } = flowFacts(event, now);
     return eventLink(event, title, detail);
   });
-  const pastRows = past.map(event => eventLink(event, `${pill('마무리 완료', 'green')} ${esc(event.title)}`,
+  const pastRows = past.map(event => eventLink(event, `${event.cancelled ? pill('취소', 'muted') : pill('마무리 완료', 'green')} ${esc(event.title)}`,
     esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.place}`)));
   return panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>`
     : '<p class="empty-state">진행 중인 일정이 없어요. 새 회차를 만들어 투표를 시작하세요.</p>')
-    + (pastRows.length ? `<details class="event-past"><summary>지난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''));
+    + (pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''));
 }
 
 export function eventScreen(events, detail, club, tab = null) {
@@ -782,18 +786,23 @@ export function eventScreen(events, detail, club, tab = null) {
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
   // 상단 고정 lives here (and in the 공지 list), not on every 운영 홈 row; a confirmed 마무리 has left the flow.
-  const pinControl = settlement?.confirmed ? '' : button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event',
+  const pinControl = settlement?.confirmed || event.cancelled ? '' : button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event',
     { id: event.id, css: 'secondary small event-pin', label: `${event.title} ${event.pinnedAt ? '상단 고정 해제' : '상단 고정'}` });
+  // 일정 취소 (FLOW.md 10): rarely needed, so a quiet button at the end of the facts; a cancelled event says so instead.
+  const cancelControl = settlement?.confirmed ? '' : event.cancelled
+    ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${button('취소 풀기', 'restore-event', { id: event.id, css: 'secondary small' })}</div>`
+    : `<div class="event-cancel">${button('일정 취소', 'cancel-event', { id: event.id, css: 'text small' })}</div>`;
   const back = `<div class="back-link">${button(`${icon('arrow-left', 17)} 일정 목록`, 'event-list', { css: 'text small' })}</div>`;
   const overview = `<section class="panel event-overview" aria-labelledby="admin-event-title"><div class="panel-body">
-    <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${pinControl}</div>
+    <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${event.cancelled ? pill('취소', 'muted') : pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${pinControl}</div>
     <div class="event-facts"><span>${icon('calendar', 18)}${esc(kindPrefix(event))}${esc(dateLabel(event.date))}</span><span>${icon('clock', 18)}${esc(event.time)}–${esc(event.endTime)}</span>
       <span>${icon('pin', 18)}${esc(event.place)}</span></div>
+    ${cancelControl}
   </div></section>`;
   const voteActions = button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary small' })
     + button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary small' })
     // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
-    + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || (!event.open && deadlinePassed(event)) })
+    + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || event.cancelled || (!event.open && deadlinePassed(event)) })
     + button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${event.published ? `<a class="btn btn-text btn-small share-preview" href="${esc(club.home)}vote/${encodeURIComponent(event.id)}" target="_blank" rel="noopener">${icon('clipboard', 16)} 회원 투표 화면 보기</a>` : ''}
