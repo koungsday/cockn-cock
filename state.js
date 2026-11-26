@@ -4,6 +4,7 @@
   const today = '2026-11-24';
   const demoNow = `${today}T12:00`;
   const storageKey = 'badminton-club-design-v1';
+  const flowExamples = ['e-nov26-flash', 'e-dec20-social'];
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
   function addDays(date, days) {
@@ -58,6 +59,10 @@
         notes: '실내 운동화와 라켓을 챙겨 주세요.',
         pollOpen: false,
         finalized: false,
+        // 일정 흐름 (FLOW.md): 일정 종류, 상단 고정 시각, 취소 여부.
+        kind: 'regular',
+        pinnedAt: null,
+        cancelled: false,
         roster: [...memberIds],
         votes: {},
         lunch: {},
@@ -115,30 +120,40 @@
     ];
     practice.settlement = {priorSingles: 21, priorTubes: 4, remainingSingles: 6, courtDonation: 3000};
 
+    // 여러 일정이 한 주에 겹치는 흐름 (FLOW.md 7): 마감이 하루 안에 다가오는 평일 번개와, 아직 투표를 열지 않은 송년 모임.
+    const flash = regularEvent('e-nov26-flash', '2026-11-26', roster);
+    Object.assign(flash, {title: '수요 번개', kind: 'flash', time: '19:00', endTime: '21:00', earlyTime: '18:50', lateTime: '19:30',
+      deadline: '2026-11-25', deadlineTime: '10:00', notes: '평일 저녁 번개예요. 오실 수 있는 분만 응답해 주세요.', pollOpen: true});
+    flash.votes = Object.fromEntries(roster.slice(0, 6).map((id, index) => [id, index < 4 ? 'early' : 'late']));
+    const yearEnd = regularEvent('e-dec20-social', '2026-12-20', roster);
+    Object.assign(yearEnd, {title: '송년 모임', kind: 'social', time: '18:00', endTime: '21:00', earlyTime: '17:50', lateTime: '18:30',
+      place: '예시 식당', deadline: '2026-12-13', deadlineTime: '15:30', notes: '운동 없이 저녁만 함께해요.'});
+
     return {
       members,
-      events: [featured, practice, ...pastEvents],
+      events: [featured, flash, yearEnd, practice, ...pastEvents],
+      flowDemo: true,
       notices: [
         {
           id: 'n-schedule',
           title: '일요모임 이용 안내',
           body: '일요 정기 운동과 참석 투표를 체험해 보세요. 선발·후발을 고르고 점심 여부를 따로 알려 주세요.',
           date: '2026-11-20',
-          pinned: true
+          pinnedAt: 1
         },
         {
           id: 'n-shuttle',
           title: '줄서기 인정 안내 · 예시',
           body: '당일 출석과 줄서기 인정은 별도로 기록합니다. 직접 참여, 대타, 별도 인정 여부는 운영진이 확인합니다.',
           date: '2026-11-18',
-          pinned: false
+          pinnedAt: null
         },
         {
           id: 'n-entry',
           title: '게임판 운영 안내 · 예시',
           body: '진행자는 참석 인원, 게임 횟수, 대기 시간, 실력 등을 고려해 편성합니다. 순서나 편성에 의견이 있으면 진행자에게 말씀해 주세요.',
           date: '2026-11-15',
-          pinned: false
+          pinnedAt: null
         }
       ],
       repeat
@@ -179,8 +194,16 @@
     const slots = {earlyTime:'09:30', lateTime:'09:50', deadlineTime:'15:30'};
     state.repeat = {...slots, ...state.repeat};
     state.events = state.events.map(event => ({
-      ...slots, lunch:{}, recognized:{}, guests:[], settlement:{}, ...event
+      ...slots, lunch:{}, recognized:{}, guests:[], settlement:{}, kind:'regular', pinnedAt:null, cancelled:false, ...event
     }));
+    // 상단 고정 by time (FLOW.md): a notice pinned with the old check box keeps its place.
+    state.notices = state.notices.map(({pinned, ...notice}) => ({pinnedAt: pinned ? 1 : null, ...notice}));
+    // The 일정 흐름 examples join a browser's saved demo once; whatever the visitor changed stays.
+    if (!state.flowDemo) {
+      const ids = new Set(state.events.map(event => event.id));
+      state.events.push(...seed().events.filter(event => flowExamples.includes(event.id) && !ids.has(event.id)));
+      state.flowDemo = true;
+    }
     return state;
   }
 
@@ -297,5 +320,5 @@
   }
 
   window.clubModel = {load, save, counts, attendanceCounts, stats, settlement, qualification, deadlinePassed,
-    dateLabel, addDays, today, storageKey};
+    dateLabel, addDays, today, demoNow, storageKey};
 })();
