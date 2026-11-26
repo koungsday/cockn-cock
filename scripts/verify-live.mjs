@@ -35,7 +35,9 @@ const recentScript = await get('/recent-club.js');
 assert.equal(recentScript.status, 200, 'the recent-club script is served');
 assert.match(recentScript.headers.get('content-type') ?? '', /javascript/);
 const remembered = (await get(home)).headers.get('set-cookie') ?? '';
-assert.match(remembered, /^cockcockcock-recent=[^;]+; Path=\/; Max-Age=15552000; SameSite=Lax; Secure$/, 'a club page remembers itself');
+// The Worker marks this cookie Secure only over https (recentCookie in worker/index.mjs), so the local http check expects none.
+const secure = origin.protocol === 'https:' ? '; Secure' : '';
+assert.match(remembered, new RegExp(`^cockcockcock-recent=[^;]+; Path=/; Max-Age=15552000; SameSite=Lax${secure}$`), 'a club page remembers itself');
 
 const [memberPage, adminPage, privateApi, manifest] = await Promise.all([
   shell(home), shell(admin), get(`${home}api/admin`), get(`${admin}manifest.webmanifest`),
