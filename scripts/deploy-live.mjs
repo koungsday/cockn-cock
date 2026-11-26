@@ -89,6 +89,19 @@ try {
   stop('Cloudflare에 로그인돼 있지 않습니다.', '터미널에서 npx wrangler login 을 실행하세요.');
 }
 
+// Code that expects a newer schema than the production D1 has would fail every save, so it never ships first.
+let migrations = '';
+try {
+  migrations = read('npx', ['wrangler', 'd1', 'migrations', 'list', 'DB', '--remote', '--config', config]);
+} catch {
+  stop('운영 D1의 마이그레이션 상태를 읽지 못했습니다.', `npx wrangler d1 migrations list DB --remote --config ${config} 로 오류를 확인하세요.`);
+}
+if (!migrations.includes('No migrations to apply')) {
+  const pending = [...migrations.matchAll(/│\s*(\S+\.sql)\s*│/g)].map(match => match[1]);
+  stop(`운영 D1에 아직 적용하지 않은 마이그레이션이 있습니다: ${pending.join(', ') || '목록을 읽지 못함'}.`,
+    'OPERATIONS.md "D1 구조 변경"대로 운영 D1을 먼저 바꾼 뒤 다시 배포하세요. 코드만 먼저 올리면 실사용 저장이 실패합니다.');
+}
+
 const changes = previous
   ? read('git', ['log', '--format=  %h %s', `${previous}..${head}`])
   : read('git', ['log', '-1', '--format=  %h %s', head]);

@@ -1,12 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { CLUBS } from '../platform/clubs.mjs';
 import { shuttlecockMark } from '../platform/shuttlecock.mjs';
 import { adminSkeleton, loadingCenter, memberSkeleton } from './public/skeleton.mjs';
-import { verifyDatabaseBindings } from './bindings.mjs';
-
-const config = JSON.parse(await readFile(new URL('./wrangler.jsonc', import.meta.url), 'utf8'));
-verifyDatabaseBindings(CLUBS, config.d1_databases);
 
 const site = new URL('./site/', import.meta.url);
 const theme = (await readFile(new URL('../platform/theme.css', import.meta.url), 'utf8')).replaceAll('../assets/fonts/', '/assets/fonts/');
@@ -15,6 +10,7 @@ await cp(new URL('./public/', import.meta.url), site, { recursive: true });
 const platformCss = await readFile(new URL('../platform/platform.css', import.meta.url), 'utf8');
 await writeFile(new URL('./platform.css', site), theme + '\n' + platformCss);
 await copyFile(new URL('../platform/shuttlecock.mjs', import.meta.url), new URL('./shuttlecock.js', site));
+await copyFile(new URL('../platform/recent-club.js', import.meta.url), new URL('./recent-club.js', site));
 await mkdir(new URL('./assets/', site), { recursive: true });
 await cp(new URL('../assets/fonts/', import.meta.url), new URL('./assets/fonts/', site), { recursive: true });
 for (const file of [

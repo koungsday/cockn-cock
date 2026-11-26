@@ -113,98 +113,16 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
   word-break: keep-all;
 }
 
-.directory { padding-top: clamp(1.55rem, 4.1vw, 2.8rem); }
-
-.directory h2, .intro-section h2 {
+.intro-section h2 {
   margin-bottom: .85rem;
   font-size: clamp(1.44rem, 3vw, 1.8rem);
   font-weight: 800;
   letter-spacing: -.045em;
 }
 
-.club-list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
-
-.club-entry {
-  min-height: 6.1rem;
-  display: grid;
-  grid-template-columns: 3.3rem minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: clamp(.72rem, 2.7vw, 1.5rem);
-  padding: .94rem clamp(.85rem, 2.5vw, 1.4rem);
-  border: 1px solid var(--line);
-  border-radius: .9rem;
-  background: var(--surface);
-}
-
-.club-entry:hover {
-  border-color: #638769;
-  background: #fafcf4;
-}
-
-.club-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 3.3rem;
-  height: 3.3rem;
-  border: 1px solid #d4e5c7;
-  border-radius: .7rem;
-  background: #e8f1dc;
-  color: #466b4d;
-}
-
-.club-mark::before {
-  content: "";
-  width: 1.65rem;
-  height: 1.06rem;
-  border: 1.5px solid currentColor;
-  border-radius: .1rem;
-  background: linear-gradient(90deg, transparent calc(50% - .75px), currentColor calc(50% - .75px) calc(50% + .75px), transparent calc(50% + .75px));
-}
-
-.club-info { min-width: 0; }
-
-.club-info h3 {
-  font-size: clamp(1.23rem, 3vw, 1.52rem);
-  font-weight: 820;
-  letter-spacing: -.05em;
-  line-height: 1.28;
-  overflow-wrap: anywhere;
-}
-
-.club-info p, .club-schedule, .directory-note, .empty { color: var(--muted); }
-.club-info p { margin-top: .16rem; font-size: .91rem; }
-.club-schedule { font-size: .86rem; }
-
-.club-action {
-  display: inline-flex;
-  min-height: 2.65rem;
-  align-items: center;
-  justify-content: center;
-  gap: .65rem;
-  min-width: 7.8rem;
-  padding: .5rem .8rem;
-  border-radius: .5rem;
-  background: var(--ink);
-  color: #fff;
-  font-size: .9rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.club-action::after {
-  content: "";
-  width: .5rem;
-  height: .5rem;
-  border-top: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor;
-  transform: rotate(45deg);
-}
-
-.club-entry:hover .club-action { background: var(--menu-hover); }
-.club-entry:active .club-action { background: var(--menu-line); }
-
-.directory-note { margin-top: .8rem; font-size: .89rem; }
+/* 최근 들어간 모임 (PLATFORM.md): only this device's last club, filled by recent-club.js; the intro lists no clubs. */
+.recent-club { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; padding-top: clamp(1.1rem, 3vw, 1.6rem); color: var(--muted); font-size: .92rem; font-weight: 700; }
+.recent-club[hidden] { display: none; }
 
 /* Intro home (DESIGN.md: white panels on --paper, no cards inside cards, one accent-red in the hero). */
 .intro-section { padding-top: clamp(2.2rem, 5vw, 3.4rem); }
@@ -246,6 +164,7 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
 .role-panel h3 { margin-top: .15rem; font-size: 1.2rem; }
 .role-steps { display: grid; gap: .55rem; margin: .9rem 0 0; padding-left: 1.3rem; word-break: keep-all; }
 .role-steps li::marker { color: var(--court); font-weight: 800; }
+.start-steps { margin-top: 0; padding-left: calc(clamp(1rem, 3vw, 1.5rem) + 1.3rem); }
 
 .promise-list { display: grid; gap: .8rem; list-style: none; word-break: keep-all; }
 .promise-list li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: .6rem; align-items: start; }
@@ -325,15 +244,6 @@ main.page-width { padding-block: clamp(1.25rem, 4vw, 2.7rem) 4rem; }
     background-image: linear-gradient(90deg, #10483af5 0%, #10483ad4 45%, #10483a80 100%), url("assets/court.webp");
     background-position: center, 68% center;
   }
-
-  .club-entry { grid-template-columns: 3.3rem minmax(0, 1fr) auto; }
-  .club-schedule { display: none; }
-}
-
-@media (max-width: 24rem) {
-  .club-entry { grid-template-columns: 2.65rem minmax(0, 1fr); }
-  .club-mark { width: 2.65rem; height: 2.65rem; }
-  .club-action { grid-column: 2; justify-self: start; }
 }
 
 /* The demo member home borrows the live markup from share.css; only the club name row is demo-only. */

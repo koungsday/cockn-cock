@@ -2,7 +2,7 @@
 
 ## 월 구독료 없이 구성하는 방법
 
-공개 GitHub 저장소와 GitHub Pages는 가상 데이터로 데모를 운영합니다. 실사용 앱은 **Cloudflare Workers Free + D1 Free**를 사용합니다. 회원에게 공유할 주소는 [썬콕19](https://cockcockcock.pages.dev/clubs/suncok19/)입니다. 루트 [콕콕콕!](https://cockcockcock.pages.dev/)은 콕콕콕! 소개 홈이고, 등록 모임 바로가기가 히어로 바로 아래에 있습니다. Cloudflare Pages가 같은 계정의 Worker에 요청을 전달하고, Worker가 썬콕19 전용 D1에서 로그인과 투표를 처리합니다.
+공개 GitHub 저장소와 GitHub Pages는 가상 데이터로 데모를 운영합니다. 실사용 앱은 **Cloudflare Workers Free + D1 Free**를 사용합니다. 회원에게 공유할 주소는 [썬콕19](https://cockcockcock.pages.dev/clubs/suncok19/)입니다. 루트 [콕콕콕!](https://cockcockcock.pages.dev/)은 콕콕콕! 소개 홈이고, 등록 모임 목록은 두지 않습니다. 모임 화면을 연 적 있는 기기에는 그 모임 하나가 '최근 들어간 모임'으로 보입니다([PLATFORM.md](PLATFORM.md)). Cloudflare Pages가 같은 계정의 Worker에 요청을 전달하고, Worker가 모든 모임이 함께 쓰는 D1 하나에서 모임별로 나눠 로그인과 투표를 처리합니다.
 
 Workers Free는 동적 요청 하루 10만 건과 요청당 CPU 10ms가 포함됩니다. D1 Free는 하루 읽기 500만 행, 쓰기 10만 행과 계정 전체 저장 공간 5GB가 포함됩니다. 무료 한도에 도달하면 해당 작업은 한도 갱신 때까지 오류가 날 수 있습니다. Free 요금제를 유지하고 유료 기능을 활성화하지 않습니다.
 
@@ -12,22 +12,22 @@ Vercel Hobby와 Supabase Free도 후보입니다. 다만 기존 Vercel Pro 팀�
 
 ## 모임과 접근 권한
 
-[모임 등록 목록](platform/clubs.mjs)은 배포 설정에서 관리합니다. 썬콕19 모임 화면의 첫 화면은 회원과 운영진이 함께 쓰는 로그인 화면입니다. 서버가 입력한 계정을 확인하고 해당 역할의 화면을 엽니다. 공유 링크와 서버 요청도 같은 모임 경로 아래에 있습니다.
+[모임 등록 목록](platform/clubs.mjs)은 배포 설정에서 관리합니다. 총괄 관리자가 모임을 발급하는 구조로 옮기는 계획은 [PLATFORM.md](PLATFORM.md)에 있습니다. 썬콕19 모임 화면의 첫 화면은 회원과 운영진이 함께 쓰는 로그인 화면입니다. 서버가 입력한 계정을 확인하고 해당 역할의 화면을 엽니다. 공유 링크와 서버 요청도 같은 모임 경로 아래에 있습니다.
 
 | 접근 주체 | 범위 |
 | --- | --- |
-| 배포 관리자 | 모임을 등록하고 각각의 D1과 운영진 성함·비밀번호·인증 비밀을 연결합니다. |
+| 배포 관리자 | 모임을 등록하고 운영진 성함·비밀번호·인증 비밀을 연결합니다. |
 | 모임 운영진 | 로그인한 모임의 회원·공지·투표·출석·게스트·정산을 관리합니다. |
 | 회원 | 로그인한 모임에서 게시된 공지와 일정을 보고 본인 투표를 제출하거나 변경합니다. |
 | 방문자 | 회원 로그인 화면과 카톡 링크의 모임명·공유 유형을 볼 수 있습니다. |
 
-새 모임을 추가할 때는 고유한 주소와 별도의 D1 데이터베이스 및 운영진 인증 설정을 사용합니다. 등록 모임은 루트 소개 홈의 모임 목록에 나타나고, 빌드에서 각 D1의 명시적인 ID가 서로 다른지 확인합니다. 서버는 URL에서 등록된 모임을 찾고, 그 모임에 연결된 DB와 로그인 세션으로 요청을 처리합니다.
+새 모임을 추가할 때는 고유한 주소(슬러그)와 모임별 운영진 인증 설정을 쓰고, D1 `clubs` 표에 같은 슬러그의 행을 넣습니다. 등록 모임은 공개 화면에 나열하지 않습니다. 서버는 URL에서 등록된 모임을 찾고, 모든 조회와 저장을 그 모임(`club_id`)으로 한정합니다. 다른 모임의 기록 id로 요청하면 없는 기록처럼 404를 돌려줍니다. 두 모임의 운영 번호나 인증 비밀이 같으면 두 모임 모두 열지 않습니다.
 
 ## 캐시 규칙
 
 | 화면 또는 데이터 | 실사용 Worker 응답 규칙 |
 | --- | --- |
-| 루트 소개 홈(등록 모임 목록 포함) | 공개로 60초 저장할 수 있습니다. 개인 데이터는 싣지 않습니다. |
+| 루트 소개 홈 | 공개로 60초 저장할 수 있습니다. 모임 목록과 개인 데이터는 싣지 않습니다. '최근 들어간 모임'은 기기의 `cockcockcock-recent` 쿠키(모임 슬러그·이름·화면 종류, 180일)를 화면에서 읽어 보여 줍니다. |
 | 회원·운영진 화면, 투표·공지 공유 HTML | `no-store`로 매번 새 응답을 받습니다. |
 | 로그인·세션·회원 공지와 투표·운영진 API | `private, no-store`로 브라우저와 CDN에 저장하지 않습니다. |
 | 공용 이미지와 홈 화면 앱 정보 | 1시간 다시 사용할 수 있습니다. |
@@ -68,21 +68,31 @@ npm run live:dev
 
 로컬에는 `worker/.dev.vars`에 운영진 성함 `CLUB_ADMIN_ID`, 6자리 운영 번호 `CLUB_ADMIN_PIN`, 32자 이상의 별도 난수 `CLUB_AUTH_PEPPER`를 둡니다. 로컬 파일은 Git에서 제외됩니다. 가상 회원으로 점검합니다.
 
-영구 운영 전에는 운영자가 Cloudflare에 로그인하고 **Workers Free**를 확인합니다. 전용 D1을 만들고 `worker/wrangler.jsonc`를 복사한 `worker/wrangler.production.local.json`에 반환된 `database_id`를 입력합니다. 운영용 초기 계정과 인증 비밀은 로컬용과 별개로 생성해 권한이 제한된 `worker/.dev.vars.production`에 저장합니다. 운영진에게는 성함과 운영 번호를 개인 경로로 전달합니다. 아래 명령은 각각의 별도 설정에서 마이그레이션과 초기 암호를 포함한 배포를 합니다.
+영구 운영 전에는 운영자가 Cloudflare에 로그인하고 **Workers Free**를 확인합니다. D1을 만들고 `worker/wrangler.jsonc`를 복사한 `worker/wrangler.production.local.json`에 반환된 `database_id`를 입력합니다. 운영용 초기 계정과 인증 비밀은 로컬용과 별개로 생성해 권한이 제한된 `worker/.dev.vars.production`에 저장합니다. 운영진에게는 성함과 운영 번호를 개인 경로로 전달합니다. 아래 명령은 각각의 별도 설정에서 마이그레이션과 초기 암호를 포함한 배포를 합니다.
 
 ```sh
 npx wrangler login
-npx wrangler d1 create suncok19 --location apac
+npx wrangler d1 create cockcockcock --location apac
 npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote
 npm run live:build
 npx wrangler deploy --config worker/wrangler.production.local.json --secrets-file worker/.dev.vars.production
 ```
 
-기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 한 컴퓨터에서 한 번에 하나만 실행됩니다(작업 폴더가 함께 쓰는 `.git/cockcockcock-deploy.lock`). 커밋하지 않은 변경이 있거나, GitHub `main`과 다른 코드거나, 지금 실사용에 있는 `live` 커밋보다 오래된 코드면 배포를 거부합니다. `main` 확인은 빌드 전과 Worker 업로드 직전에 두 번 합니다. 그다음 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. D1 스키마나 운영 계정 변경이 포함된 릴리스에서 해당 마이그레이션과 비밀 갱신을 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
+기존 설치의 화면을 업데이트할 때는 변경을 담은 커밋에서 Worker를 빌드하고 배포합니다. 화면·코드만 바뀐 릴리스는 머지한 `main`에서 `npm run deploy` 하나로 배포합니다. 이 명령은 한 컴퓨터에서 한 번에 하나만 실행됩니다(작업 폴더가 함께 쓰는 `.git/cockcockcock-deploy.lock`). 커밋하지 않은 변경이 있거나, GitHub `main`과 다른 코드거나, 지금 실사용에 있는 `live` 커밋보다 오래된 코드면 배포를 거부합니다. `main` 확인은 빌드 전과 Worker 업로드 직전에 두 번 합니다. 그다음 이번에 들어가는 변경 목록을 보여 준 뒤 빌드·검증·실사용 테스트 → Worker 배포 → 운영 주소의 화면 해시와 `live:verify` 확인 → `live` 태그 갱신 순서로 진행합니다. 작업 폴더(worktree)에서 실행하면 운영 설정 파일을 원래 폴더에서 복사해 씁니다. 문제가 있으면 `npx wrangler rollback --config worker/wrangler.production.local.json`으로 이전 버전을 되돌립니다. D1 마이그레이션과 비밀 갱신은 이 명령에 포함하지 않습니다. 다만 운영 D1에 적용하지 않은 마이그레이션이 있으면 빌드 전에 멈춥니다(아래 D1 구조 변경). 운영 계정 변경이 포함된 릴리스에서는 비밀 갱신을 따로 수행합니다. 기존 회원의 PIN을 유지하려면 `CLUB_AUTH_PEPPER`를 보존합니다. 운영 번호를 변경할 때는 운영 Worker의 `CLUB_ADMIN_PIN` 비밀을 갱신합니다.
+
+## D1 구조 변경
+
+`worker/migrations/`에 새 파일이 들어간 릴리스는 코드보다 DB를 먼저 바꿉니다. 새 코드는 새 구조를 전제로 해서, 코드만 먼저 올리면 실사용 저장이 실패합니다.
+
+1. 로컬에서 `npm run live:db`로 적용하고 `npm run live:test`와 화면으로 확인합니다. 마이그레이션은 기존 행을 넣은 상태에서 검사합니다(`worker/migrations.test.mjs`).
+2. 운영 DB를 내보내 백업합니다. 그다음 `npx wrangler d1 migrations apply DB --config worker/wrangler.production.local.json --remote`를 실행합니다. 이 명령은 **새 마이그레이션 파일이 있는 체크아웃**(PR 브랜치 작업 폴더나 머지한 `main`)에서 실행합니다. 설정의 마이그레이션 폴더가 그 설정 파일 옆의 `migrations/`라서, 파일이 없는 폴더에서는 적용할 것이 있어도 "No migrations to apply"로 보입니다.
+3. `npm run deploy`로 배포합니다.
+
+`0003_one_database.sql`(모든 모임이 D1 하나를 씀)은 이 순서 대신 [PLATFORM.md](PLATFORM.md)의 2단계 이전 절차로 새 D1에 옮깁니다.
 
 ## 화면 변경과 출시 검증
 
-- 모임 목록, 실사용 화면, 가상 체험이 [공통 테마](platform/theme.css)를 사용합니다. 밝은 면의 주요 버튼은 운영 사이드바와 같은 어두운 회녹색을 쓰고, 로고의 연두색은 선택에 씁니다. 선명한 다홍색은 오프닝과 공유 이미지의 브랜드 포인트에 사용합니다. 마감과 서비스 상태는 문구와 중립색으로 알립니다. 투표·공지와 운영 화면은 제목과 실제 기록을 먼저 배치합니다.
+- 소개 홈, 실사용 화면, 가상 체험이 [공통 테마](platform/theme.css)를 사용합니다. 밝은 면의 주요 버튼은 운영 사이드바와 같은 어두운 회녹색을 쓰고, 로고의 연두색은 선택에 씁니다. 선명한 다홍색은 오프닝과 공유 이미지의 브랜드 포인트에 사용합니다. 마감과 서비스 상태는 문구와 중립색으로 알립니다. 투표·공지와 운영 화면은 제목과 실제 기록을 먼저 배치합니다.
 - 넥센타이어체는 모임 이름과 제목, 원티드 산스는 본문·입력·버튼에 사용합니다. 원티드 산스는 기본 글자 묶음을 먼저 쓰고 그 밖의 글자가 화면에 있을 때 전체 파일을 불러옵니다. [서체 출처](assets/fonts/README.md)
 - 모바일 운영 메뉴와 데스크톱 탐색은 고정 헤더와 같은 안전 영역 기준으로 배치합니다. 주요 조작 영역은 최소 44px입니다. 모달과 모바일 메뉴는 ×·배경·Esc로 닫고 포커스와 스크롤을 복구합니다.
 - 운영 화면은 섹션 전환, 추가·수정 창 열기, 저장 중, 저장 완료에 각각 짧은 피드백을 줍니다. 모션 줄이기에서도 진행과 완료를 읽을 수 있습니다. 입력, 처리 중, 성공, 실패를 확인합니다. 투표는 서버가 저장한 응답을 표시하고, 저장이 실패하면 입력한 선택을 유지합니다. 일시·출석·집계는 운영 화면에서 가상 기록을 입력한 뒤 API 결과와 대조합니다.

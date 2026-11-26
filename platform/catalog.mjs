@@ -40,8 +40,15 @@ const promises = [
 
 const check = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
 
-// demo: { vote, admin, share } same-site paths for the 가상 체험 links; only the demo build passes it.
-export function renderCatalog({ clubs, basePath, mode, demo = null }) {
+const start = [
+  '총괄 관리자가 모임마다 주소와 운영진 계정을 만들어 드려요.',
+  '운영진은 받은 운영 주소를 휴대전화 홈 화면에 추가해 써요.',
+  '회원은 운영진이 단체방에 올린 모임 링크로 들어와요.',
+];
+
+// The intro home lists no clubs (PLATFORM.md): members and organisers arrive by their club's own link.
+// demo: { member, admin, share } same-site paths for the 가상 체험 links; only the demo build passes it.
+export function renderCatalog({ basePath, mode, demo = null }) {
   const base = basePath.endsWith('/') ? basePath : basePath + '/';
   if (!base.startsWith('/') || base.startsWith('//') || /[\\?#]/.test(base)) {
     throw new Error('Catalog basePath must be a same-site path.');
@@ -50,25 +57,12 @@ export function renderCatalog({ clubs, basePath, mode, demo = null }) {
   const isDemo = mode === 'demo';
   const root = escape(base);
   const brand = escape(PLATFORM_NAME);
-  const clubCards = clubs.map(club => {
-    const href = escape(base + 'clubs/' + encodeURIComponent(club.slug) + '/');
-    const clubName = escape(club.name);
-    return `<li><a class="club-entry" href="${href}">
-      <div class="club-mark" aria-hidden="true"></div>
-      <div class="club-info">
-        <h3>${clubName}</h3>
-        <p>${escape(club.subtitle)}</p>
-      </div>
-      ${club.schedule ? `<span class="club-schedule">${escape(club.schedule)}</span>` : ''}
-      <span class="club-action">모임 들어가기</span>
-    </a></li>`;
-  }).join('');
   const tryLinks = isDemo && demo ? `
     <section id="try" class="intro-section" aria-labelledby="try-title">
       <h2 id="try-title">가상 데이터로 먼저 둘러보세요</h2>
       <div class="intro-panel try-panel">
         <div class="try-links">
-          <a class="try-link try-link-primary" href="${escape(demo.vote)}">회원 투표 체험</a>
+          <a class="try-link try-link-primary" href="${escape(demo.member)}">회원 화면 체험</a>
           <a class="try-link" href="${escape(demo.admin)}">운영 화면 체험</a>
           <a class="try-link" href="${escape(demo.share)}">카톡 투표 링크 예시</a>
         </div>
@@ -92,6 +86,7 @@ export function renderCatalog({ clubs, basePath, mode, demo = null }) {
   <link rel="icon" type="image/png" sizes="96x96" href="${root}assets/shuttlecock-icon-96.png">
   <link rel="stylesheet" href="${root}platform.css">
   <script type="module" src="${root}shuttlecock.js"></script>
+  <script src="${root}recent-club.js" defer></script>
   ${isDemo ? `<script src="${root}legacy-links.js" defer></script>` : ''}
 </head>
 <body>
@@ -99,7 +94,7 @@ export function renderCatalog({ clubs, basePath, mode, demo = null }) {
   <header class="site-header">
     <div class="page-width header-inner">
       <a class="site-brand" href="${root}"><img class="brand-mark" width="35" height="35" src="${root}assets/shuttlecock-icon-96.png" alt="">${brand}</a>
-      ${isDemo ? '<span class="demo-label">가상 데이터 체험</span>' : '<a class="header-link" href="#clubs">등록 모임</a>'}
+      ${isDemo ? '<span class="demo-label">가상 데이터 체험</span>' : ''}
     </div>
   </header>
   <main id="content" class="page-width">
@@ -110,11 +105,7 @@ export function renderCatalog({ clubs, basePath, mode, demo = null }) {
         <p>카톡 단체방과 엑셀, 손으로 하던 집계를 링크 하나로 이어요.</p>
       </div>
     </section>
-    <section id="clubs" class="directory" aria-labelledby="directory-title">
-      <h2 id="directory-title">등록 모임</h2>
-      ${clubCards ? `<ul class="club-list">${clubCards}</ul>` : '<p class="empty">현재 등록된 모임이 없어요.</p>'}
-      <p class="directory-note">${isDemo ? '가상 데이터로 투표와 운영 화면을 체험할 수 있어요.' : '회원과 운영진 모두 모임에 들어가 같은 로그인 화면에서 성함과 번호 6자리를 입력해요.'}</p>
-    </section>
+    <p id="recent-club" class="recent-club" data-base="${root}" hidden><span>최근 들어간 모임</span><a class="try-link try-link-primary" href="${root}"></a></p>
     <section id="flow" class="intro-section" aria-labelledby="flow-title">
       <h2 id="flow-title">한 회차가 이렇게 이어져요</h2>
       <p class="intro-lead">단체방 공지부터 반기 집계까지 같은 화면에서 이어서 기록해요.</p>
@@ -131,6 +122,10 @@ export function renderCatalog({ clubs, basePath, mode, demo = null }) {
           <ol class="role-steps">${steps.map(step => `<li>${step}</li>`).join('')}</ol>
         </article>`).join('')}
       </div>
+    </section>
+    <section id="start" class="intro-section" aria-labelledby="start-title">
+      <h2 id="start-title">모임마다 주소를 발급해요</h2>
+      <ol class="intro-panel role-steps start-steps">${start.map(step => `<li>${step}</li>`).join('')}</ol>
     </section>
     <section id="privacy" class="intro-section" aria-labelledby="privacy-title">
       <h2 id="privacy-title">개인정보는 남기지 않아요</h2>

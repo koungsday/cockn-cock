@@ -97,10 +97,10 @@ function registryIndex(clubs) {
     if (typeof club.slug !== 'string' || club.slug.length > 64 || !slugPattern.test(club.slug) || bySlug.has(club.slug)) {
       throw new Error('Each registered club must have a unique slug.');
     }
-    const keys = [club.databaseBinding, club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
+    const keys = [club.adminIdBinding, club.adminPinBinding, club.authPepperBinding];
     for (const key of keys) {
       if (typeof key !== 'string' || !bindingPattern.test(key) || bindings.has(key)) {
-        throw new Error('Each registered club must use distinct database and secret bindings.');
+        throw new Error('Each registered club must use distinct secret bindings.');
       }
       bindings.add(key);
     }
@@ -109,8 +109,9 @@ function registryIndex(clubs) {
   return bySlug;
 }
 
+// Every club shares the one D1 (PLATFORM.md). CLUB_SCOPE is the club's id there (its slug), and every query is limited to it.
 function scopeEnv(club, clubs, env) {
-  const db = env[club.databaseBinding];
+  const db = env.DB;
   const adminId = env[club.adminIdBinding];
   const adminPin = env[club.adminPinBinding];
   const authPepper = env[club.authPepperBinding];
@@ -120,8 +121,7 @@ function scopeEnv(club, clubs, env) {
 
   for (const other of clubs) {
     if (other.slug === club.slug) continue;
-    if (env[other.databaseBinding] === db || env[other.adminPinBinding] === adminPin ||
-        env[other.authPepperBinding] === authPepper) {
+    if (env[other.adminPinBinding] === adminPin || env[other.authPepperBinding] === authPepper) {
       return null;
     }
   }
@@ -153,6 +153,12 @@ function adminManifest(request, club) {
   });
 }
 
+// The intro home's '최근 들어간 모임' reads this (platform/recent-club.js). Only the club's public name and slug, no account data.
+function recentCookie(url, club, admin) {
+  const value = encodeURIComponent(new URLSearchParams({ s: club.slug, n: club.name, v: admin ? 'admin' : 'member' }).toString());
+  return `cockcockcock-recent=${value}; Path=/; Max-Age=15552000; SameSite=Lax${url.protocol === 'https:' ? '; Secure' : ''}`;
+}
+
 async function clubPage(request, env, url, club, share, admin) {
   const tags = share ? shareTags(url, club, share[1]) : '';
   const path = admin ? '/admin-shell.html' : '/index.html';
@@ -166,12 +172,13 @@ async function clubPage(request, env, url, club, share, admin) {
       ? `<link rel="manifest" href="/clubs/${club.slug}/admin/manifest.webmanifest">
     <link rel="apple-touch-icon" href="/assets/shuttlecock-icon-192.png">`
       : '');
-  return htmlResponse(request, html, { headers: index.headers });
+  const response = htmlResponse(request, html, { headers: index.headers });
+  response.headers.append('Set-Cookie', recentCookie(url, club, admin));
+  return response;
 }
 
 export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
   const bySlug = registryIndex(clubs);
-  const catalogClubs = clubs.map(({ slug, name, subtitle, schedule }) => ({ slug, name, subtitle, schedule }));
   return {
     async fetch(request, env) {
       const url = new URL(request.url);
@@ -185,8 +192,8 @@ export function createWorker(clubs = CLUBS, { legacyClub = 'suncok19' } = {}) {
       }
       if (path === '/') {
         if (!canView(request)) return methodNotAllowed();
-        // The root is the 콕콕콕! intro home; members and organisers enter a club from its directory.
-        return htmlResponse(request, renderCatalog({ clubs: catalogClubs, basePath: '/', mode: 'live' }), {
+        // The root is the 콕콕콕! intro home with no club list (PLATFORM.md); members and organisers use their club's link.
+        return htmlResponse(request, renderCatalog({ basePath: '/', mode: 'live' }), {
           cacheControl: 'public, max-age=60, s-maxage=60'
         });
       }

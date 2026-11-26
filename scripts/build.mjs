@@ -130,8 +130,9 @@ for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platfor
   await writeFile(join(dist, output), theme + '\n' + css);
 }
 await copyFile(join(root, 'platform/shuttlecock.mjs'), join(dist, 'shuttlecock.js'));
-await writeFile(join(dist, 'index.html'), renderCatalog({ clubs: [demoClub], basePath: site.pathname, mode: 'demo', demo: {
-  vote: `${adminUrl.pathname}#public-vote/${event.id}`, admin: `${adminUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
+await copyFile(join(root, 'platform/recent-club.js'), join(dist, 'recent-club.js'));
+await writeFile(join(dist, 'index.html'), renderCatalog({ basePath: site.pathname, mode: 'demo', demo: {
+  member: clubUrl.pathname, admin: `${adminUrl.pathname}#home`, share: shareUrl('vote', event.id).pathname,
 } }));
 await writeFile(join(dist, 'legacy-links.js'), `
 if (/^#(?:(?:home|events|notices|members|stats|repeat)$|(?:event|public-(?:vote|notice))\\/)/.test(location.hash)) {
@@ -174,4 +175,4 @@ for (const entry of entries) {
     await writeFile(destination, html);
   }
 }
-console.log(`Built the club directory, ${demoClub.name} demo, and ${entries.length} share pages with legacy URLs.`);
+console.log(`Built the intro home, ${demoClub.name} demo, and ${entries.length} share pages with legacy URLs.`);
