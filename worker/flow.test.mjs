@@ -18,6 +18,9 @@ test('stages come from what is saved', () => {
   assert.equal(eventStage(event('a', '2026-11-22'), now), 'wrapup');
   // 8: a confirmed 마무리 ends the flow, whatever the date.
   assert.equal(eventStage(event('a', '2026-11-22', { settled: true }), now), 'done');
+  // 10: a cancelled event has left the flow, before or after its day.
+  assert.equal(eventStage(event('a', '2026-11-29', { cancelled: true }), now), 'cancelled');
+  assert.equal(eventStage(event('a', '2026-11-22', { cancelled: true }), now), 'cancelled');
 });
 
 test('the 운영 홈 order: today, a vote closing within a day, wrap-ups oldest first, open votes, drafts, the rest', () => {
@@ -30,6 +33,8 @@ test('the 운영 홈 order: today, a vote closing within a day, wrap-ups oldest 
     event('wrapup-old', '2026-11-15'),
     event('done', '2026-11-08', { settled: true }),
     event('closed', '2026-11-28', { deadline: '2026-11-26T08:00' }),
+    event('cancelled', '2026-11-27', { cancelled: true }),
+    event('cancelled-past', '2026-11-20', { cancelled: true, pinnedAt: 5 }),
   ], now).map(item => item.id);
   assert.deepEqual(order, ['today', 'closing-vote', 'wrapup-old', 'wrapup-new', 'later-vote', 'draft', 'closed']);
 });
@@ -80,8 +85,9 @@ test('the member home: pinned, today, votes still to answer by deadline, answere
     listed('today', '2026-11-26', { canVote: false }),
     listed('year-end', '2026-12-13', { canVote: false, pinnedAt: 10 }),
     listed('not-on-roster', '2026-11-30', { eligible: false }),
+    listed('rained-off', '2026-11-27', { canVote: false, cancelled: true }),
   ], now).map(item => item.id);
-  assert.deepEqual(order, ['year-end', 'today', 'wednesday', 'sunday', 'answered', 'not-on-roster', 'later']);
+  assert.deepEqual(order, ['year-end', 'today', 'wednesday', 'sunday', 'answered', 'not-on-roster', 'later', 'rained-off']);
 });
 
 test('a vote waits for this member only while it is open, they are on its roster and have not answered', () => {

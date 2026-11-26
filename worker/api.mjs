@@ -27,7 +27,8 @@ const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
 const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published, kind';
 const noticeFields = 'id, title, body, date, published';
-// pinned_at is set only by pinning (pin), never by the event or notice forms, so it stays out of the field lists above.
+// pinned_at and cancelled_at are set only by pinning and cancelling (setPinned, setCancelled), never by the event or
+// notice forms, so they stay out of the field lists above.
 // 참석 현황 on the member screens: how many on the event's roster chose each slot and lunch, counted as the
 // organisers count them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
 const countColumns = table => [...slots.map(slot => [slot, `cv.slot = '${slot}'`]), ['lunch', 'cv.lunch = 1']]
@@ -178,7 +179,7 @@ function serializeEvent(row) {
     id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
     place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
     notes: row.notes, open, published, canVote: open && published && row.deadline_at > currentSeconds(),
-    kind: row.kind, pinnedAt: row.pinned_at ?? null
+    kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at)
   };
 }
 
@@ -241,14 +242,14 @@ function eventParams(event) {
 }
 
 async function fetchEvent(db, club, id) {
-  const row = await sql(db, `SELECT ${eventFields}, pinned_at FROM events WHERE id = ? AND club_id = ?`, id, club).first();
+  const row = await sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at FROM events WHERE id = ? AND club_id = ?`, id, club).first();
   if (!row) missing();
   return serializeEvent(row);
 }
 
 async function fetchPublic(db, club, kind, id) {
   if (kind === 'vote') {
-    const row = await sql(db, `SELECT ${eventFields}, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
+    const row = await sql(db, `SELECT ${eventFields}, cancelled_at, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
     if (!row) missing();
     return { event: { ...serializeEvent(row), counts: readCounts(row) } };
   }
@@ -266,7 +267,7 @@ async function listPublic(db, club, memberId) {
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
   const seconds = currentSeconds();
-  const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at,
+  const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at, e.cancelled_at,
         e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
   const upcoming = `FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
@@ -290,7 +291,7 @@ async function listPublic(db, club, memberId) {
     events: rows.map(row => ({
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
       place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
-      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null,
+      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
     notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
@@ -375,7 +376,7 @@ async function listAdmin(db, club) {
     // settled and waiting are for the organisers' screens only (the session picker, the 운영 홈 일정 흐름 of FLOW.md):
     // waiting counts active members on the roster without an answer, as the 운영 홈 counts 미응답. serializeEvent
     // stays shared with the member screens.
-    sql(db, `SELECT ${eventFields}, pinned_at, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
+    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
       (SELECT COUNT(*) FROM roster r JOIN members m ON m.id = r.member_id
         LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
         WHERE r.event_id = events.id AND m.active = 1 AND v.member_id IS NULL) AS waiting
@@ -507,6 +508,7 @@ async function addEvent(db, club, body) {
 async function updateEvent(db, club, id, body) {
   const previous = await fetchEvent(db, club, id);
   const data = validateEvent({ ...previous, ...body });
+  if (data.open && previous.cancelled) throw new ApiError(409, '취소한 일정은 투표를 열 수 없어요. 먼저 취소를 풀어 주세요.');
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
       early_time=?, late_time=?, notes=?, open=?, published=?, kind=?
@@ -516,7 +518,8 @@ async function updateEvent(db, club, id, body) {
       AND (
         (date=? AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
-  `, ...eventParams(data), id, club, ...eventParams(previous), data.date, +data.open, id).run();
+      AND (?=0 OR cancelled_at IS NULL)
+  `, ...eventParams(data), id, club, ...eventParams(previous), data.date, +data.open, id, +data.open).run();
   if (!updates.meta.changes) {
     throw new ApiError(409, '다른 곳에서 일정이 바뀌었거나 마무리가 확정됐어요. 새로고침한 뒤 확인해 주세요.');
   }
@@ -525,7 +528,7 @@ async function updateEvent(db, club, id, body) {
 
 async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement] = await db.batch([
-    sql(db, `SELECT ${eventFields}, pinned_at FROM events WHERE id = ? AND club_id = ?`, id, club),
+    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
       SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition
       FROM roster r JOIN members m ON r.member_id = m.id
@@ -632,9 +635,10 @@ async function setSettlement(db, club, id, body) {
   const event = await fetchEvent(db, club, id);
   const today = kstToday();
   if (body.confirmed && event.date > today) bad('일정 당일이 되면 마무리를 확정할 수 있어요.');
+  if (body.confirmed && event.cancelled) throw new ApiError(409, '취소한 일정은 마무리할 수 없어요. 먼저 취소를 풀어 주세요.');
   const statements = [sql(db, `
     INSERT INTO settlements (event_id, prior_singles, prior_tubes, remaining_singles, court_donation, confirmed)
-    SELECT id, ?, ?, ?, ?, ? FROM events WHERE id = ? AND club_id = ? AND (? = 0 OR date <= ?)
+    SELECT id, ?, ?, ?, ?, ? FROM events WHERE id = ? AND club_id = ? AND (? = 0 OR (date <= ? AND cancelled_at IS NULL))
     ON CONFLICT (event_id)
     DO UPDATE SET prior_singles=excluded.prior_singles, prior_tubes=excluded.prior_tubes,
       remaining_singles=excluded.remaining_singles, court_donation=excluded.court_donation, confirmed=excluded.confirmed
@@ -762,19 +766,39 @@ async function saveRules(db, club, body) {
   return { rules: { periods, goal, kinds, reward: body.reward, eventKinds: counted } };
 }
 
+// 일정 취소 (worker/migrations/0009_event_cancel.sql): the event stays with its answers and shows to members as
+// 취소됐어요; its vote closes and it lets go of its 상단 고정 place. Cancelling again or restoring a live event changes
+// nothing. An event whose 마무리 is confirmed has happened and cannot be cancelled; restoring leaves the vote closed
+// for the organisers to open again.
+async function setCancelled(db, club, id, body) {
+  const cancelled = boolean(body.cancelled, '일정 취소');
+  const event = await fetchEvent(db, club, id);
+  if (cancelled && !event.cancelled) {
+    const result = await sql(db, `UPDATE events SET cancelled_at = ?, open = 0, pinned_at = NULL
+      WHERE id = ? AND club_id = ? AND cancelled_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM settlements WHERE event_id = ? AND confirmed = 1)`, currentSeconds(), id, club, id).run();
+    if (!result.meta.changes) throw new ApiError(409, '마무리를 확정한 일정은 취소할 수 없어요.');
+  }
+  if (!cancelled && event.cancelled) {
+    await sql(db, 'UPDATE events SET cancelled_at = NULL WHERE id = ? AND club_id = ?', id, club).run();
+  }
+  return { event: await fetchEvent(db, club, id) };
+}
+
 // 상단 고정 (FLOW.md 4·5): pinned events and notices come first, in the order they were pinned. A club keeps at most
 // pinLimit of each; pinning one more asks first (the screens do) and then, with replaceOldest, lets go of the
-// longest-pinned one in the same batch. An event whose 마무리 is confirmed has left the 진행 중인 일정, so it cannot be
-// pinned and does not take a place.
+// longest-pinned one in the same batch. An event whose 마무리 is confirmed, or that was cancelled, has left the 진행 중인
+// 일정, so it cannot be pinned and does not take a place.
 async function setPinned(db, club, table, id, body) {
   const pinned = boolean(body.pinned, '상단 고정');
   const replaceOldest = boolean(body.replaceOldest ?? false, '고정 교체');
-  const live = table === 'events' ? 'AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1)' : '';
+  const live = table === 'events'
+    ? 'AND cancelled_at IS NULL AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1)' : '';
   const row = await sql(db, `SELECT id, title, pinned_at FROM ${table} WHERE id = ? AND club_id = ? ${live}`, id, club).first();
   if (!row) {
-    if (table === 'events' && pinned && await sql(db, 'SELECT 1 FROM events WHERE id = ? AND club_id = ?', id, club).first()) {
-      throw new ApiError(409, '마무리를 확정한 일정은 고정할 수 없어요.');
-    }
+    const gone = table === 'events' && await sql(db, 'SELECT cancelled_at FROM events WHERE id = ? AND club_id = ?', id, club).first();
+    if (gone && !pinned) return { pinnedAt: null, released: null };
+    if (gone) throw new ApiError(409, gone.cancelled_at ? '취소한 일정은 고정할 수 없어요.' : '마무리를 확정한 일정은 고정할 수 없어요.');
     missing();
   }
   if (!pinned) {
@@ -943,6 +967,12 @@ async function routeAdmin(db, env, url, method, body, user) {
   if (!event) missing();
   const [, id, resource, memberId] = event;
   if (!resource && method === 'GET') return json(await eventDetails(db, club, id));
+  if (!resource && method === 'PATCH' && body.cancelled !== undefined) {
+    if (Object.keys(body).length !== 1) bad('일정 취소는 따로 저장해 주세요.');
+    const result = await setCancelled(db, club, id, body);
+    await record('event.cancel', id, () => `${eventLine(result.event)} · ${result.event.cancelled ? '취소' : '취소 풀기'}`);
+    return json(result);
+  }
   if (!resource && method === 'PATCH' && body.pinned !== undefined) {
     if (Object.keys(body).some(key => key !== 'pinned' && key !== 'replaceOldest')) bad('상단 고정은 따로 저장해 주세요.');
     const result = await setPinned(db, club, 'events', id, body);
