@@ -202,7 +202,7 @@ function voteLabel(slot, event) {
 function choiceFields(event, vote, lunchLabel, slots = ['early', 'late', 'no']) {
   const choices = slots.map(slot => `<label class="public-choice">
     <input type="radio" name="slot" value="${slot}"${vote?.slot === slot ? ' checked' : ''} required><span>${esc(voteLabel(slot, event))}</span></label>`);
-  return `<fieldset class="public-choices"><legend>운동 참석</legend><div class="public-choice-row${slots.length === 3 ? ' public-choice-slots' : ''}">${choices.join('')}</div></fieldset>
+  return `<fieldset class="public-choices"><legend>참석</legend><div class="public-choice-row${slots.length === 3 ? ' public-choice-slots' : ''}">${choices.join('')}</div></fieldset>
     <label class="public-lunch"><input type="checkbox" name="lunch"${vote?.lunch ? ' checked' : ''}> ${lunchLabel}</label>`;
 }
 
@@ -302,7 +302,7 @@ function memberEventState(event) {
 
 function nextEventCard(event, club) {
   const state = memberEventState(event);
-  const kind = event.canVote ? '참석 투표' : event.date === today() ? '오늘 운동' : '다음 운동';
+  const kind = event.canVote ? '참석 투표' : event.date === today() ? '오늘 일정' : '다음 일정';
   const deadline = event.deadline ? `<div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div>` : '';
   return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">${kind}</span>
@@ -350,12 +350,12 @@ export function homeScreen({ events, notices, record }, club, user = null) {
   const listCard = (id, title, rows, empty) => `<section class="public-share-card member-list" aria-labelledby="${id}"><div class="public-share-content">
     <h2 id="${id}">${title}</h2>${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${empty}</p>`}</div></section>`;
   const first = next ? nextEventCard(next, club)
-    : listCard('member-events', '운동 일정', [], '게시된 운동 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.');
+    : listCard('member-events', '일정', [], '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.');
   const pin = user?.mustChange ? `<section class="member-pin" aria-labelledby="member-pin-title"><h2 id="member-pin-title">내 로그인</h2>
     <p>지금은 생년월일 뒤 6자리나 임시 번호로 로그인해요. 원하면 나만 아는 PIN 6자리로 바꿀 수 있어요.</p>
     <button type="button" class="share-button share-button--secondary" data-action="pin">PIN 만들기</button></section>` : '';
   return memberPage(club, `<h1 class="sr-only">${esc(club.name)} 모임 홈</h1>${first}
-    ${later.length ? listCard('member-events', '이후 운동 일정', eventRows, '') : ''}
+    ${later.length ? listCard('member-events', '이후 일정', eventRows, '') : ''}
     ${listCard('member-notices', '공지', noticeRows, '게시된 공지가 없어요.')}${recordCard(record)}${pin}`, { back: false });
 }
 
@@ -402,7 +402,7 @@ export function messagePage(title, body, actions = '') {
 /* Admin screens: the demo's operations shell and dashboard (styles.css). */
 
 const adminSections = [
-  ['home', '운영 홈', 'home'], ['event', '운동 운영', 'calendar'], ['notices', '공지', 'megaphone'],
+  ['home', '운영 홈', 'home'], ['event', '일정', 'calendar'], ['notices', '공지', 'megaphone'],
   ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'],
 ];
 
@@ -626,7 +626,7 @@ export function countEvent(roster, guests) {
 
 export function voteMetrics(counts, { includeAttendance = true } = {}) {
   const items = [['선발', `${counts.early}명`, 'green'], ['후발', `${counts.late}명`], ['불참', `${counts.no}명`], ['점심', `${counts.lunch}명`]];
-  if (includeAttendance) items.push(['실제 운동', `${counts.members + counts.guests}명`]);
+  if (includeAttendance) items.push(['실제 출석', `${counts.members + counts.guests}명`]);
   return summary(items);
 }
 
@@ -637,8 +637,8 @@ export function eventForm(event, id = '') {
       ${field('모임 이름', 'title', event.title, { wide: true, attrs: 'required maxlength="120"' })}
       ${field('날짜', 'date', event.date, { type: 'date', attrs: 'required' })}
       ${field('장소', 'place', event.place, { attrs: 'required maxlength="120"' })}
-      ${field('운동 시작', 'time', event.time, time)}
-      ${field('운동 종료', 'endTime', event.endTime, time)}
+      ${field('시작 시간', 'time', event.time, time)}
+      ${field('종료 시간', 'endTime', event.endTime, time)}
       ${field('선발 모임', 'earlyTime', event.earlyTime, time)}
       ${field('후발 모임', 'lateTime', event.lateTime, time)}
       ${field('투표 마감 (한국 시간)', 'deadline', event.deadline, { type: 'datetime-local', wide: true, attrs: 'required' })}
@@ -665,7 +665,7 @@ function sessionStatus(item) {
 export function eventScreen(events, detail, club, tab = null) {
   const event = detail?.event;
   const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' }) + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
-  const head = pageHead('운동 운영', '회차를 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
+  const head = pageHead('일정', '회차를 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
   if (!event) return `<div class="secondary-page">${head}${panel('회차', '<p class="empty-state">회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p>')}</div>`;
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
@@ -725,7 +725,7 @@ function attendancePanel(event, roster, counts, confirmed) {
 }
 
 export function attendanceForm(person) {
-  return form('attendance', note('대타 인정은 당일 운동 출석도 함께 체크해 주세요. 별도 승인 사유와 증빙은 이 화면에 기록하지 않습니다.')
+  return form('attendance', note('대타 인정은 당일 출석도 함께 체크해 주세요. 별도 승인 사유와 증빙은 이 화면에 기록하지 않습니다.')
     + `<div class="form-grid">${select('실제 출석', 'present', [['', '미확인'], ['true', '출석'], ['false', '불참 확인']], person.present)}
       ${select('줄서기 인정', 'recognition', [['', '해당 없음'], ...Object.entries(recognitionLabel)], person.recognition)}</div>`, '기록 저장', person.id);
 }

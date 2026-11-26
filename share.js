@@ -134,7 +134,7 @@
           </label>`}
         ${receiptMember ? '' : '<p class="public-form-note" id="demo-pin-help">예시 공용 번호는 190019입니다.</p>'}
         <fieldset class="public-choices">
-          <legend>운동 참석</legend>
+          <legend>참석</legend>
           <div class="public-choice-row">
             ${slots.map(([key, label]) => `<label class="public-choice">
               <input type="radio" name="vote" value="${key}" required${ownVote === key ? ' checked' : ''}>
