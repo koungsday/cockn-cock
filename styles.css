@@ -215,29 +215,31 @@ p { line-height: 1.58; }
 .event-past summary::-webkit-details-marker { display: none; }
 .event-past[open] summary svg { transform: rotate(90deg); }
 /* 일정 달력 (DESIGN.md 5): dates form a quiet grid directly on the page. */
+.calendar, .calendar-toggle { color: var(--neutral-ink); --focus: var(--neutral-ink); }
 .calendar { margin-block: 4px 12px; }
 .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .calendar-head .calendar-title, .main-content .member-list .calendar-head .calendar-title {
-  margin: 0; color: var(--ink); font-size: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums;
+  margin: 0; color: inherit; font-size: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.calendar-step { width: var(--touch-target); height: var(--touch-target); }
+.calendar-step { width: var(--touch-target); height: var(--touch-target); color: inherit; }
+.calendar .calendar-step:hover, .btn-text.calendar-toggle:not(:disabled):hover { background: var(--neutral-soft); }
 .calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; }
-.calendar-weekdays span { display: grid; place-items: center; min-height: 44px; color: var(--muted); font-size: var(--t4); }
+.calendar-weekdays span { display: grid; place-items: center; min-height: 44px; color: var(--neutral-muted); font-size: var(--t4); }
 .calendar-days { margin: 0; padding: 0; list-style: none; }
 .calendar-day { display: grid; min-width: 0; min-height: 44px; }
 .calendar-slot, .calendar-date { display: grid; place-items: center; width: 100%; min-width: 0; }
 .calendar-date { border: 0; background: none; color: inherit; border-radius: 8px; cursor: pointer; }
-.calendar-number { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; font-size: var(--t4); font-variant-numeric: tabular-nums; }
-.calendar-day.is-other { color: var(--muted); }
+.calendar-number { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--mark-radius); font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.calendar-day.is-other { color: var(--neutral-muted); }
 .calendar-day.is-today .calendar-number { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
-.calendar-date .calendar-number { background: var(--accent-soft); color: var(--court); font-weight: 600; }
-.calendar-day.is-done .calendar-number { background: var(--hint); color: var(--muted); }
-.calendar-date[aria-pressed="true"] .calendar-number { background: var(--court); color: var(--surface); }
+.calendar-date .calendar-number { border: 2px solid var(--neutral-muted); background: var(--neutral-soft); font-weight: 600; }
+.calendar-day.is-done .calendar-number { border-width: 1px; background: var(--surface); color: var(--neutral-muted); }
+.calendar-date[aria-pressed="true"] .calendar-number { border-color: var(--neutral-ink); background: var(--neutral-ink); color: var(--surface); }
 @media (hover: hover) {
-  .calendar-date:hover .calendar-number { background: var(--court); color: var(--surface); }
+  .calendar-date:hover .calendar-number { border-color: var(--neutral-ink); }
 }
 :is(.event-list li, .member-record)[data-date] { transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
-:is(.event-list li, .member-record).is-picked { border-radius: 4px; background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
+:is(.event-list li, .member-record).is-picked { border-radius: 4px; background: var(--neutral-soft); box-shadow: 0 0 0 6px var(--neutral-soft); }
 /* A cancelled event says so on the 회차 화면 with the way back; 일정 취소 itself is in the 회차 메뉴. */
 .event-cancelled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t4); word-break: keep-all; }
 .event-cancelled p { flex: 1 1 14rem; }
