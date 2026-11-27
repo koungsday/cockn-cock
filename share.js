@@ -37,7 +37,7 @@
 
   function linkFor(kind, item) {
     const example = window.clubPublishedShares?.[kind];
-    if (example?.href.startsWith('https://') &&
+    if (!item.cancelled && example?.href.startsWith('https://') &&
         Object.entries(example.fields).every(([field, value]) => item[field] === value)) {
       return { href: example.href, published: true };
     }

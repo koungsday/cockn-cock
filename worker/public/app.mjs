@@ -75,7 +75,7 @@ const state = {
   selectedNotice: null,
   eventTab: null,
   calendarMonth: null,
-  calendarOpen: false,
+  calendarOpen: true,
   // 당일 출석 미확인만 보기 (views.mjs attendancePanel): kept through a redraw of the screen.
   onlyUnmarked: false,
   // 일정 화면의 내 응답 (views.mjs eventScreen): unfolded by the organiser or by 지금 하기 on the 운영 홈; a save redraws it open.
@@ -880,6 +880,15 @@ async function doAction(action, itemId, tab) {
         '마감 안내를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
     }
+    case 'copy-event-update': {
+      const event = state.detail?.event;
+      if (event?.id !== itemId || !event.published) throw new Error('공개된 일정만 안내를 복사할 수 있어요.');
+      const status = event.cancelled ? '취소' : '변경';
+      await copy(`「${event.title}」 일정이 ${status}됐어요. 자세한 내용은 아래 링크에서 확인해 주세요.\n${shareLink('vote', event.id)}`,
+        `${status} 안내를 복사했어요. 카톡 단체방에 붙여 넣으세요.`);
+      if (dialog.classList.contains('action-menu-dialog')) closeDialog();
+      break;
+    }
     case 'copy-notice-link':
       await copy(shareLink('notice', itemId), '공지 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
@@ -908,14 +917,14 @@ async function doAction(action, itemId, tab) {
     case 'cancel-event': {
       const event = state.detail?.event;
       if (!event || event.id !== itemId) return showSaved('일정이 바뀌어 새로 불러왔어요.');
-      openDialog('일정 취소', `<p>"${esc(event.title)}" 일정을 취소할까요? 투표가 닫히고 회원 화면에는 "취소됐어요"로 보여요. 받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
+      openDialog('일정 취소', `<p>"${esc(event.title)}" 일정을 취소할까요? 투표가 닫혀요. ${event.published ? '회원은 기존 링크에서 취소 상태를 확인할 수 있어요. ' : ''}받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
         <p>취소 사유는 일정 수정의 공개 안내에 적으면 회원에게 보여요.</p>` + button('일정 취소하기', 'confirm-cancel-event', { id: itemId }));
       break;
     }
     case 'confirm-cancel-event':
       dialogOpener = null;
       await update(`/api/admin/events/${id(itemId)}`, 'PATCH', { cancelled: true }, '일정을 취소했어요.');
-      main.querySelector('[data-action=restore-event]')?.focus({ preventScroll: true });
+      (main.querySelector('[data-action=copy-event-update]') ?? main.querySelector('[data-action=restore-event]'))?.focus({ preventScroll: true });
       break;
     case 'restore-event':
       await update(`/api/admin/events/${id(itemId)}`, 'PATCH', { cancelled: false }, '취소를 풀었어요. 투표는 닫혀 있으니 필요하면 다시 열어 주세요.');
@@ -1111,7 +1120,9 @@ async function doSubmit(kind, itemId, data) {
       }
       state.selectedEvent = result.event.id;
       if (!itemId) state.eventTab = null;
-      await showSaved('일정을 저장했어요.', fromHome ? 'section' : '');
+      const updated = itemId && result.event.published && !result.event.cancelled;
+      await showSaved(updated ? '일정을 저장했어요. 일정 메뉴에서 변경 안내를 복사할 수 있어요.' : '일정을 저장했어요.',
+        fromHome ? 'section' : '');
       writeHash();
       if (fromHome) (main.querySelector('.admin-content h1') ?? main).focus({ preventScroll: true });
       break;

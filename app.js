@@ -9,7 +9,7 @@
   let menuClosing = null;
   const toast = document.querySelector('#toast');
   const state = model.load();
-  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}};
+  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}, calendarOpen:true};
   // The live menu names (ROLES.md 3단계: worker/public/views.mjs organizerSections) where the demo has the same screen;
   // 반복 설정 is the demo's own (the live club has 모임 규칙 instead).
   const pages = [
@@ -321,7 +321,7 @@
       regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), today, icon});
   }
-  // 달력으로 보기 / 달력 접기 (the live calendarToggle): the month grid is folded until asked for.
+  // 달력으로 보기 / 달력 접기 (the live calendarToggle): the month grid starts open and can be folded.
   function calendarOpen() { return Boolean(ui.calendarOpen); }
   // 당일 출석 (screens.js attendance): 미확인만 보기, and the member just checked, whose check is drawn once.
   function onlyUnmarked() { return Boolean(ui.onlyUnmarked); }
@@ -606,6 +606,13 @@
         .then(result => notifyCopy(result, '가상 모임 마감 안내를 복사했어요.'));
       return;
     }
+    if (action === 'copy-event-update' && event) {
+      const status = event.cancelled ? '취소' : '변경';
+      const {href} = window.clubShare.linkFor('vote', event);
+      copy(`「${event.title}」 일정이 ${status}됐어요. 자세한 내용은 아래 링크에서 확인해 주세요.\n${href}`)
+        .then(result => notifyCopy(result, `${status} 안내와 가상 체험 링크를 복사했어요.`));
+      return;
+    }
     if (action === 'copy-share') {
       const href = modal.querySelector('#share-link').value;
       const message = control.hasAttribute('data-published-link')
@@ -649,7 +656,7 @@
       if (modal.open) { dialogTrigger = null; modal.close(); }
       persist(cancelling ? '일정을 취소했어요.' : '취소를 풀었어요. 투표는 닫혀 있으니 필요하면 다시 열어 주세요.');
       renderPage();
-      app.querySelector(`[data-action="${cancelling ? 'restore-event' : 'cancel-event'}"]`)?.focus({preventScroll:true});
+      app.querySelector(`[data-action="${cancelling ? 'copy-event-update' : 'cancel-event'}"]`)?.focus({preventScroll:true});
       return;
     }
     if (action === 'open-event-notice') return openEventNotice(event,trigger);
@@ -786,7 +793,7 @@
       if (open || event.pollOpen) event.voteClosed = !open;
       event.pollOpen = open;
       target = 'event/'+event.id+'/poll';
-      message = '모임 일정을 저장했어요.';
+      message = id && !event.cancelled ? '일정을 저장했어요. 일정 메뉴에서 변경 안내를 복사할 수 있어요.' : '모임 일정을 저장했어요.';
     } else if (type === 'notice') {
       const notice = state.notices.find(item => item.id === id) || {id:idFor('notice'),date:today};
       if (!id) state.notices.unshift(notice);
