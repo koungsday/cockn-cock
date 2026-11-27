@@ -142,6 +142,8 @@ const calendarSource = await readFile(join(root, 'worker/public/calendar.mjs'), 
 const calendarNames = [...calendarSource.matchAll(/^export function (\w+)/gm)].map(match => match[1]);
 if (!calendarNames.includes('calendarBlock') || !calendarNames.includes('calendarDayPanel')) throw new Error('The calendar is missing.');
 await writeFile(join(dist, 'calendar.js'), `(() => {\n${calendarSource.replace(/^export function /gm, 'function ')}\nwindow.clubCalendar = { ${calendarNames.join(', ')} };\n})();\n`);
+const memberLabel = await readFile(join(root, 'worker/public/member-label.mjs'), 'utf8');
+await writeFile(join(dist, 'member-label.js'), `(() => {\n${memberLabel.replace(/^export function /gm, 'function ')}\nwindow.clubMemberLabel = { genderChoices, memberNameTag };\n})();\n`);
 await copyFile(join(root, 'platform/recent-club.js'), join(dist, 'recent-club.js'));
 // One club address for both views, as the live club (ROLES.md 3단계): the member view at #member, the organisers' at #home.
 await writeFile(join(dist, 'index.html'), renderCatalog({ basePath: site.pathname, mode: 'demo', demo: {

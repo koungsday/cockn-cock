@@ -49,7 +49,7 @@ assert.equal(redirect, basePath + clubPath + oldHash);
 redirect = undefined;
 runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
 assert.equal(redirect, undefined);
-const required = ['styles.css', 'share.css', 'flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'form-pickers.js', 'app.js'];
+const required = ['styles.css', 'share.css', 'flow.js', 'calendar.js', 'member-label.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'form-pickers.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
   assert(home.includes(`="${basePath}${file}"`), `${file} is referenced by the demo`);
@@ -72,7 +72,7 @@ for (const file of ['styles.css', 'platform.css']) {
 
 const window = { localStorage: { getItem: () => null } };
 assert(home.indexOf(`src="${basePath}flow.js"`) < home.indexOf(`src="${basePath}app.js"`), 'the flow rules load before the demo');
-for (const file of ['flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js']) {
+for (const file of ['flow.js', 'calendar.js', 'member-label.js', 'state.js', 'screens.js', 'share.js']) {
   runInNewContext(runtime.get(file), { URL, window }, { filename: file });
 }
 assert.equal(typeof window.clubFlow.flowOrder, 'function', 'flow.js gives the demo the live flow rules');
@@ -108,6 +108,8 @@ assert.match(joinedVote.html, /data-route="member-events">[^<]*<svg[\s\S]*?<\/sv
 for (const label of ['홈', '일정', '공지', '내 기록']) assert.match(joinedVote.html, new RegExp(`<span>${label}<\/span>`), `the member menu has ${label}`);
 assert.doesNotMatch(joinedVote.html, /<span>회원 관리<\/span>/);
 assert.match(openDemo(() => '#home').html, /<h1 class="sr-only">운영 홈<\/h1>/);
+assert.match(openDemo(() => '#members').html, /class="member-label" data-gender="female"[^]*?여성/);
+assert.match(openDemo(() => '#stats').html, /data-filter="stats-gender"[^]*?전체 성별[^]*?미기재/);
 for (const label of ['홈', '일정', '공지', '회원 관리', '반기 집계']) {
   assert.match(openDemo(() => '#home').html, new RegExp(`<span>${label}<\/span>`), `the organiser menu has ${label} as the live club names it`);
 }

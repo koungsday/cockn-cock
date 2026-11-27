@@ -320,12 +320,12 @@ test('two clubs in the one database never read or change each other\'s records',
   const ownA = listA.organizers.map(row => row.id);
   const notOrganizer = row => !ownA.includes(row.id);
   assert.equal(ownA.length, 1);
-  assert.deepEqual(listA.members.filter(notOrganizer), [a.member]);
+  assert.deepEqual(listA.members.filter(notOrganizer), [{ ...a.member, gender: '' }]);
   assert.deepEqual(listA.notices, [a.notice]);
   const detailA = await (await a.admin(eventA)).json();
   assert.deepEqual(detailA.event, a.event);
   assert.deepEqual(detailA.roster.filter(notOrganizer), [{
-    id: a.member.id, name: a.member.name, active: true, slot: null, lunch: false, present: null, recognition: null
+    id: a.member.id, name: a.member.name, active: true, gender: '', slot: null, lunch: false, present: null, recognition: null
   }]);
   assert.deepEqual(detailA.guests, []);
   assert.equal(detailA.settlement, null);

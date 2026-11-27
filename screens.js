@@ -6,6 +6,7 @@
   function makeView(helpers) {
     const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats, deadlinePassed, settlement, qualification,
       flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle, selectedCalendarDate } = helpers;
+    const { genderChoices, memberNameTag } = window.clubMemberLabel;
 
     function action(text, name, id, options = {}) {
       const { tone = 'secondary', symbol, extra = '' } = options;
@@ -112,7 +113,7 @@
       function poll() {
         const report = counts(event);
         const responded = report.yes + report.no + report.waiting;
-        const row = (member, detail) => `<li><span><strong>${e(member.name)}</strong>${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
+        const row = (member, detail) => `<li><span>${memberNameTag(member, e)}${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
           : action('응답 변경', 'open-vote', event.id, {tone: 'text btn-small', extra: `data-kind="${e(member.id)}" aria-label="${e(member.name)} 응답 변경"`})}</li>`;
         const silent = members.filter(member => !event.votes[member.id]);
         const closed = !event.cancelled && !pollAvailable && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
@@ -145,7 +146,7 @@
           const recognition = recognitionLabels[event.recognized[member.id]];
           const facts = [slotLabel(event.votes[member.id]), event.lunch[member.id] ? '점심' : '', status === 'absent' ? '결석' : '', recognition ? `${recognition} 인정` : ''].filter(Boolean).join(' · ');
           return `<li data-selected="${present}"><button class="att-row" type="button" data-action="mark-attendance" data-id="${e(event.id)}" data-member="${e(member.id)}" data-value="${present ? '' : 'present'}" aria-pressed="${present}" aria-label="${e(member.name)} 출석"${helpers.justChecked() === member.id && present ? ' data-just' : ''}${actionAllowed ? '' : ' disabled'}>
-              <span><strong>${e(member.name)}</strong><small>${e(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
+              <span>${memberNameTag(member, e)}<small>${e(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
             <button class="icon-button" type="button" data-action="open-attendance" data-id="${e(event.id)}" data-kind="${e(member.id)}" aria-label="${e(member.name)} 출석 상세" title="${e(member.name)} 출석 상세"${actionAllowed ? '' : ' disabled'}>${icon('more', 20)}</button></li>`;
         };
         const list = people => `<ul class="att-list">${people.map(row).join('')}</ul>`;
@@ -284,7 +285,7 @@
       // (활동 중지, 운영진) is said under the name. 가입일 stays in 회원 수정.
       const rows = filtered.map(member => {
         const marks = [member.status === 'active' ? '' : '활동 중지', member.role === '운영진' ? '운영진' : ''].filter(Boolean).join(' · ');
-        return `<li><button class="event-link" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정"><span><strong>${e(member.name)}</strong>${marks ? `<small>${marks}</small>` : ''}</span>${icon('chevron-right', 18)}</button></li>`;
+        return `<li><button class="event-link" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정"><span>${memberNameTag(member, e)}${marks ? `<small>${marks}</small>` : ''}</span>${icon('chevron-right', 18)}</button></li>`;
       });
       return heading('회원 관리', `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, addButton('회원 추가', 'open-member'))
         + `<div class="list-search">${controls}</div>`
@@ -292,23 +293,29 @@
     }
 
     function statistics(state, ui) {
-      const report = stats(state, ui.statsMonth);
+      const matches = member => ui.statsGender === 'all' || (member.gender ?? '') === ui.statsGender;
+      const selected = ui.statsGender === 'all' ? null : state.members.filter(matches);
+      const report = stats(state, ui.statsMonth, selected);
       const months = [...new Set([today.slice(0, 7), ...state.events.filter(event => event.finalized).map(event => event.date.slice(0, 7))])].sort().reverse();
       const selector = `<select data-filter="stats-month" aria-label="반기 집계 기간">${option('', '전체 기간', ui.statsMonth)}${months.map(month => {
         const [year, monthNumber] = month.split('-');
         return option(month, `${year}년 ${Number(monthNumber)}월`, ui.statsMonth);
       }).join('')}</select>`;
+      const genderFilter = `<select data-filter="stats-gender" aria-label="성별 필터">
+        ${[['all', '전체 성별'], ...genderChoices()].map(([value, label]) => option(value, label, ui.statsGender)).join('')}
+      </select>`;
       const bars = report.byEvent.map(({event, present, total, rate}) => `<div class="bar-item">
         <div class="bar-label"><span>${e(dateLabel(event.date))} · ${e(event.title)}</span><strong>${present}명 / ${total}명</strong></div>
         <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width: ${rate}%"></div></div>
       </div>`);
       const rows = report.byMember.map(({member, present, total, rate}) => `<tr>
-        <td><strong>${e(member.name)}</strong></td><td>${present}회</td><td>${total}회</td><td>${rate}%</td>
+        <td>${memberNameTag(member, e)}</td><td>${present}회</td><td>${total}회</td><td>${rate}%</td>
       </tr>`);
       const credits = qualification(state);
-      const creditRows = credits.byMember.map(({member, first, second, met}) => `<tr><td><strong>${e(member.name)}</strong></td>
+      const creditRows = credits.byMember.filter(({member}) => matches(member)).map(({member, first, second, met}) => `<tr><td>${memberNameTag(member, e)}</td>
         <td>${first} / 3회</td><td>${second} / 3회</td><td>${pill(met ? '기준 충족' : '진행 중', met ? 'green' : 'neutral')}</td></tr>`);
-      return heading('반기 집계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
+      return heading('반기 집계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.')
+        + `<div class="progress-filters">${selector}${genderFilter}</div>`
         + summary([['일정 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
         + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
           subtitle: '확정한 일정에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
@@ -408,7 +415,7 @@
         + field('역할', `<select name="role">${['회원', '운영진'].map(role => option(role, role, member.role)).join('')}</select>`)
         + field('활동 상태', `<select name="status">${option('active', '활동 중', member.status)}${option('inactive', '활동 중지', member.status)}</select>`)
         + field('가입일', input('joined', member.joined || today, 'type="date" required'), true)
-        + field('성별', `<select name="gender">${[['', '미기재'], ['male', '남성'], ['female', '여성'], ['other', '기타']]
+        + field('성별', `<select name="gender">${genderChoices()
           .map(([value, label]) => option(value, label, member.gender ?? '')).join('')}</select>`)
         + field('메모 (운영진만 볼 수 있어요)', `<textarea name="notes" rows="3" maxlength="500">${e(member.notes || '')}</textarea>`, true))
         + (found ? memberAccess(found) : '');

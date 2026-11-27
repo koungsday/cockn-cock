@@ -31,6 +31,7 @@ const entries = [
   ['skeleton.mjs', await readFile(new URL('skeleton.mjs', site), 'utf8')],
   ['flow.mjs', await readFile(new URL('flow.mjs', site), 'utf8')],
   ['calendar.mjs', await readFile(new URL('calendar.mjs', site), 'utf8')],
+  ['member-label.mjs', await readFile(new URL('member-label.mjs', site), 'utf8')],
   ['shuttlecock.mjs', await readFile(new URL('../platform/shuttlecock.mjs', import.meta.url), 'utf8')],
 ];
 const hash = createHash('sha256');

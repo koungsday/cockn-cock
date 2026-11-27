@@ -465,7 +465,7 @@ async function memberVote(db, club, method, id, user, body = {}) {
 
 async function listAdmin(db, club) {
   const [members, events, notices] = await db.batch([
-    sql(db, 'SELECT id, name, active FROM members WHERE club_id = ? ORDER BY active DESC, name, id', club),
+    sql(db, 'SELECT id, name, active, gender FROM members WHERE club_id = ? ORDER BY active DESC, name, id', club),
     // settled and waiting are for the organisers' screens only (the session picker, the 운영 홈 일정 흐름 of FLOW.md):
     // waiting counts active members on the roster without an answer, as the 운영 홈 counts 미응답. serializeEvent
     // stays shared with the member screens.
@@ -479,7 +479,7 @@ async function listAdmin(db, club) {
       ORDER BY pinned_at IS NULL, pinned_at, date DESC, rowid DESC`, club)
   ]);
   return {
-    members: members.results.map(serializeMember),
+    members: members.results.map(row => ({ ...serializeMember(row), gender: row.gender })),
     events: events.results.map(row => ({ ...serializeEvent(row), settled: Boolean(row.settled), waiting: row.waiting })),
     notices: notices.results.map(serializeNotice),
     rules: await readRules(db, club)
@@ -647,13 +647,13 @@ async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement, previous] = await db.batch([
     sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, vote_closed_at FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
-      SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition,
+      SELECT m.id, m.name, m.active, m.gender, v.slot, v.lunch, a.present, a.recognition,
         ${waitingPosition('v', 'e')} AS waiting_position
       FROM roster r JOIN members m ON r.member_id = m.id JOIN events e ON e.id = r.event_id
       LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
       LEFT JOIN attendance a ON a.event_id = r.event_id AND a.member_id = r.member_id
-      WHERE r.event_id = ? ORDER BY m.name, m.id
-    `, id),
+      WHERE r.event_id = ? AND e.club_id = ? AND m.club_id = e.club_id ORDER BY m.name, m.id
+    `, id, club),
     sql(db, 'SELECT * FROM guests WHERE event_id = ? ORDER BY rowid', id),
     sql(db, 'SELECT * FROM settlements WHERE event_id = ?', id),
     sql(db, `
@@ -671,7 +671,7 @@ async function eventDetails(db, club, id) {
     event: serializeEvent(event.results[0]),
     carryStock: carry ? { shuttles: closingShuttles(carry), date: carry.date, time: carry.time } : null,
     roster: roster.results.map(row => ({
-      id: row.id, name: row.name, active: Boolean(row.active), slot: row.slot, lunch: Boolean(row.lunch),
+      id: row.id, name: row.name, active: Boolean(row.active), gender: row.gender, slot: row.slot, lunch: Boolean(row.lunch),
       present: row.present === null ? null : Boolean(row.present), recognition: row.recognition,
       ...(row.waiting_position != null && { waitingPosition: row.waiting_position })
     })),
@@ -857,7 +857,7 @@ async function progress(db, club, year, half) {
   const { start, end } = halfRange(year, half);
   const [members, marks] = await db.batch([
     sql(db, `
-      SELECT m.id, m.name, (r.member_id IS NOT NULL) AS rewarded
+      SELECT m.id, m.name, m.gender, (r.member_id IS NOT NULL) AS rewarded
       FROM members m LEFT JOIN rewards r ON r.member_id = m.id AND r.year = ? AND r.half = ?
       WHERE m.club_id = ? AND (m.active = 1 OR r.member_id IS NOT NULL
         OR EXISTS (SELECT 1 ${recognisedMarks(rules)} AND a.member_id = m.id))
@@ -876,7 +876,7 @@ async function progress(db, club, year, half) {
     members: members.results.map(row => {
       const periods = counts.get(row.id) ?? Array(rules.periods).fill(0);
       return {
-        id: row.id, name: row.name, periods, rewarded: Boolean(row.rewarded),
+        id: row.id, name: row.name, gender: row.gender, periods, rewarded: Boolean(row.rewarded),
         eligible: rules.reward === 'goal' && periods.every(count => count >= rules.goal)
       };
     })

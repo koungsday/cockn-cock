@@ -497,11 +497,22 @@ test('only an organiser can read or edit a member profile', async t => {
   };
   assert.deepEqual(await fields(), ['female', memo]);
   const listing = await admin.request('/api/admin');
-  assert.deepEqual(listing.members.find(row => row.id === member.id), member, 'the shared admin listing has no profile fields');
+  assert.deepEqual(listing.members.find(row => row.id === member.id), { ...member, gender: 'female' }, 'member names have a gender label, without the memo');
+  const { event } = await admin.request('/api/admin/events', { method: 'POST', expect: 201, body: futureEvent() });
+  const roster = (await admin.request('/api/admin/events/' + event.id)).roster.find(row => row.id === member.id);
+  assert.equal(roster.gender, 'female');
+  assert(!('memo' in roster));
+  const progressPath = '/api/admin/progress?year=' + event.date.slice(0, 4) + '&half=' + (Number(event.date.slice(5, 7)) > 6 ? 2 : 1);
+  const progress = (await admin.request(progressPath)).members.find(row => row.id === member.id);
+  assert.equal(progress.gender, 'female');
+  assert(!('memo' in progress));
 
   const ordinary = client('203.0.113.21');
   assert.equal((await ordinary.login(name, birthday)).user.id, member.id);
   await ordinary.request(profile, { expect: 403 });
+  await ordinary.request(progressPath, { expect: 403 });
+  const publicResponses = await Promise.all(['/api/session', '/api/public', '/api/public/vote/' + event.id].map(path => ordinary.request(path)));
+  assert.doesNotMatch(JSON.stringify(publicResponses), /"gender"|"memo"/);
   await ordinary.request(profile, { method: 'PATCH', expect: 403, body: { memo: '' } });
   await client().request(profile, { expect: 401 });
   assert.deepEqual(await fields(), ['female', memo]);
@@ -627,7 +638,7 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   // The organiser is a member too and has a row of their own; this member's row is the one counted.
   const mine = response => response.members.find(row => row.id === member.id);
   const progress = mine(await admin.request(endpoint));
-  assert.deepEqual(progress, {id:member.id, name:member.name, periods:[1, 1], rewarded:false, eligible:false});
+  assert.deepEqual(progress, {id:member.id, name:member.name, gender:'', periods:[1, 1], rewarded:false, eligible:false});
 
   await admin.request(lastPath + '/guests', {
     method:'POST', expect:201, body:{name:'가상 게스트', level:'A', invitedBy:member.name, status:'arrived', paid:true}
