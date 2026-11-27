@@ -339,11 +339,11 @@
     function memberAccess(member) {
       const active = member.status === 'active';
       return `<section class="dialog-body member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">비밀번호 재설정</h3>
-        <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급받습니다.</p>
+        <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급합니다. 되돌릴 수 없습니다.</p>
         <ol class="member-access-steps">
           <li>기존 비밀번호는 즉시 삭제되고, 모든 기기에서 로그아웃됩니다.</li>
-          <li>화면에 뜨는 임시 번호 6자리를 꼭 기억해 주세요. (창을 닫으면 다시 안 보입니다.)</li>
-          <li>이름과 임시 번호로 로그인 후, 새 비밀번호로 변경해 주세요.</li>
+          <li>발급 후 뜨는 접속 안내(임시 번호 6자리 포함)를 '접속 안내 복사'로 복사해 회원에게 보내 주세요. (창을 닫으면 다시 볼 수 없습니다.)</li>
+          <li>회원은 이름과 임시 번호로 로그인한 뒤, 내 기록의 'PIN 만들기'에서 새 번호로 바꿀 수 있습니다. 운영 권한이 있는 회원은 홈의 '내 번호 정하기'로 새 번호를 정해야 운영 메뉴가 열립니다.</li>
         </ol>
         <p class="form-note">※ 기존 투표 및 출석 기록은 그대로 유지됩니다.</p>
         <button class="btn btn-secondary" type="button" data-action="reset-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 비밀번호 재설정"${active ? '' : ' disabled'}>비밀번호 재설정</button>
