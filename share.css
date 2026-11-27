@@ -606,7 +606,6 @@
 
 .share-button:focus-visible,
 .share-close:focus-visible,
-.share-link-field input:focus-visible,
 .public-field select:focus-visible,
 .public-choice input:focus-visible + span {
   outline: 2px solid #386e4e;

@@ -69,3 +69,16 @@
 h1, h2, .site-brand, .brand strong, .current-club strong, .public-brand strong {
   font-family: var(--font-display);
 }
+
+/* Keep the keyboard and editing indicator on the field edge without changing its size. */
+:is(input:not([type=checkbox], [type=radio], [type=range], [type=file], [type=button], [type=submit], [type=reset]):not([data-login-code]), textarea):focus {
+  border-color: var(--focus);
+  box-shadow: inset 0 0 0 1px var(--focus);
+  outline: none;
+}
+@media (forced-colors: active) {
+  :is(input:not([type=checkbox], [type=radio], [type=range], [type=file], [type=button], [type=submit], [type=reset]):not([data-login-code]), textarea):focus {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
