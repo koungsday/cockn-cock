@@ -1,8 +1,7 @@
 :root {
-  scrollbar-gutter: stable;
   font-family: var(--font-text);
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface);
   font-size: 16px;
   font-synthesis: none;
   --green: var(--action);
@@ -14,7 +13,18 @@
 .main-shell :is(h1, h2, h3), .dialog :is(h1, h2, h3) { font-family: var(--font-text); font-weight: 600; letter-spacing: -.01em; }
 strong, b, th { font-weight: 600; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; background: var(--paper); }
+:is(:root, .dialog, .picker-popup, .picker-clock-options) {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--neutral-muted) var(--surface);
+}
+:is(.sidebar, .mobile-nav-links) { scrollbar-color: auto; }
+@supports not (scrollbar-color: auto) {
+  :is(:root, .dialog, .picker-popup, .picker-clock-options)::-webkit-scrollbar { width: 8px; height: 8px; }
+  :is(:root, .dialog, .picker-popup, .picker-clock-options)::-webkit-scrollbar-track { background: var(--surface); }
+  :is(:root, .dialog, .picker-popup, .picker-clock-options)::-webkit-scrollbar-thumb { background: var(--neutral-muted); border-radius: 8px; }
+}
 button, input, select, textarea { font: inherit; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; color: inherit; }
@@ -236,7 +246,7 @@ p { line-height: 1.58; }
 /* 일정 달력 (DESIGN.md 5): the white band reaches both page edges without widening the grid. */
 .main-content:has(.calendar-toggle, .sk-calendar) { padding-top: 0; }
 .event-page:has(.calendar-toggle) { row-gap: 0; }
-.event-page > .calendar-other-dates { margin-top: 4px; }
+.sk-calendar + .sk-rows { margin-block-start: 24px; }
 .list-tools:has(.calendar-toggle), .sk-tools:has(+ .sk-calendar) { padding-top: var(--content-top); min-height: calc(var(--touch-target) + var(--content-top)); }
 .calendar-fold { display: flow-root; }
 .calendar, .sk-calendar, .list-tools:has(.calendar-toggle), .sk-tools:has(+ .sk-calendar) {
@@ -261,12 +271,14 @@ p { line-height: 1.58; }
 .calendar-number { position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--mark-radius); font-size: var(--t4); font-variant-numeric: tabular-nums; }
 .calendar-day.is-other { color: var(--neutral-muted); }
 .calendar-day.is-today .calendar-number { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
-.calendar-day.has-events .calendar-number { background: var(--neutral-muted); color: var(--surface); font-weight: 600; }
+.calendar-day.has-events .calendar-number { background: var(--neutral-soft); font-weight: 600; }
 .calendar-day.has-events .calendar-number::after {
   content: ''; position: absolute; inset: 1px 1px auto auto; width: 7px; height: 7px;
   border-radius: 50%; background: var(--accent-red); box-shadow: 0 0 0 1px var(--surface);
 }
-.calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
+.calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number {
+  background: color-mix(in srgb, var(--neutral-soft) 72%, var(--surface)); color: var(--neutral-muted);
+}
 .calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number::after { opacity: .72; }
 .calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number {
   background: color-mix(in srgb, var(--neutral-soft) 58%, var(--surface)); color: var(--neutral-muted); font-weight: 400;
@@ -276,19 +288,30 @@ p { line-height: 1.58; }
 }
 .calendar .calendar-date[aria-pressed="true"] .calendar-number { background: var(--calendar-selected); color: var(--neutral-ink); font-weight: 600; }
 @media (hover: hover) {
-  .calendar-date[aria-pressed="false"]:hover .calendar-number { background: var(--neutral-soft); color: var(--neutral-ink); }
+  .calendar-number { transition: background-color var(--dur-quick), color var(--dur-quick); }
+  .calendar-day.has-events .calendar-number::after { transition: background-color var(--dur-quick), opacity var(--dur-quick); }
+  .calendar .calendar-date[aria-pressed="false"]:hover .calendar-number { background: var(--neutral-soft); color: var(--neutral-ink); }
+  .calendar .has-events:not(.is-done) .calendar-date[aria-pressed="false"]:hover .calendar-number {
+    background: color-mix(in srgb, var(--neutral-soft) 78%, var(--neutral-ink)); color: var(--neutral-ink);
+  }
+  .calendar .has-events:not(.is-done) .calendar-date[aria-pressed="false"]:hover .calendar-number::after {
+    background: color-mix(in srgb, var(--accent-red) 76%, var(--neutral-ink)); opacity: 1;
+  }
+  .calendar .is-done .calendar-date[aria-pressed="false"]:hover .calendar-number::after {
+    background: color-mix(in srgb, var(--accent-red) 82%, var(--surface));
+  }
 }
 @media (prefers-contrast: more), (forced-colors: active) {
   .calendar-date[aria-pressed="true"] .calendar-number { outline: 2px solid currentColor; outline-offset: -2px; }
 }
-.calendar-selection { margin-block: 4px 12px; color: var(--neutral-ink); }
+.calendar-selection { margin-block: 24px 0; color: var(--neutral-ink); }
 .calendar-selection-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch-target); }
 .calendar-selection h3 { font-size: var(--t3); }
 .calendar-selection p { color: var(--neutral-muted); font-size: var(--t4); }
 .calendar-selection .btn { min-height: var(--touch-target); color: var(--neutral-ink); }
 .calendar-selection .btn:hover { background: var(--neutral-soft); }
 .calendar-selection > ul { margin-top: 6px; }
-.calendar-other-dates { display: grid; gap: 4px; }
+.calendar-other-dates { display: grid; gap: 4px; margin-block-start: 24px; }
 .calendar-fold:has(.calendar-selection) + .calendar-other-dates :is(.event-link, .member-record-link):not(:hover, :focus-visible) { color: var(--neutral-muted); }
 .calendar-fold:has(.calendar-selection) + .calendar-other-dates :is(.event-link, .member-record-link):not(:hover, :focus-visible) :is(strong, small, .member-record-meta, .member-record-action) { color: inherit; }
 /* A cancelled event says so on the 회차 화면 with the way back; 일정 취소 itself is in the 회차 메뉴. */
@@ -425,7 +448,7 @@ input[type=checkbox]:checked::after, [aria-pressed="true"] > .att-check::after {
 .att-check::after { width: 15px; height: 15px; }
 input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 textarea { min-height: 100px; resize: vertical; }
-.dialog { width: min(536px,calc(100% - 26px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 85px var(--dialog-shadow); padding: 0; }
+.dialog { width: min(536px,calc(100% - 26px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 85px var(--dialog-shadow); padding: 0; background: var(--surface); }
 .dialog::backdrop { background: var(--dialog-scrim); }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 9px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line); }
 .dialog-head h2 { font-size: var(--t2); }
@@ -672,11 +695,8 @@ html.menu-locked body {
 @keyframes att-draw { from { clip-path: inset(0 100% 0 0); } }
 @keyframes section-arrive { from { opacity: .5; translate: var(--view-entry, 0 12px); } }
 @keyframes tab-mark-slide { from { translate: calc(var(--tab-from) * (100% + 4px)) 0; } }
-/* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. The body keeps --paper:
-   it has no background of its own, so without this the --ink root showed through every gap between cards and the page
-   behind the dim turned green (사용자 지적, 2026-11-26). */
+/* The reserved scrollbar strip follows the dark drawer while the root is locked. */
 html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); }
-html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--paper); }
 
 /* Shared form pickers keep the original control in the form for submission. */
 :is(input, select).picker-native[aria-hidden="true"] { position: absolute; inline-size: 1px; block-size: 1px; max-inline-size: 1px; min-block-size: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; clip-path: inset(50%); }
@@ -764,10 +784,9 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 }
 .picker-clock { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 8px; }
 .picker-clock-group { min-width: 0; text-align: center; }
-.picker-popup, .picker-clock-options { scrollbar-width: thin; scrollbar-color: var(--muted) var(--hint); }
 .picker-clock-options {
   position: relative; max-height: 132px; overflow-y: auto; overscroll-behavior: contain;
-  scrollbar-gutter: stable; margin-top: 4px; background: var(--hint); border-radius: 8px;
+  margin-top: 4px; padding-inline-end: 8px; background: var(--surface); border-radius: 8px;
 }
 .picker-clock-options button:focus-visible { outline-offset: -4px; }
 .picker-clock-options button[aria-pressed=true]:focus-visible { outline-color: var(--surface); }
@@ -798,7 +817,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .dialog [data-form="event"] .picker-trigger::after { grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 8px; margin-inline-end: 2px; border-color: var(--neutral-muted); }
 .dialog [data-form="event"] .picker-caption { grid-column: 1; color: var(--neutral-muted); font-size: var(--t4); line-height: 1.25; }
 .dialog [data-form="event"] .picker-value { grid-column: 1; font-size: var(--t2); line-height: 1.25; overflow-wrap: anywhere; }
-.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button, .picker-clock-options) { background: var(--neutral-soft); }
+.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { background: var(--neutral-soft); }
 .dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { min-height: var(--touch-target); }
 .dialog [data-form="event"] .picker-popup .picker-clock-options button { font-size: var(--t2); }
 .dialog [data-form="event"] .picker-popup [aria-pressed="true"] { background: var(--neutral-ink); color: var(--surface); }
