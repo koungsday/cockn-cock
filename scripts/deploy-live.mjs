@@ -116,14 +116,19 @@ step('Worker 배포', 'npx', ['wrangler', 'deploy', '--config', config]);
 deployed = true;
 
 // Confirm the public address serves this build's UI hash, then run the existing live checks.
+// The new version takes a while to reach every edge (#66 on 2026-11-27: longer than the 12 s this used to wait),
+// so check every 5 s for up to 60 s, as verify-live.mjs does.
 const release = readdirSync('worker/site/club-ui')[0];
+const settleStart = Date.now();
 let served = '';
-for (let attempt = 1; attempt <= 5 && served !== release; attempt++) {
-  if (attempt > 1) await new Promise(resolve => setTimeout(resolve, 3000));
+for (let waits = 0; ; waits++) {
   const html = await fetch(new URL(`/clubs/${CLUBS[0].slug}/admin/`, origin), { cache: 'no-store' }).then(response => response.text()).catch(() => '');
   served = html.match(/\/club-ui\/([a-f0-9]{20})\//)?.[1] ?? '';
+  if (served === release || Date.now() - settleStart >= 60000) break;
+  console.log(`운영 주소가 아직 새 화면이 아닙니다(지금 ${served || '응답 없음'}). 5초 뒤 다시 확인합니다 (${waits + 1}번째).`);
+  await new Promise(resolve => setTimeout(resolve, 5000));
 }
-if (served !== release) stop(`운영 주소가 새 화면(${release})이 아닌 ${served || '응답 없음'}을 보여 줍니다.`, '몇 분 뒤 npm run live:verify -- ' + origin + ' 로 다시 확인하세요.');
+if (served !== release) stop(`${Math.round((Date.now() - settleStart) / 1000)}초 동안 운영 주소가 새 화면(${release})이 아닌 ${served || '응답 없음'}을 보여 줍니다.`, '몇 분 뒤 npm run live:verify -- ' + origin + ' 로 다시 확인하세요.');
 step('운영 주소 검증', 'node', ['scripts/verify-live.mjs', origin, release]);
 
 step('배포 기록(live 태그) 갱신', 'git', ['push', '--force', 'origin', `${head}:refs/tags/live`]);
