@@ -233,6 +233,22 @@ p { line-height: 1.58; }
 .att-foot .btn[aria-pressed="true"] { background: var(--accent-soft); }
 @media (hover: hover) { .att-row:not(:disabled):hover strong:not(.member-label) { color: var(--court); } }
 .att-actions { margin-top: 12px; }
+/* 마무리 and 게스트 (단순화 7): the numbers as one line and the form on the page, as 참석 투표; guests are rows like the
+   회원 명단. A state is a word: plain, --court 600 when it asks for something, --muted when it is the usual. */
+.settle-box { display: grid; gap: 4px; margin-top: 18px; }
+.settle-box > p { margin: 0; }
+.settle-box > .muted { font-size: var(--t4); }
+.settle-box > .form-note { margin-top: 6px; }
+.settle-box .settlement-form { margin-top: 14px; }
+.guest-list { margin-top: 22px; }
+.guest-list > .form-note { margin: 8px 0 0; }
+.event-link:disabled { cursor: default; }
+.event-link:disabled strong { color: var(--ink); }
+.state-word { white-space: nowrap; }
+.state-due { color: var(--court); font-weight: 600; }
+.state-quiet { color: var(--muted); }
+.progress-period { margin-top: 14px; }
+.progress-period .form-actions { margin-top: 10px; }
 @media (max-width: 700px) { .att-foot { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 @media (min-width: 701px) {
   .now-card { padding: 24px; }
@@ -559,7 +575,8 @@ textarea { min-height: 100px; resize: vertical; }
   .brand, .platform-link { min-height: var(--touch-target); }
   .public-example a, .platform-link, .mobile-nav-links .platform-link { display: inline-flex; align-items: center; }
   .icon-button, .icon-btn { width: var(--touch-target); height: var(--touch-target); }
-  input:not([type=checkbox]):not([type=radio]), select { min-height: var(--touch-target); }
+  /* The pickers' button stands where a select was, so it takes the same 44px (measured 31px before, 2026-11-27). */
+  input:not([type=checkbox]):not([type=radio]), select, .picker-trigger { min-height: var(--touch-target); }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
 
@@ -709,7 +726,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
 }
 .picker-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%;
-  padding: 6px 10px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); text-align: left;
+  min-height: 40px; padding: 6px 10px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); text-align: left;
 }
 .picker-trigger::after { content: ''; flex: none; width: 6px; height: 6px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; rotate: 45deg; }
 .picker-trigger:focus-visible {

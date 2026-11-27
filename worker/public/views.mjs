@@ -147,8 +147,10 @@ function boxActions(...actions) {
   return `<div class="box-actions">${actions.filter(Boolean).join('')}</div>`;
 }
 
-function pill(text, tone = 'muted') {
-  return `<span class="pill pill-${tone}">${text}</span>`;
+// A state said in words (단순화 7, DESIGN.md 5 상태 글자): plain, 'due' for the one to act on (--court, 600), 'quiet' for
+// the usual state (--muted). No coloured chips.
+function word(text, tone = '') {
+  return `<span class="state-word${tone ? ` state-${tone}` : ''}">${esc(text)}</span>`;
 }
 
 function avatar(name) {
@@ -200,9 +202,6 @@ function table(columns, rows, empty, css = '') {
   return `<div class="data-table-wrap"><table class="data-table${css ? ` ${css}` : ''}"><thead><tr>${columns.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 }
 
-function summary(items) {
-  return `<dl class="summary-grid">${items.map(([label, value, tone]) => `<div class="summary-item${tone ? ` summary-${tone}` : ''}"><dt>${esc(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>`;
-}
 
 function search(target) {
   return `<label class="search-field">${icon('search', 18)}<input type="search" data-filter="${target}" aria-label="회원 이름 검색" placeholder="이름 검색" maxlength="80" autocomplete="off"></label>`;
@@ -1052,16 +1051,18 @@ function guestPaymentText(guest) {
     guest.receivedShuttles ? `콕 ${guest.receivedShuttles}개` : ''].filter(Boolean).join(' · ');
 }
 
+// 게스트 (단순화 7): a list on the page like the 회원 명단: the whole row opens 게스트 수정, and the state and cost are
+// words on the line under the name (no chips). Once 마무리 is confirmed the rows are read only.
 function guestsPanel(guests, confirmed) {
-  const rows = guests.map(guest => `<tr><td><strong>${esc(guest.name)}</strong>${guest.level || guest.invitedBy ? `<small>${esc([guest.level, guest.invitedBy].filter(Boolean).join(' · '))}</small>` : ''}</td>
-    <td>${pill(guestStatus[guest.status] ?? '', guest.status === 'arrived' ? 'green' : guest.status === 'cancelled' ? 'muted' : 'warm')}</td>
-    <td>${guest.paid ? pill('비용 확인', 'green') : pill('미확인')}
-      ${guestPaymentText(guest) ? `<small>${guestPaymentText(guest)}</small>` : ''}</td>
-    <td class="table-actions">${button('수정', 'edit-guest', { id: guest.id, css: 'text small', disabled: confirmed, label: `${guest.name} 게스트 수정` })}</td></tr>`);
-  return panel('게스트', table(['게스트', '상태', '비용', '<span class="sr-only">수정</span>'], rows, '등록된 게스트가 없습니다.'), {
-    id: 'guests', subtitle: '도착을 확인한 게스트만 실제 참여 인원에 포함됩니다.',
-    actions: button(`${icon('plus', 16)} 게스트 추가`, 'new-guest', { css: 'secondary small', disabled: confirmed }),
-  });
+  const facts = guest => [guestStatus[guest.status] ?? '', guest.paid ? '비용 확인' : '비용 미확인', guestPaymentText(guest),
+    guest.level, guest.invitedBy && `${guest.invitedBy} 초대`].filter(Boolean).join(' · ');
+  const rows = guests.map(guest => `<li><button type="button" class="event-link" data-action="edit-guest" data-id="${esc(guest.id)}" aria-label="${esc(guest.name)} 게스트 수정"${confirmed ? ' disabled' : ''}>
+    <span><strong>${esc(guest.name)}</strong><small>${esc(facts(guest))}</small></span>${confirmed ? '' : icon('chevron-right', 18)}</button></li>`);
+  const arrived = guests.filter(guest => guest.status === 'arrived').length;
+  return `<section id="guests" class="home-list guest-list" aria-labelledby="guests-title"><header class="list-tools"><h2 id="guests-title">게스트 ${guests.length}명${guests.length ? ` · 도착 ${arrived}명` : ''}</h2>
+      ${button(`${icon('plus', 16)} 게스트 추가`, 'new-guest', { css: 'secondary small', disabled: confirmed })}</header>
+    ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">등록된 게스트가 없어요.</p>'}
+    <p class="form-note">도착을 확인한 게스트만 실제 참여 인원에 들어가요.</p></section>`;
 }
 
 export function guestForm(guest = null) {
@@ -1102,15 +1103,18 @@ export function settlementPanel(value, counts, carry = null, guests = []) {
   const stock = legacy ? '' : `<p class="form-note">${!value && carry ? `${dateLabel(carry.date)} ${esc(carry.time)} 확정 잔량을 불러왔어요. ` : ''}게스트 콕을 공용 재고에 넣었다면 추가 수량에 포함해 주세요.</p>
     <p class="stock-total" aria-live="polite">최종 잔량 <strong data-stock-total>${s.closingShuttles ?? opening}개</strong></p>`;
   const payment = guestPaymentSummary(guests);
-  return panel('모임 마무리', summary([
-    ['실제 참석', `${counts.members + counts.guests}명`, 'green'], ['회원', `${counts.members}명`], ['게스트 도착', `${counts.guests}명`],
-  ]) + (payment ? note(payment) : '') + (counts.unmarked ? note(`출석을 확인하지 않은 회원 ${counts.unmarked}명은 마무리 집계에서 빠집니다.`) : '')
-    + form('settlement', `<div class="form-grid">${numbers}${numberField('코트 찬조금 (원)', 'courtDonation', s.courtDonation ?? 0)}</div>`
+  // 단순화 7: the numbers read as one line, as 참석 투표 does; the form follows on the page with no box around it.
+  return `<section id="settlement" class="settle-box" aria-labelledby="settlement-title">
+    <h2 id="settlement-title" class="sr-only">모임 마무리</h2>
+    <p class="vote-total">실제 참석 ${counts.members + counts.guests}명</p>
+    <p class="muted">회원 ${counts.members}명 · 게스트 도착 ${counts.guests}명${s.confirmed ? ' · 마무리 확정' : ''}</p>
+    ${payment ? note(payment) : ''}${counts.unmarked ? note(`출석을 확인하지 않은 회원 ${counts.unmarked}명은 마무리 집계에서 빠져요.`) : ''}
+    <div class="now-actions">${button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-report', { css: s.confirmed ? '' : 'secondary', disabled: !s.confirmed })}</div>
+    ${s.confirmed ? '' : '<p class="form-note">마무리를 확정하면 단체방에 붙여 넣을 마무리 글을 복사할 수 있어요.</p>'}
+    ${form('settlement', `<div class="form-grid">${numbers}${numberField('코트 찬조금 (원)', 'courtDonation', s.courtDonation ?? 0)}</div>`
       + stock + check('마무리 집계를 확인했어요', 'confirmed', s.confirmed)
-      + (s.confirmed ? note('확인을 해제하고 저장하면 출석과 게스트를 다시 편집할 수 있습니다.') : ''), '마무리 기록 저장', '', 'settlement-form'), {
-    id: 'settlement', subtitle: '콕 잔량을 확인하고 마무리 글을 단체방에 붙여 넣으세요.',
-    actions: button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-report', { css: 'secondary small', disabled: !s.confirmed }),
-  });
+      + (s.confirmed ? note('확인을 해제하고 저장하면 출석과 게스트를 다시 고칠 수 있어요.') : ''), '마무리 기록 저장', '', 'settlement-form')}
+  </section>`;
 }
 
 export function reportText(detail, clubName) {
@@ -1131,7 +1135,7 @@ function organizersPanel(organizers, me) {
   const rows = organizers.map(organizer => {
     const self = organizer.id === me;
     return `<tr><td><div class="member-name">${avatar(organizer.name)}<strong>${esc(organizer.name)}</strong></div></td>
-    <td>${self ? pill('나', 'green') : pill(organizer.mustChange ? '자기 번호 정하기 전' : '사용 중', organizer.mustChange ? 'warm' : 'green')}</td>
+    <td>${self ? word('나') : organizer.mustChange ? word('자기 번호 정하기 전', 'due') : word('사용 중', 'quiet')}</td>
     <td class="table-actions">${self ? ''
       : button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })
         + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
@@ -1246,7 +1250,8 @@ export function rulesScreen(rules) {
 
 export function progressScreen(year, half, members, rules, gender) {
   const months = periodMonths(Number(half), rules.periods);
-  const reward = row => row.rewarded ? pill('수령', 'green') : row.eligible ? pill('수령 대상', 'warm') : pill('미수령', 'muted');
+  // 콕 수령 as words (단순화 7): 수령 대상 is the one to act on, so it alone is in --court.
+  const reward = row => row.rewarded ? word('수령') : row.eligible ? word('수령 대상', 'due') : word('미수령', 'quiet');
   // Every 구간 sits in one cell as a box, green once its goal is met, so a month-by-month club does not push the table
   // past a phone's edge (live.css .period-counts).
   const counts = periods => `<ul class="period-counts">${periods.map((count, index) => `<li${count >= rules.goal ? ' class="period-met"' : ''}><span>${months[index]}</span><strong>${count}<small>/${rules.goal}</small></strong></li>`).join('')}</ul>`;
@@ -1262,7 +1267,7 @@ export function progressScreen(year, half, members, rules, gender) {
   const emptyFilter = rows.length ? '<p class="empty-state" role="status" data-progress-empty hidden>조건에 맞는 회원이 없어요.</p>' : '';
   return `<div class="plain-page">${pageHead('반기 집계', `구간마다 줄서기 인정 ${rules.goal}회가 목표예요.`,
     button(`${icon('sliders', 17)} 모임 규칙`, 'tab', { id: 'rules', css: 'secondary small' }))}
-    ${panel('조회 기간', period)}
+    <div class="progress-period">${period}</div>
     ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table') + emptyFilter, {
     actions: `<div class="progress-filters">${genderFilter}${search('progress')}</div>`,
   })}

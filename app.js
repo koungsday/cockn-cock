@@ -552,7 +552,7 @@
     const {action,id,kind,member,value} = control.dataset;
     const controlLabel = control.getAttribute('aria-label');
     const event = state.events.find(item => item.id === id);
-    const openTypes = ['event','member','notice','repeat','vote','attendance','share','actions'];
+    const openTypes = ['event','member','notice','repeat','vote','attendance','guest','share','actions'];
     // 더보기 (DESIGN.md 6 UX 점검표 15): a dialog opened from the menu takes its place and gives focus back to 더보기 when
     // it closes; a button that saves closes the menu first (the live app does the same in app.mjs).
     const inMenu = Boolean(control.closest('.action-menu'));
@@ -708,11 +708,6 @@
         if (!event.attendance[id]) event.attendance[id] = 'absent';
       }
       persist('미확인 회원만 결석으로 기록했어요.');
-    } else if (action === 'mark-guest' && !event.finalized && (value === 'paid' || (value === 'arrived' && event.date <= today))) {
-      const guest = event.guests.find(item => item.id === member);
-      if (!guest) return;
-      guest[value] = !guest[value];
-      if (!model.save(state)) showToast('브라우저 저장 공간을 사용할 수 없어요.');
     } else if (action === 'finalize' && event.date <= today && !event.finalized && !event.cancelled) {
       if (attendanceCounts(event).pending) return showToast('아직 출석을 기록하지 않은 회원이 있어요.');
       event.finalized = true;
@@ -872,10 +867,18 @@
       const event = state.events.find(item => item.id === id);
       if (!event || event.finalized || (type === 'settlement' && event.date > today)) return showToast('현재는 이 기록을 수정할 수 없어요.');
       if (type === 'guest') {
-        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false,
-          transferWon:value('transferWon') === '' ? null : Number(value('transferWon')),
-          receivedShuttles:value('receivedShuttles') === '' ? null : Number(value('receivedShuttles'))});
-        message = '게스트를 추가했어요.';
+        // 게스트 등록·수정 (screens.js guestDialog): 도착 only from the day of the event, as the live guest record.
+        const amount = key => value(key) === '' ? null : Number(value(key));
+        for (const key of ['transferWon','receivedShuttles']) {
+          const number = amount(key);
+          if (number != null && (!Number.isSafeInteger(number) || number < 0 || number > 10000000)) return fieldError(form,key,'0에서 1천만 사이의 숫자를 입력해 주세요.');
+        }
+        const saved = event.guests.find(item => item.id === value('guest'));
+        const guest = saved ?? {id:idFor('guest')};
+        Object.assign(guest, {name:value('guestName'), arrived:event.date <= today && formData.has('arrived'), paid:formData.has('paid'),
+          transferWon:amount('transferWon'), receivedShuttles:amount('receivedShuttles')});
+        if (!saved) event.guests.push(guest);
+        message = saved ? '게스트를 저장했어요.' : '게스트를 추가했어요.';
       } else {
         const modern = formData.has('openingShuttles');
         const fields = modern ? ['openingShuttles','addedShuttles','usedShuttles','courtDonation']
