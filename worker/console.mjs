@@ -191,7 +191,7 @@ async function addOrganizer(env, legacy, slug, form) {
   const { club, scope } = await scoped(env, legacy, slug);
   const issued = await issueOrganizer(scope, organizerName(form.get('organizer')));
   await audit(env.DB, slug, consoleActor, 'organizer.add', issued.id, () => issued.name);
-  return { title: '운영진을 추가했어요', club, organizer: issued.name, pin: issued.pin };
+  return { title: '운영진 추가', club, organizer: issued.name, pin: issued.pin };
 }
 
 async function resetOrganizer(env, legacy, slug, id) {

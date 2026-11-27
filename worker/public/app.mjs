@@ -510,7 +510,7 @@ function matchingControl(control) {
 }
 
 // The one-time 접속 안내. After a member's 비밀번호 재설정 and an organiser's 번호 재발급 it is titled "비밀번호 재설정"
-// (사용자 요청 2026-11-27); 운영진 추가, a new account rather than a reset, keeps "운영진에게 보낼 접속 안내".
+// (사용자 요청 2026-11-27); 운영진 추가, a new account rather than a reset, is titled "운영진 추가" after its button.
 function credentialDialog(name, temporaryPin, organizer = false, title = '비밀번호 재설정') {
   const text = organizer
     ? `${club.name} 운영진 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n모임 화면 ${new URL(club.home, location.origin).href}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`
@@ -1120,7 +1120,7 @@ async function doSubmit(kind, itemId, data) {
       const result = await request('/api/admin/organizers', 'POST', { name: read(data, 'name') });
       await load();
       render();
-      credentialDialog(result.organizer.name, result.temporaryPin, true, '운영진에게 보낼 접속 안내');
+      credentialDialog(result.organizer.name, result.temporaryPin, true, '운영진 추가');
       break;
     }
     case 'notice': {
