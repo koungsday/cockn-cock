@@ -133,6 +133,9 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
   .stack-table .member-name { min-width: 0; }
   .stack-table .member-name strong { overflow: hidden; text-overflow: ellipsis; }
   .stack-table tbody td.table-actions { grid-column: 1 / -1; text-align: left; white-space: normal; }
+  /* 회원 명단 has one action, the 연필: it stays on the name's line, at the right. */
+  .member-table.stack-table tbody tr { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .member-table.stack-table tbody td.table-actions { grid-column: auto; text-align: right; }
 }
 /* 반기 집계 (views.mjs progressScreen): a box per 구간 in one cell, green once that 구간's goal is met (모임 규칙).
    On a phone the boxes take their own line and 콕 수령 shares the last line with its button. */
@@ -168,13 +171,11 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .progress-form .form-grid { max-width: 26rem; }
 .settlement-form { margin-top: 0; }
 .inline-error { color: #9d2e30; font-weight: 650; overflow-wrap: anywhere; }
-.copy-text { width: 100%; }
 
 /* Dialogs follow styles.css .dialog; these keep scroll and the sign-in menu under the header. */
 .dialog { color: var(--ink); background: var(--surface); overflow: auto; overscroll-behavior: contain; }
 .dialog-head h2 { overflow-wrap: anywhere; }
 .dialog-head h2:focus { outline: none; }
-.dialog-body { display: grid; gap: 14px; }
 .dialog .form-actions { justify-content: flex-end; }
 .menu-actions { display: grid; gap: 8px; }
 .login-menu-dialog[open] { inset: calc(var(--site-header-block) + .5rem) 0 auto; width: min(25rem, calc(100% - 32px)); margin-block: 0; }
