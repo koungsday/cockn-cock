@@ -266,7 +266,7 @@ p { line-height: 1.58; }
   content: ''; position: absolute; inset: 1px 1px auto auto; width: 7px; height: 7px;
   border-radius: 50%; background: var(--accent-red); box-shadow: 0 0 0 1px var(--surface);
 }
-.calendar[data-selected] .has-events .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
+.calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
 .calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number::after { opacity: .72; }
 .calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number {
   background: color-mix(in srgb, var(--neutral-soft) 58%, var(--surface)); color: var(--neutral-muted); font-weight: 400;
