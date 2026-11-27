@@ -108,7 +108,8 @@ assert.match(joinedVote.html, /data-route="member-events">[^<]*<svg[\s\S]*?<\/sv
 for (const label of ['홈', '일정', '공지', '내 기록']) assert.match(joinedVote.html, new RegExp(`<span>${label}<\/span>`), `the member menu has ${label}`);
 assert.doesNotMatch(joinedVote.html, /<span>회원 관리<\/span>/);
 assert.match(openDemo(() => '#home').html, /<h1 class="sr-only">운영 홈<\/h1>/);
-assert.match(openDemo(() => '#members').html, /class="member-label" data-gender="female"[^]*?여성/);
+// 성별은 알약 색으로만 보이고, 성별 글자는 읽기 프로그램에만 있다(사용자 결정 2026-11-27).
+assert.match(openDemo(() => '#members').html, /class="member-label" data-gender="female">[^<]+<span class="sr-only">, 여성<\/span><\/strong>/);
 assert.match(openDemo(() => '#stats').html, /data-filter="stats-gender"[^]*?전체 성별[^]*?미기재/);
 for (const label of ['홈', '일정', '공지', '회원 관리', '반기 집계']) {
   assert.match(openDemo(() => '#home').html, new RegExp(`<span>${label}<\/span>`), `the organiser menu has ${label} as the live club names it`);
