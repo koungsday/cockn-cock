@@ -301,8 +301,10 @@ p { line-height: 1.58; }
 .calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number {
   background: color-mix(in srgb, var(--neutral-soft) 58%, var(--surface)); color: var(--neutral-muted); font-weight: 400;
 }
+/* A day whose events are over: the dot turns grey (--neutral-muted, 6.1:1 on the white band; the pale red was 1.96:1,
+   사용자 결정 2026-11-27), so it still reads as "there was something" without competing with the coming ones. */
 .calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number::after {
-  width: 5px; height: 5px; background: color-mix(in srgb, var(--accent-red) 58%, var(--surface));
+  width: 5px; height: 5px; background: var(--neutral-muted);
 }
 .calendar .calendar-date[aria-pressed="true"] .calendar-number { background: var(--calendar-selected); color: var(--neutral-ink); font-weight: 600; }
 @media (hover: hover) {
@@ -316,7 +318,7 @@ p { line-height: 1.58; }
     background: color-mix(in srgb, var(--accent-red) 76%, var(--neutral-ink)); opacity: 1;
   }
   .calendar .is-done .calendar-date[aria-pressed="false"]:hover .calendar-number::after {
-    background: color-mix(in srgb, var(--accent-red) 82%, var(--surface));
+    background: var(--neutral-ink);
   }
 }
 @media (prefers-contrast: more), (forced-colors: active) {
@@ -380,7 +382,6 @@ p { line-height: 1.58; }
 .member-label[data-gender="male"] { background: var(--member-male-bg); color: var(--member-male-ink); }
 .member-label[data-gender="female"] { background: var(--member-female-bg); color: var(--member-female-ink); }
 .member-label[data-gender="other"] { background: var(--member-other-bg); color: var(--member-other-ink); }
-.member-label-category { margin-inline-start: 6px; font-weight: 400; white-space: nowrap; }
 .panel-actions:has(> .progress-filters) { width: min(100%, 20rem); }
 .progress-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 20rem); }
 .progress-filters > :is(label, .form-picker) { min-width: 0; }
