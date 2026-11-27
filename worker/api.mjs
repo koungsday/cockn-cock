@@ -117,11 +117,18 @@ async function readBody(request, url) {
   }
 }
 
+// "회원 메모를", "정원을": the object particle follows the label's last Hangul syllable (을 after a final consonant).
+function withObject(label) {
+  const last = [...label].reverse().find(char => char >= '가' && char <= '힣');
+  if (!last) return label + '을(를)';
+  return label + ((last.charCodeAt(0) - 0xac00) % 28 ? '을' : '를');
+}
+
 function text(value, label, max, optional = false) {
-  if (typeof value !== 'string') bad(label + '을 확인해 주세요.');
+  if (typeof value !== 'string') bad(withObject(label) + ' 확인해 주세요.');
   const trimmed = value.trim();
   if ((!optional && !trimmed) || trimmed.length > max || /\0/.test(trimmed)) {
-    bad(label + '을 확인해 주세요.');
+    bad(withObject(label) + ' 확인해 주세요.');
   }
   return trimmed;
 }
@@ -136,12 +143,12 @@ function memberGender(value) {
 }
 
 function boolean(value, label) {
-  if (typeof value !== 'boolean') bad(label + '을 확인해 주세요.');
+  if (typeof value !== 'boolean') bad(withObject(label) + ' 확인해 주세요.');
   return value;
 }
 
 function number(value, label, max = 10000000) {
-  if (!Number.isSafeInteger(value) || value < 0 || value > max) bad(label + '을 확인해 주세요.');
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) bad(withObject(label) + ' 확인해 주세요.');
   return value;
 }
 
@@ -160,17 +167,17 @@ function validDate(value) {
 }
 
 function dateOrThrow(value, label) {
-  if (typeof value !== 'string' || !validDate(value)) bad(label + '을 확인해 주세요.');
+  if (typeof value !== 'string' || !validDate(value)) bad(withObject(label) + ' 확인해 주세요.');
   return value;
 }
 
 function timeOrThrow(value, label) {
-  if (typeof value !== 'string' || !timePattern.test(value)) bad(label + '을 확인해 주세요.');
+  if (typeof value !== 'string' || !timePattern.test(value)) bad(withObject(label) + ' 확인해 주세요.');
   return value;
 }
 
 function dateTimeOrThrow(value, label) {
-  if (typeof value !== 'string' || value.length !== 16 || value[10] !== 'T') bad(label + '을 확인해 주세요.');
+  if (typeof value !== 'string' || value.length !== 16 || value[10] !== 'T') bad(withObject(label) + ' 확인해 주세요.');
   dateOrThrow(value.slice(0, 10), label);
   timeOrThrow(value.slice(11), label);
   return value;
@@ -531,13 +538,15 @@ async function updateMember(env, id, body) {
     DELETE FROM sessions WHERE member_id = ?
       AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0)
   `, id, id, club));
+  // Only events still to come release the place: one that already ended today keeps who said they would come.
   if (active === 0) statements.push(sql(db, `
     DELETE FROM votes WHERE member_id = ? AND slot <> 'no' AND event_id IN (
       SELECT e.id FROM events e JOIN members m ON m.club_id=e.club_id
-      WHERE e.club_id=? AND m.id=? AND m.active=0 AND e.capacity IS NOT NULL AND e.date>=?
+      WHERE e.club_id=? AND m.id=? AND m.active=0 AND e.capacity IS NOT NULL
+        AND (e.date>? OR (e.date=? AND e.end_time>?))
         AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id=e.id AND s.confirmed=1)
     )
-  `, id, club, id, kstToday()));
+  `, id, club, id, kstToday(), kstToday(), kstNow().slice(11, 16)));
   if (active === 1) statements.push(rosterOpenEvents(db, club, id));
   statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ? AND club_id = ?', id, club));
   const results = await db.batch(statements);
@@ -611,7 +620,14 @@ async function updateEvent(db, club, id, body) {
   const previous = await fetchEvent(db, club, id);
   const data = validateEvent({ ...previous, ...body });
   if (data.open && previous.cancelled) throw new ApiError(409, '취소한 일정은 투표를 열 수 없어요. 먼저 취소를 풀어 주세요.');
-  ensureVoteStartsBeforeDeadline(data, previous);
+  try {
+    ensureVoteStartsBeforeDeadline(data, previous);
+  } catch (error) {
+    // A past event whose 마무리 is confirmed cannot open its vote at all; say that rather than the deadline.
+    const settled = await sql(db, 'SELECT 1 FROM settlements WHERE event_id = ? AND confirmed = 1', id).first();
+    if (settled) throw new ApiError(409, '마무리를 확정한 일정은 투표를 열 수 없어요.');
+    throw error;
+  }
   const changedCapacity = data.capacity !== (previous.capacity ?? null);
   const today = kstToday();
   const updates = await sql(db, `
@@ -923,7 +939,8 @@ async function setCancelled(db, club, id, body) {
   const cancelled = boolean(body.cancelled, '일정 취소');
   const event = await fetchEvent(db, club, id);
   if (cancelled && !event.cancelled) {
-    const result = await sql(db, `UPDATE events SET cancelled_at = ?, open = 0, pinned_at = NULL
+    const result = await sql(db, `UPDATE events SET cancelled_at = ?, open = 0, pinned_at = NULL,
+      vote_closed_at = CASE WHEN open = 1 THEN unixepoch() ELSE vote_closed_at END
       WHERE id = ? AND club_id = ? AND cancelled_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM settlements WHERE event_id = ? AND confirmed = 1)`, currentSeconds(), id, club, id).run();
     if (!result.meta.changes) throw new ApiError(409, '마무리를 확정한 일정은 취소할 수 없어요.');

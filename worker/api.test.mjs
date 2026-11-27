@@ -519,7 +519,7 @@ test('only an organiser can read or edit a member profile', async t => {
   await admin.request(profile, { method: 'PATCH', body: { name: '가상 수정 회원' } });
   assert.deepEqual(await fields(), ['female', memo], 'a partial patch preserves the optional profile fields');
   await admin.request(profile, { method: 'PATCH', expect: 400, body: { gender: 'invalid' } });
-  await admin.request(profile, { method: 'PATCH', expect: 400, body: { memo: '나'.repeat(501) } });
+  assert.match((await admin.request(profile, { method: 'PATCH', expect: 400, body: { memo: '나'.repeat(501) } })).error, /^회원 메모를 확인해 주세요/);
   assert.deepEqual(await fields(), ['female', memo]);
 
   await admin.request(profile, { method: 'PATCH', body: { gender: '', memo: '' } });
@@ -653,6 +653,7 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   await admin.request(lastPath + '/guests', {
     method:'POST', expect:409, body:{name:'가상 마감 뒤 게스트', status:'pending', paid:false}
   });
+  assert.match((await admin.request(lastPath, {method:'PATCH', body:{open:true}, expect:409})).error, /마무리를 확정한 일정은 투표를/);
   const {date: futureDate, deadline: futureDeadline} = futureEvent();
   await admin.request(lastPath, {method:'PATCH', body:{date:futureDate, deadline:futureDeadline, open:true}, expect:409});
   const final = mine(await admin.request(endpoint));
@@ -968,6 +969,7 @@ test('organisers cancel an event and undo it; a cancelled event keeps its answer
   await admin.request(path, {method:'PATCH', body:{cancelled:true, notes:'우천'}, expect:400});
   const cancelled = (await admin.request(path, {method:'PATCH', body:{cancelled:true}})).event;
   assert.deepEqual([cancelled.cancelled, cancelled.open, cancelled.canVote, cancelled.pinnedAt], [true, false, false, null]);
+  assert.equal(cancelled.voteClosed, true, 'cancelling records that the vote was closed, as 일정 수정 does');
   // Answers stay; members see the event as cancelled and cannot answer.
   assert.equal((await admin.request(path)).roster.find(row => row.slot).slot, 'early');
   const listed = (await member.request('/api/public')).events.find(item => item.id === event.id);
@@ -985,7 +987,7 @@ test('organisers cancel an event and undo it; a cancelled event keeps its answer
 
   // Undo: the event is live again with its vote still closed; it can be wrapped up, and then no longer cancelled.
   const restored = (await admin.request(path, {method:'PATCH', body:{cancelled:false}})).event;
-  assert.deepEqual([restored.cancelled, restored.open], [false, false]);
+  assert.deepEqual([restored.cancelled, restored.open, restored.voteClosed], [false, false, true]);
   await admin.request(path + '/settlement', {method:'PUT', body:settlement});
   assert.match((await admin.request(path, {method:'PATCH', body:{cancelled:true}, expect:409})).error, /마무리를 확정한 일정/);
   await admin.request('/api/admin/events/00000000-0000-4000-8000-000000000000', {method:'PATCH', body:{cancelled:true}, expect:404});
@@ -1146,4 +1148,37 @@ test('optional capacity admits in order and promotes the first waiting member wi
   await admin.request(rescheduledPath, {method:'PATCH', body:{date:rescheduled.date, open:true}});
   const newlyAdmitted = await three.request(rescheduledVote, {method:'PUT', body:{slot:'early', lunch:false}});
   assert.equal(newlyAdmitted.vote.waitingPosition, undefined, 'a rescheduled event releases an inactive member’s spot');
+});
+
+// Deactivating a member releases their place only in events still to come (2026-11-27 검토): an event with a limit that
+// already ended today keeps who said they would come, and the waiting member is not promoted after the fact.
+test('deactivating a member keeps the answers of a limited event that ended earlier today', async t => {
+  const local = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  if (local.toISOString().slice(11, 16) < '00:05') return t.skip('needs an event that ended earlier today (KST)');
+  const {client} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const people = [];
+  for (const [i, birthday] of ['19800601', '19810602'].entries()) {
+    const name = '가상 끝난 일정 회원 ' + i;
+    const {member} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name, birthday}});
+    const session = client('203.0.113.' + (90 + i));
+    await session.login(name, birthday.slice(2));
+    people.push({id: member.id, session});
+  }
+  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...futureEvent(), capacity:1}});
+  const path = '/api/admin/events/' + event.id;
+  for (const {session} of people) await session.request('/api/votes/' + event.id, {method:'PUT', body:{slot:'early', lunch:false}});
+  const today = local.toISOString().slice(0, 10);
+  await admin.request(path, {method:'PATCH', body:{date:today, time:'00:00', endTime:'00:01', earlyTime:'00:00', lateTime:'00:01', deadline:today + 'T00:00', open:false}});
+  const before = (await admin.request(path)).roster.map(row => [row.id, row.slot, row.waitingPosition ?? null]);
+  await admin.request('/api/admin/members/' + people[0].id, {method:'PATCH', body:{active:false}});
+  const after = (await admin.request(path)).roster.map(row => [row.id, row.slot, row.waitingPosition ?? null]);
+  assert.deepEqual(after, before);
+
+  // An event still to come releases the place as before.
+  const {event: coming} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...futureEvent(), capacity:1}});
+  await people[1].session.request('/api/votes/' + coming.id, {method:'PUT', body:{slot:'early', lunch:false}});
+  await admin.request('/api/admin/members/' + people[1].id, {method:'PATCH', body:{active:false}});
+  assert.equal((await admin.request('/api/admin/events/' + coming.id)).roster.find(row => row.id === people[1].id)?.slot ?? null, null);
 });
