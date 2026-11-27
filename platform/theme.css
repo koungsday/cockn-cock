@@ -49,6 +49,9 @@
   --accent-soft: #e8f0eb;
   --edge: #b9c0ba;
   --field-line: #7b8f78;
+  --dialog-scrim: #2d2d2d72;
+  --drawer-scrim: #15151599;
+  --dialog-shadow: #29292943;
   /* Dark menu (sidebar, mobile menu) on --ink: text 12.5 / 10.0 / 6.6:1, hover and current surfaces, dividers. */
   --menu-text: #eef1ee;
   --menu-text-2: #d3d9d4;
