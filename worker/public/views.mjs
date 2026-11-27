@@ -519,8 +519,7 @@ export function memberRecordScreen({ record }, user = null) {
   return memberPage(recordCard(record) + pinCard(user));
 }
 
-// browse: a member page asked for sign-in (worker/public/app.mjs sign-in), so 로그인 없이 보기 goes back to it.
-export function loginScreen(club, name, numberStep, browse = false) {
+export function loginForm(name, numberStep) {
   const label = numberStep ? '번호 6자리' : '성함';
   const input = !numberStep
     ? `<input id="login-value" name="name" type="text" value="${esc(name)}" autocomplete="off" autocapitalize="off"
@@ -530,30 +529,21 @@ export function loginScreen(club, name, numberStep, browse = false) {
         maxlength="6" pattern="[0-9]{6}" data-login-code required>
       <span class="login-code-cells" aria-hidden="true">${'<span></span>'.repeat(6)}</span>
     </span>`;
-  return `<main id="main-content" class="login-page" tabindex="-1"><div class="login-stack">
-    <div class="hero"><p class="tagline">login</p><h1>${esc(club.name)}</h1>${club.subtitle ? `<div class="hero-meta"><span>${esc(club.subtitle)}</span></div>` : ''}</div>
-    <form class="form login-form login-card" aria-label="로그인" data-form="${numberStep ? 'login' : 'login-name'}">
+  return `<form class="form login-form" aria-label="로그인" data-form="${numberStep ? 'login' : 'login-name'}">
       ${numberStep ? `<div class="login-greeting"><button type="button" class="icon-button login-back" data-action="login-back" aria-label="성함 입력으로 돌아가기">${icon('arrow-left')}</button>
         <p id="login-greeting">안녕하세요. ${esc(name)}님!</p></div>` : ''}
       <div class="login-field">
-        <div class="login-label-row"><label for="login-value">${label}</label>
-          <button type="button" class="icon-button login-help-button" data-action="login-help" aria-label="로그인 도움말" aria-haspopup="dialog">${icon('info')}</button>
-        </div>
+        <label for="login-value">${label}</label>
         ${input}
         ${numberStep ? `<p class="login-pending" role="status" hidden>${shuttlecockMark('shuttle-spin shuttle-inline')}로그인 중…</p>` : ''}
         <p id="login-error" class="inline-error" role="alert" hidden></p>
       </div>
-      <button type="submit" class="btn btn-primary login-submit"${numberStep ? ' hidden' : ''}>${numberStep ? 'login' : '다음'}</button>
+      <button type="submit" class="btn btn-primary login-submit"${numberStep ? ' hidden' : ''}>${numberStep ? '로그인' : '다음'}</button>
     </form>
-    ${browse ? `<p class="login-browse">${button('로그인 없이 보기', 'sign-in-cancel', { css: 'text small' })}</p>` : ''}
-  </div></main>`;
-}
-
-export function loginHelp() {
-  return `<div class="login-guide">
-    <p><strong>회원</strong> 생년월일 뒤 6자리, 내 PIN 또는 임시 번호</p>
-    <p><strong>운영진</strong> 운영 번호 6자리</p>
-  </div>`;
+    <details class="login-help"><summary>로그인 도움말</summary><div class="login-guide">
+      <p><strong>회원</strong> 생년월일 뒤 6자리, 내 PIN 또는 임시 번호</p><p><strong>운영진</strong> 운영 번호 6자리</p>
+    </div></details>
+    <p class="login-browse">${button('로그인 없이 보기', 'close', { css: 'text small' })}</p>`;
 }
 
 export function messagePage(title, body, actions = '') {
@@ -621,25 +611,35 @@ export function accountActions(user) {
     : button('로그인', 'sign-in', { css: 'text small' });
 }
 
-export function adminShell(section, contents, club, user, canCreateEvent = false) {
+function sidebarAccount(user) {
+  const avatar = `<span class="operator-mark">${icon('user', 18)}</span>`;
+  if (!user) {
+    return `<button type="button" class="sidebar-user" data-action="sign-in">${avatar}<strong>로그인</strong></button>`;
+  }
+  return `<details class="profile-menu"><summary class="sidebar-user" id="profile-toggle">${avatar}
+    <span class="sidebar-user-info"><strong>${esc(user.name)}</strong><small>${operating(user) ? '운영진' : '회원'}</small></span>
+    <span class="profile-caret">${icon('chevron-right', 16)}</span></summary>
+    <div class="profile-actions">${accountActions(user)}</div></details>`;
+}
+
+export function adminShell(section, contents, club, user, hasEvent = false) {
   const sections = appSections(user);
   const title = sections.find(([name]) => name === section)?.[1] ?? sections[0][1];
-  const role = operating(user) ? '운영진' : user ? '회원' : '보기만 할 수 있어요';
+  const schedule = section === 'event' && operating(user);
+  const eventDetail = schedule && hasEvent;
   return `<div class="admin-app">
     <aside class="sidebar">${brand(club)}${adminMenu(section, user)}
-      <div class="sidebar-footer"><span class="operator-mark">${icon('user', 18)}</span><span><strong>${user ? esc(user.name) : '로그인 전'}</strong><small>${role}</small></span></div>
+      <div class="sidebar-footer">${sidebarAccount(user)}</div>
     </aside>
-    <div class="main-shell">
-      <header class="topbar">
+    <div class="main-shell${schedule ? ' schedule-shell' : ''}">
+      <header class="topbar"><div class="topbar-inner">
+        ${eventDetail ? button(`${icon('arrow-left', 20)} 뒤로`, 'event-list', { css: 'text schedule-back' }) : ''}
         <div class="breadcrumb">
-          <span class="breadcrumb-parent">${esc(club.name)}</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
+          ${eventDetail ? '' : `<span class="breadcrumb-parent">${esc(club.name)}</span><span class="breadcrumb-divider">/</span>`}<strong>${title}</strong>
         </div>
-        <div class="topbar-actions">${canCreateEvent ? iconAction('plus', 'new-event', { label: '새 일정' }) : ''}${user ? `<details class="profile-menu">
-          <summary class="btn btn-text" id="profile-toggle">${icon('user', 18)}<span>${esc(user.name)}</span></summary>
-          <div class="profile-actions">${accountActions(user)}</div>
-        </details>` : accountActions(user)}
+        <div class="topbar-actions">${schedule && !hasEvent ? iconAction('plus', 'new-event', { label: '새 일정' }) : ''}${user ? '' : accountActions(user)}
           <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${menuIcon}</button></div>
-      </header>
+      </div></header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
       ${adminTabBar(section, user)}
     </div>
@@ -660,7 +660,7 @@ export function defaultTab(event) {
 
 // 지금 할 일 (DESIGN.md 4 운영 홈): one white card for the first of the 진행 중인 일정 (FLOW.md, flow.mjs): when, the title,
 // one fact, where it stands in four steps, that step's numbers and the one thing to do now. No photo, no big number.
-const stepNames = ['일정 준비', '참석 투표', '당일 출석', '마무리'];
+const stepNames = ['일정 준비', '참석 투표', '출석 체크', '마무리'];
 
 function nowSteps(stage) {
   const at = Math.min(stage, 3);
@@ -798,8 +798,7 @@ function flowSummary(events) {
   return flows.length ? `진행 중인 일정 ${flows.length}개${wrapups ? ` · 마무리 전 ${wrapups}개` : ''}` : '진행 중인 일정이 없어요.';
 }
 
-// 운영 홈: 지금 할 일 card → 다른 일정 → 최근 공지 → 지난 일정, one column (단순화 3). The top bar names the screen, so
-// the h1 is for reading programs and focus.
+// 운영 홈: 지금 할 일 card → 다른 일정 → 최근 공지 → 지난 일정, one column (단순화 3). The current menu names the view.
 export function adminHome({ events, notices }, upcoming, last = null, listing = null) {
   const recent = notices.slice(0, 3).map(notice => homeRow('edit-notice', notice.id, `${pinMark(notice)}${esc(notice.title)}`,
     `<time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>${notice.published ? '' : ' · 비공개'}`));
@@ -870,7 +869,7 @@ export function eventForm(event, id = '') {
     id ? '일정 저장' : '일정 만들기', id);
 }
 
-const sessionTabs = [['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']];
+const sessionTabs = [['poll', '참석 투표'], ['attendance', '출석 체크'], ['settlement', '마무리']];
 
 // One event in the 일정 list: the whole row opens its detail (FLOW.md 5 운영 일정 화면).
 function eventLink(event, title, detail) {
@@ -916,7 +915,6 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
       받은 응답은 그대로 있어요.</p>
       ${event.published ? button('취소 안내 복사', 'copy-event-update', { id: event.id, css: 'secondary small' }) : ''}
       ${button('취소 풀기', 'restore-event', { id: event.id, css: 'text small' })}</div>` : '';
-  const back = `<div class="back-link">${button(`${icon('arrow-left', 17)} 일정`, 'event-list', { css: 'text small' })}</div>`;
   // 박스 동작 (DESIGN.md 5, UX 점검표 15 힉): 상단 고정 and 회차 수정 as icons at the head's top-right, the rarely used rest
   // in 더보기 last. The pin icon shows whether the event is pinned; without it (마무리·취소) the title keeps its mark.
   const open = !settlement?.confirmed && !event.cancelled;
@@ -928,7 +926,7 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
   const stands = event.cancelled ? '취소한 일정' : settlement?.confirmed ? '마무리 완료' : !event.published ? '공개 전 · 회원에게 보이지 않아요'
     : event.canVote ? `공개 중 · ${deadlineLabel(event.deadline)} 투표 마감` : `공개 중 · ${event.voteClosed || event.open || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
   const head = `<header class="event-head"><h1 tabindex="-1">${open ? '' : pinMark(event)}${esc(event.title)}</h1>${tools}
-      <p>${esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`)}</p><p class="muted">${esc(stands)}</p></header>${cancelled}`;
+      <div class="event-facts"><p>${esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`)}</p><p class="muted">${esc(stands)}</p></div></header>${cancelled}`;
   // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
   const current = tab ?? defaultTab(event);
   const nav = `<nav class="tabs" aria-label="일정 단계">${sessionTabs.map(([name, label]) => `<button type="button" data-action="event-tab" data-id="${name}"${name === current ? ' aria-current="page"' : ''}>${label}</button>`).join('')}</nav>`;
@@ -946,7 +944,7 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
   const poll = vote + mine + voteRoster(event, roster, false, Boolean(event.capacity && (event.cancelled || settlement?.confirmed)));
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed, onlyUnmarked) + guestList
     : current === 'settlement' ? settlementPanel(settlement, counts, detail.carryStock, guests) : poll + guestList;
-  return `<div class="event-page">${back}${head}${nav}${content}</div>`;
+  return `<div class="event-page event-detail">${head}${nav}${content}</div>`;
 }
 
 // 참석 투표 현황: how many of the active members answered, then each way, and the bar (the 운영 홈 card's numbers).
@@ -1026,7 +1024,7 @@ function attendancePanel(event, roster, counts, confirmed, onlyUnmarked = false)
   const coming = roster.filter(row => !row.waitingPosition && (row.slot === 'early' || row.slot === 'late')).sort(byOrder);
   const others = roster.filter(row => !coming.includes(row)).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const list = people => `<ul class="att-list">${people.map(person => attendanceRow(event, person, confirmed)).join('')}</ul>`;
-  return `<section id="attendance" class="att" aria-label="당일 출석"${onlyUnmarked ? ' data-only="unmarked"' : ''}>
+  return `<section id="attendance" class="att" aria-label="출석 체크"${onlyUnmarked ? ' data-only="unmarked"' : ''}>
     <div class="list-tools">${search('attendance')}${button(`${icon('refresh', 16)} 새로고침`, 'refresh', { css: 'text small' })}</div>
     ${confirmed ? '<p class="form-note">마무리한 일정입니다. 출석을 고치려면 마무리 확인을 먼저 해제해 주세요.</p>' : ''}
     ${roster.length ? '' : '<p class="muted home-empty">이 일정에 등록된 회원이 없습니다.</p>'}

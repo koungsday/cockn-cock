@@ -1,7 +1,6 @@
 /* Live-only screens. Shared components come first in the bundle from styles.css and share.css (DESIGN.md). */
 :root {
   --site-header-row: 64px;
-  --site-header-block: calc(var(--site-header-row) + var(--safe-top) + 1px);
 }
 body { min-height: 100vh; min-height: 100dvh; }
 [hidden] { display: none !important; }
@@ -9,7 +8,7 @@ html:has(dialog[open]) { overflow: hidden; overscroll-behavior: none; }
 body.dialog-scroll-lock { position: fixed; inset-inline: 0; width: 100%; }
 .noscript { padding: 1rem; }
 
-/* Sign-in header. The shell (everyone's since ROLES.md 2단계) replaces it with the sidebar and top bar. */
+/* Fallback header for pages that could not load the club shell. */
 .site-header { padding-top: var(--safe-top); background: var(--paper); border-bottom: 1px solid var(--line); }
 .site-header:has(#account:not(:empty)) { position: sticky; top: 0; z-index: 5; }
 body:has(.admin-app) .site-header { display: none; }
@@ -89,8 +88,8 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-nav { display: grid; gap: 10px; margin-top: 37px; }
 .sk-nav-item { height: 36px; border-radius: 8px; }
 .sk-crumb { width: 120px; height: 16px; }
+.admin-skeleton .topbar-inner { justify-content: space-between; }
 .sk-icon { width: 24px; height: 24px; border-radius: 7px; }
-.admin-skeleton .topbar .sk-icon { display: none; }
 .shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: var(--t3); font-weight: 600; text-align: center; }
 .shuttle-loader .shuttle-spin { width: 64px; height: 60px; color: var(--court); }
 .shuttle-inline { width: 1.2em; height: 1.12em; margin-right: .35em; vertical-align: -.22em; flex: none; }
@@ -101,7 +100,6 @@ body:has(.admin-app) .site-header { display: none; }
 .section-loader span { padding: 5px 12px; border-radius: 99px; background: #ffffffeb; box-shadow: 0 2px 10px #233b2912; }
 @media (max-width: 700px) {
   .section-loader { inset: 0; }
-  .admin-skeleton .topbar .sk-icon { display: block; }
   :root:has(.tab-bar) .message { bottom: calc(86px + var(--safe-bottom)); }
 }
 
@@ -142,12 +140,11 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .settlement-form { margin-top: 0; }
 .inline-error { color: #9d2e30; font-weight: 600; overflow-wrap: anywhere; }
 
-/* Dialogs follow styles.css .dialog; these keep scroll and the sign-in menu under the header. */
+/* Dialogs follow styles.css .dialog and keep scroll inside the open surface. */
 .dialog { color: var(--ink); background: var(--surface); overflow: auto; overscroll-behavior: contain; }
 .dialog-head h2 { overflow-wrap: anywhere; }
 .dialog-head h2:focus { outline: none; }
 .dialog .form-actions { justify-content: flex-end; }
-.login-menu-dialog[open] { inset: calc(var(--site-header-block) + .5rem) 0 auto; width: min(25rem, calc(100% - 32px)); margin-block: 0; }
 
 /* Member screens live in share.css (member home, records, back link, their column in the shell) so the demo uses the
    same components. */
@@ -156,10 +153,44 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .message-actions { margin-top: 16px; }
 .member-back, .member-record-link, .public-choice, .public-lunch, .public-form button { touch-action: manipulation; }
 
-/* Sign-in. */
+/* Club sign-in uses the dialog over the current schedule, notice or home. */
+.club-login-dialog { width: min(400px, calc(100% - 26px)); --focus: var(--neutral-ink); }
+.club-login-dialog .dialog-close { width: var(--touch-target); height: var(--touch-target); }
+.club-login-dialog :is(.login-browse .btn, .dialog-close, .login-back) { color: var(--neutral-muted); }
+.club-login-dialog :is(.login-browse .btn, .dialog-close, .login-back):hover { background: var(--neutral-soft); }
+.login-browse { margin: 0; text-align: center; }
+.login-browse .btn { min-height: var(--touch-target); }
+.login-form { gap: 12px; }
+.club-login-dialog .login-form { margin-top: 0; }
+.login-field > label { display: block; margin-bottom: 6px; color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
+.login-label-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.login-label-row label { color: var(--muted); font-size: var(--t4); font-weight: 600; }
+.login-help summary { cursor: pointer; min-height: var(--touch-target); padding-block: 10px; color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
+.login-guide { display: grid; gap: .5rem; padding: 8px 10px; border-radius: 8px; background: var(--neutral-soft); font-size: var(--t4); word-break: keep-all; }
+.login-greeting { display: flex; align-items: center; gap: .45rem; padding-top: .25rem; }
+.login-greeting p { font-weight: 600; overflow-wrap: anywhere; }
+.login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
+.login-form input[name="name"] { width: 100%; min-height: 46px; }
+.login-form input[name], .login-code-cells > span { border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); }
+.club-login-dialog input[name], .login-code-cells > span { border-color: var(--neutral-muted); }
+.login-submit { width: 100%; min-height: 46px; }
+.club-login-dialog .login-submit { background: var(--neutral-ink); }
+.club-login-dialog .login-submit:not(:disabled, [aria-pressed="true"]):hover { background: var(--neutral-muted); }
+.login-code { position: relative; display: block; max-width: 20rem; }
+.login-code input[data-login-code] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: text; }
+.login-code-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(.28rem, 1.8vw, .55rem); }
+.login-code-cells > span { display: grid; place-items: center; inline-size: 100%; min-height: var(--touch-target); aspect-ratio: 1; }
+.login-code:focus-within .login-code-cells > [data-position] { border-color: var(--neutral-ink); background: var(--neutral-soft); }
+.login-code-cells > [data-filled]::after { content: ''; width: .56rem; height: .56rem; border-radius: 50%; background: var(--ink); }
+.login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
+.login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) { border-color: #b13f39; background: #fff1ef; }
+.login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
+.login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t4); font-weight: 600; }
+.login-pending .shuttle-inline { color: var(--neutral-ink); }
+
+/* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
 .login-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(12px, 2vw, 22px) 0 calc(48px + var(--safe-bottom)); }
 .login-stack { display: grid; gap: 12px; }
-.login-browse { margin: 0; text-align: center; }
 .hero {
   display: grid; gap: .7rem; align-content: center; min-height: 184px; padding: clamp(1.35rem, 4vw, 2.5rem);
   color: #f5f7ed; border-radius: 16px; overflow-wrap: anywhere;
@@ -172,32 +203,7 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .hero .tagline::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
 .hero-meta { display: flex; flex-wrap: wrap; gap: .25rem .9rem; color: #f4f6eb; }
 .login-card { padding: 6px clamp(14px, 3vw, 20px) 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
-.login-form { gap: 12px; }
-.login-label-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
-.login-label-row label { color: var(--muted); font-size: var(--t4); font-weight: 600; }
-.login-help-button { color: var(--muted); }
-.login-guide { display: grid; gap: .65rem; word-break: keep-all; }
-.login-greeting { display: flex; align-items: center; gap: .45rem; padding-top: .25rem; }
-.login-greeting p { font-weight: 600; overflow-wrap: anywhere; }
-.login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
-.login-form input[name="name"] { width: 100%; min-height: 46px; }
-.login-form input[name], .login-code-cells > span { border: 1px solid var(--field-line); border-radius: 8px; background: #fff; }
-.login-submit { width: 100%; min-height: 46px; }
-.login-code { position: relative; display: block; max-width: 20rem; }
-.login-code input[data-login-code] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: text; }
-.login-code-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(.28rem, 1.8vw, .55rem); }
-.login-code-cells > span { display: grid; place-items: center; inline-size: 100%; min-height: var(--touch-target); aspect-ratio: 1; }
-.login-code:focus-within .login-code-cells > [data-position] { border-color: var(--action); background: var(--leaf); }
-.login-code-cells > [data-filled]::after { content: ''; width: .56rem; height: .56rem; border-radius: 50%; background: var(--ink); }
-.login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
-.login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) { border-color: #b13f39; background: #fff1ef; }
-.login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
-.login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t4); font-weight: 600; }
-.login-pending .shuttle-inline { color: var(--court); }
-
-/* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
 .console-login input[name] { width: 100%; min-height: 46px; }
-/* The club sign-in label row is as tall as its help button (.icon-button: 38px, 44px on touch); this card has no button. */
 .console-login .login-label-row { min-height: 38px; }
 @media (pointer: coarse) { .console-login .login-label-row { min-height: var(--touch-target); } }
 .console-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(18px, 3vw, 30px) 0 calc(48px + var(--safe-bottom)); display: grid; gap: 12px; }
@@ -238,12 +244,12 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  #main:is([data-motion="login-next"], [data-motion="login-back"]) .login-card,
+  .club-login-dialog:is([data-motion="login-next"], [data-motion="login-back"]) .login-form,
   .loading-center .shuttle-loader,
   dialog[open] :is(.dialog-head, .dialog-body),
   #message:not([hidden], .visually-hidden) { animation: view-arrive var(--dur-arrive) var(--ease-settle); }
-  #main[data-motion="login-next"] .login-card { --view-entry: 6px 0; }
-  #main[data-motion="login-back"] .login-card { --view-entry: -6px 0; }
+  .club-login-dialog[data-motion="login-next"] .login-form { --view-entry: 6px 0; }
+  .club-login-dialog[data-motion="login-back"] .login-form { --view-entry: -6px 0; }
   .section-loader { animation: shuttle-land var(--dur-arrive) var(--ease-settle); }
   dialog[open]::backdrop { animation: backdrop-arrive var(--dur-quick) ease-out; }
   .login-field.login-rejected { animation: login-nudge var(--dur-nudge) ease-out; }

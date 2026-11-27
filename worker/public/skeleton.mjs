@@ -32,7 +32,7 @@ const bodies = {
   'event-list': `<div class="event-page">${list(5, 'tools', calendar)}</div>`,
   // 일정 하나 (views.mjs eventScreen): ← 일정, the title with its two lines, the three tabs, then the tab's numbers,
   // bar and button over a list of names.
-  event: `<div class="event-page">${bar('sk-back')}<div class="sk-event-head">${bar('sk-card-title')}${bar('sk-fact')}${bar('sk-meta')}</div>
+  event: `<div class="event-page"><div class="sk-event-head">${bar('sk-card-title')}${bar('sk-fact')}${bar('sk-meta')}</div>
     <div class="sk-tabs">${bars(3, 'sk-tab')}</div>
     <div class="sk-event-body">${bar('sk-h2')}${bar('sk-meter')}${bar('sk-cta')}</div>${list(4)}</div>`,
   // 공지·회원 관리·반기 집계·모임 규칙 (views.mjs pageHead): the count line with its action, then rows.
@@ -48,11 +48,12 @@ const bodies = {
 
 // kind: one of the bodies above; '' draws the shell alone (the HTML's first paint). operating: seven menu bars, else four.
 export function shellSkeleton(kind = '', operating = false) {
+  const schedule = kind === 'event-list' || kind === 'event';
   return `<div class="admin-app admin-skeleton" aria-hidden="true">
     <aside class="sidebar"><div class="brand"><img class="brand-mark" width="43" height="43" src="/assets/shuttlecock-icon-96.png" alt="">${bar('sk-brand')}</div>
       <div class="sk-nav">${bars(operating ? 7 : 4, 'sk-nav-item')}</div></aside>
-    <div class="main-shell">
-      <div class="topbar">${bar('sk-crumb')}${bar('sk-icon')}</div>
+    <div class="main-shell${schedule ? ' schedule-shell' : ''}">
+      <div class="topbar"><div class="topbar-inner">${bar('sk-crumb')}${bar('sk-icon')}</div></div>
       <div class="main-content admin-content">${bodies[kind] ?? ''}</div>
       <div class="tab-bar">${Array.from({ length: 4 }, () => `<span class="tab-bar-link">${bar('sk-icon')}</span>`).join('')}</div>
     </div>
