@@ -351,14 +351,11 @@ p { line-height: 1.58; }
    with its full colour as the edge. */
 .calendar-selection { margin-block: var(--space-24) 0; padding: var(--space-12) var(--space-16) var(--space-12); border: 1px solid var(--calendar-selected); border-radius: 12px;
   background: color-mix(in srgb, var(--calendar-selected) 45%, var(--surface)); color: var(--neutral-ink); }
-/* How many events the chosen date has, on its own line under the date (사용자 결정 2026-11-27): red as the calendar's
-   dot (dark text, 4.73:1), grey when they are all over; a 6px-cornered tag like every 알약 (DESIGN.md 4). */
-.calendar-count { display: inline-flex; align-items: center; padding: var(--space-2) var(--space-8); border-radius: 6px; background: var(--accent-red);
-  color: var(--neutral-ink); font-size: var(--t4); font-weight: 600; line-height: 1.5; white-space: nowrap; }
-.calendar-count.is-done { background: var(--neutral-soft); }
 .calendar-selection-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--touch-target); }
 .calendar-selection h3 { font-size: var(--t2); }
-.calendar-selection p { margin-top: var(--space-4); color: var(--neutral-muted); font-size: var(--t4); }
+/* How many events the chosen date has (or that it has none), on its own line under the date in plain dark words, one step
+   under the date title (사용자 결정 2026-11-28: the red pill read poorly on a phone; red words on this yellow are 2.69:1). */
+.calendar-selection p { margin-top: var(--space-4); color: var(--neutral-ink); font-size: var(--t3); }
 .calendar-selection .btn { min-height: var(--touch-target); color: var(--neutral-ink); }
 .calendar-selection .btn:hover { background: color-mix(in srgb, var(--calendar-selected) 70%, var(--surface)); }
 .calendar-selection > ul { margin-top: var(--space-8); }

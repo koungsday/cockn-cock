@@ -101,12 +101,12 @@ export function calendarTarget(month, step) {
 }
 
 // The chosen date's own box, in the yellow of the chosen date (사용자 결정 2026-11-27): its title, how many events it has
-// as a pill (red as the calendar's dot, grey when they are all over), its rows, and 일정 추가 from today on (action).
-// done: every event of the day is over.
+// in plain words on the line under it (no pill: it read poorly on a phone, 사용자 결정 2026-11-28), its rows, and
+// 일정 추가 from today on (action). done: every event of the day is over.
 export function calendarDayPanel(date, rows, { listClass = 'event-list', action = '', done = false } = {}) {
   if (!date) return '';
   const label = dayLabel(new Date(`${date}T00:00:00Z`));
-  const count = rows.length ? `<span class="calendar-count${done ? ' is-done' : ''}">${done ? '지난 일정' : '일정'} ${rows.length}개</span>` : '';
+  const count = rows.length ? `${done ? '지난 일정' : '일정'} ${rows.length}개` : '';
   return `<section class="calendar-selection" aria-labelledby="calendar-selected-title">
     <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time></h3>
       <p>${count || '이 날짜에 일정이 없어요.'}</p></div>${action}</div>
