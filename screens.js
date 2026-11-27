@@ -13,6 +13,15 @@
       return `<button class="btn btn-${tone}" type="button" data-action="${name}"${id ? ` data-id="${e(id)}"` : ''} ${extra}>${symbol ? icon(symbol) : ''}${text}</button>`;
     }
 
+    // 박스 오른쪽 위 아이콘 (the live iconAction / boxActions, DESIGN.md 5 박스 동작): no border or fill at rest, a filled
+    // square on hover; a pressed toggle (상단 고정) is drawn filled. 더보기 goes last.
+    function iconAction(glyph, name, id, label, { kind = '', pressed = null, disabled = false } = {}) {
+      return `<button class="icon-button box-action" type="button" data-action="${name}"${id ? ` data-id="${e(id)}"` : ''}${kind ? ` data-kind="${kind}"` : ''} aria-label="${e(label)}" title="${e(label)}"${pressed === null ? '' : ` aria-pressed="${pressed}"`}${disabled ? ' disabled' : ''}>${icon(glyph, 20)}</button>`;
+    }
+    function boxActions(...actions) {
+      return `<div class="box-actions">${actions.filter(Boolean).join('')}</div>`;
+    }
+
     // Icon-only control (DESIGN.md 5): + for the one create action in a page head.
     function addButton(label, name) {
       return `<button class="btn btn-primary btn-icon" type="button" data-action="${name}" aria-label="${e(label)}" title="${e(label)}">${icon('plus', 22)}</button>`;
@@ -91,7 +100,8 @@
       function poll() {
         const report = counts(event);
         // 투표 마감 and 응답 조정 wait in the 회차 메뉴 (actionsDialog), as in the live 회차 화면.
-        const shareAction = action('카톡 공유', 'open-share', event.id, {tone: 'primary', symbol: 'share', extra: 'data-kind="vote"'});
+        // 카톡 공유 is copying the link (the live copy-vote-link); the preview waits in 더보기.
+        const shareAction = boxActions(iconAction('copy', 'copy-link', event.id, '투표 링크 복사', {kind: 'vote'}));
         const voteLink = pollAvailable && members.length ? routeLink('회원 투표 체험', `public-vote/${encodeURIComponent(event.id)}`) : '';
         const rows = members.map(member => {
           const vote = event.votes[member.id];
@@ -101,9 +111,11 @@
           [`${e(event.earlyTime)} 선발`, `${report.early}명`, 'green'], [`${e(event.lateTime)} 후발`, `${report.late}명`],
           ['점심', `${report.lunch}명`], ['불참', `${report.no}명`], ['미응답', `${report.pending}명`]
         ])
-          + (rows.length ? table(['멤버', '응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
+          + (rows.length ? table(['멤버', '응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.'))
+          // 회원 투표 체험 (가상 체험 전용) sits under the answers, so the head keeps only the copy icon at its top-right.
+          + (voteLink ? `<div class="form-actions">${voteLink}</div>` : ''), {
           subtitle: `참석 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
-          actions: shareAction + voteLink
+          actions: shareAction
         });
       }
 
@@ -192,14 +204,19 @@
         });
       }
 
-      // 더보기 (DESIGN.md 6 UX 점검표 15), as the live 회차 화면: 상단 고정, 공지 초안, 일정 수정, 투표 마감, 응답 조정 and
-      // 일정 취소 wait in one menu (actionsDialog); a pinned event keeps its mark by the title, and a cancelled one says so
-      // with the way back.
+      // 박스 동작 (DESIGN.md 5), as the live 회차 박스: 상단 고정 and 일정 수정 are icons at the head's top-right with 더보기
+      // last (공지 초안, 투표 마감, 응답 조정, 카톡 미리보기, 일정 취소 in actionsDialog); a cancelled event says so with the
+      // way back.
       const cancelled = event.cancelled && !event.finalized
         ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${action('취소 풀기', 'restore-event', event.id)}</div>` : '';
-      const more = `<button class="btn btn-secondary btn-icon" type="button" data-action="open-actions" data-id="${e(event.id)}" data-kind="event" aria-label="${e(event.title)} 회차 메뉴" title="${e(event.title)} 회차 메뉴">${icon('more', 22)}</button>`;
+      // 상단 고정 and 일정 수정 as icons at the head's top-right, 더보기 last (the live 회차 박스); the pin shows the state.
+      const open = !event.finalized && !event.cancelled;
+      const tools = boxActions(
+        open && iconAction('pushpin', 'toggle-pin', event.id, `${event.title} 상단 고정`, {kind: 'event', pressed: Boolean(event.pinnedAt)}),
+        iconAction('edit', 'open-event', event.id, `${event.title} 일정 수정`),
+        iconAction('more', 'open-actions', event.id, `${event.title} 회차 메뉴`, {kind: 'event'}));
       return `<div class="back-link">${routeLink('일정 목록', 'events', 'text', 'arrow-left')}</div>`
-        + heading(`${pinMark(event)}${e(event.title)}${event.cancelled ? ` ${pill('취소', 'muted')}` : ''}`, subheader + cancelled, more)
+        + heading(`${open ? '' : pinMark(event)}${e(event.title)}${event.cancelled ? ` ${pill('취소', 'muted')}` : ''}`, subheader + cancelled, tools)
         + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
         + nav
         + (route.tab === 'attendance' ? attendance() : route.tab === 'settlement' ? finish() : poll() + guests());
@@ -208,11 +225,16 @@
     function notices(state) {
       // 상단 고정 first, in the order pinned, then the newest (the live noticesScreen).
       const ordered = [...state.notices].sort((a, b) => (a.pinnedAt ?? Infinity) - (b.pinnedAt ?? Infinity) || b.date.localeCompare(a.date));
+      // 링크 복사 · 상단 고정 · 수정 as icons at the notice's top-right, 더보기 last (the live noticesScreen).
       const items = ordered.map(notice => `<article class="notice-item">
-        <div class="notice-date"><time datetime="${e(notice.date)}">${e(dateLabel(notice.date))}</time>${pinMark(notice)}</div>
-        <h3>${e(notice.title)}</h3>
+        <div class="box-top"><div><div class="notice-date"><time datetime="${e(notice.date)}">${e(dateLabel(notice.date))}</time></div>
+          <h3>${e(notice.title)}</h3></div>
+          ${boxActions(
+            iconAction('copy', 'copy-link', notice.id, `${notice.title} 링크 복사`, {kind: 'notice'}),
+            iconAction('pushpin', 'toggle-pin', notice.id, `${notice.title} 상단 고정`, {kind: 'notice', pressed: Boolean(notice.pinnedAt)}),
+            iconAction('edit', 'open-notice', notice.id, `${notice.title} 공지 수정`),
+            iconAction('more', 'open-actions', notice.id, `${notice.title} 공지 메뉴`, {kind: 'notice'}))}</div>
         <p class="preserve-lines">${e(notice.body)}</p>
-        <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'})}<button class="btn btn-text btn-icon" type="button" data-action="open-actions" data-id="${e(notice.id)}" data-kind="notice" aria-label="${e(notice.title)} 공지 메뉴" title="${e(notice.title)} 공지 메뉴">${icon('more', 20)}</button></div>
       </article>`);
       return heading('공지', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
@@ -442,17 +464,19 @@
       if (dialog.kind === 'notice') {
         const notice = state.notices.find(item => item.id === dialog.id);
         if (!notice) return '';
-        buttons.push(action('수정', 'open-notice', notice.id, {symbol: 'edit'}), action('텍스트 복사', 'copy-notice', notice.id, {symbol: 'clipboard'}),
-          action(notice.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', notice.id, {symbol: 'pushpin', extra: 'data-kind="notice"'}));
+        // 복사·상단 고정·수정 are icons on the notice.
+        buttons.push(action('텍스트 복사', 'copy-notice', notice.id, {symbol: 'clipboard'}),
+          action('카톡 미리보기', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'}));
       } else {
         const event = state.events.find(item => item.id === dialog.id);
         if (!event) return '';
         const open = !event.finalized && !event.cancelled;
-        buttons.push(action('일정 수정', 'open-event', event.id, {symbol: 'edit'}), action('공지 초안 만들기', 'open-event-notice', event.id, {symbol: 'megaphone'}));
+        // 상단 고정·일정 수정 are icons on the head, 링크 복사 on the 참석 응답 panel.
+        buttons.push(action('공지 초안 만들기', 'open-event-notice', event.id, {symbol: 'megaphone'}));
         if (open && !deadlinePassed(event)) buttons.push(action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id));
         if (!event.finalized && event.roster.length) buttons.push(action('응답 조정', 'open-vote', event.id));
-        if (open) buttons.push(action(event.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', event.id, {symbol: 'pushpin', extra: 'data-kind="event"'}),
-          action('일정 취소', 'cancel-event', event.id, {tone: 'text'}));
+        buttons.push(action('카톡 미리보기', 'open-share', event.id, {symbol: 'share', extra: 'data-kind="vote"'}));
+        if (open) buttons.push(action('일정 취소', 'cancel-event', event.id, {tone: 'text'}));
       }
       return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '회차 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');
     }

@@ -158,7 +158,7 @@ p { line-height: 1.58; }
 .todo-empty { margin-top: 10px; }
 /* 상단 고정: a push pin by the title, in the colour of the text around it. */
 .pin-mark { display: inline-flex; vertical-align: -2px; margin-right: 4px; }
-.notice-date .pin-mark, .notice-home-link .pin-mark { margin-right: 0; }
+.notice-home-link .pin-mark { margin-right: 0; }
 .public-share-type .pin-mark { margin: 0 0 0 6px; }
 /* The side panel keeps its own height instead of stretching beside a long 진행 중인 일정. */
 .dashboard-grid.dashboard-bottom { align-items: start; }
@@ -233,7 +233,6 @@ p { line-height: 1.58; }
 .notice-home-link:hover { color: #235f43; text-decoration: underline; }
 .notice-tag { color: #316248; background: #e9f3e9; border-radius: 5px; padding: 3px 6px; white-space: nowrap; font-size: .72rem; font-weight: 800; }
 .home-notice-row time { color: #58685d; font-size: .81rem; white-space: nowrap; }
-.notice-share { width: 34px; height: 36px; }
 .secondary-page { display: grid; gap: 14px; }
 .secondary-page .page-head { margin-bottom: 7px; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 17px 19px; border-bottom: 1px solid #edf0eb; }
@@ -299,7 +298,19 @@ p { line-height: 1.58; }
 .notice-item h3 { margin: 8px 0 5px; font-size: 1.13rem; }
 .notice-item p { color: #45594b; }
 .preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
-.notice-actions { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 7px; }
+/* 박스 동작 (DESIGN.md 5): a box's icons sit at its top-right corner whatever the title's length, 더보기 last. The icons
+   are .icon-button (no border or fill, a filled square on hover); a pressed toggle (상단 고정) is drawn filled in --court. */
+.box-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 10px; }
+.page-head:has(> .page-actions > .box-actions) { align-items: flex-start; }
+.panel-head:has(> .panel-actions > .box-actions) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.box-actions { display: flex; align-items: center; gap: 2px; margin-block: -6px; margin-right: -8px; }
+.box-action[aria-pressed="true"] { color: var(--court); }
+.box-action[aria-pressed="true"] svg { fill: currentColor; }
+.box-action:disabled { opacity: .38; cursor: default; }
+.box-action:disabled:hover { background: transparent; }
+.box-top :is(h2, h3) { overflow-wrap: anywhere; }
+.notice-item .box-top h3 { margin-bottom: 0; }
+.notice-item .box-top + p { margin-top: 6px; }
 .filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .search-field { position: relative; min-width: 145px; }
 .search-field svg { pointer-events: none; position: absolute; top: 10px; left: 10px; color: #566d5e; }
@@ -472,7 +483,7 @@ textarea { min-height: 100px; resize: vertical; }
   .small-link, .notice-home-link, .record-title, .form-check, .public-example a { min-height: var(--touch-target); }
   .brand, .platform-link { min-height: var(--touch-target); }
   .record-title, .public-example a, .platform-link, .mobile-nav-links .platform-link { display: inline-flex; align-items: center; }
-  .icon-button, .icon-btn, .notice-share { width: var(--touch-target); height: var(--touch-target); }
+  .icon-button, .icon-btn { width: var(--touch-target); height: var(--touch-target); }
   .tabs :is(a, button) { display: inline-flex; align-items: center; min-height: var(--touch-target); }
   input:not([type=checkbox]):not([type=radio]), select { min-height: var(--touch-target); }
   .search-field svg { top: 50%; translate: 0 -50%; }
