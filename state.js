@@ -263,14 +263,21 @@
   }
 
   function settlement(event) {
-    const {priorSingles = 0, priorTubes = 0, remainingSingles = 0, courtDonation = 0} = event.settlement || {};
-    const recorded = ['priorSingles', 'priorTubes', 'remainingSingles', 'courtDonation']
+    const {priorSingles = 0, priorTubes = 0, remainingSingles = 0, openingShuttles, addedShuttles = 0, usedShuttles = 0, courtDonation = 0} = event.settlement || {};
+    const legacy = openingShuttles == null;
+    const recorded = (legacy ? ['priorSingles', 'priorTubes', 'remainingSingles', 'courtDonation']
+      : ['openingShuttles', 'addedShuttles', 'usedShuttles', 'courtDonation'])
       .every(key => Number.isSafeInteger(event.settlement?.[key]));
     const guests = event.guests || [];
+    const paid = guests.filter(guest => guest.paid);
     const members = attendanceCounts(event).present;
     const arrivals = guests.filter(guest => guest.arrived).length;
-    return {members, arrivals, total: members + arrivals, recorded, guestPaid: guests.filter(guest => guest.paid).length,
-      priorSingles, priorTubes, remainingSingles, courtDonation, singles: priorSingles + remainingSingles};
+    return {members, arrivals, total: members + arrivals, recorded, guestPaid: paid.length,
+      transferWon: paid.reduce((sum, guest) => sum + (guest.transferWon ?? 0), 0),
+      receivedShuttles: paid.reduce((sum, guest) => sum + (guest.receivedShuttles ?? 0), 0),
+      legacy, priorSingles, priorTubes, remainingSingles, courtDonation, singles: priorSingles + remainingSingles,
+      openingShuttles, addedShuttles, usedShuttles,
+      closingShuttles: legacy ? priorSingles + priorTubes * 12 + remainingSingles : openingShuttles + addedShuttles - usedShuttles};
   }
 
   function qualification(state, day = today) {

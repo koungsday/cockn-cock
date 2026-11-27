@@ -377,12 +377,13 @@
     const open = (label, tab) => `<a class="btn btn-primary" href="#event/${id}/${tab}" data-route="event/${id}/${tab}">${label}</a>`;
     const attendance = () => nowStats(stage === 2 ? [['참석 예정', yes], ['출석', present], ['게스트 도착', arrived]]
       : [['출석', present], ['게스트 도착', arrived], ['참석 예정', yes]], present, yes, `출석 ${present}/${yes}명`);
-    const vote = pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : event.pollOpen || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
+    const closed = !pollIsOpen(event) && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
+    const vote = pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : closed ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
     const [kicker, fact, numbers, actions] = {
       1:() => ['다음 일정', `${escape(event.place)} · ${escape(vote)}`,
         nowStats([['선발', early], ['후발', late], ['점심', lunch], ['불참', no], ['미응답', pending]], yes + no, total, `응답 ${yes + no}/${total}명`),
         open(pending > 0 ? `미응답 ${pending}명 보기` : '응답 명단 보기', 'poll')
-          + `<button class="btn btn-secondary" type="button" data-action="copy-link" data-kind="vote" data-id="${id}">투표 링크 복사</button>`],
+          + `<button class="btn btn-secondary" type="button" data-action="${closed ? 'copy-vote-closed' : 'copy-link'}" data-kind="vote" data-id="${id}">${closed ? '마감 안내 복사' : '투표 링크 복사'}</button>`],
       2:() => ['오늘 일정', escape(event.place), attendance(), open('출석 체크', 'attendance')],
       3:() => ['마무리할 일정', '운동이 끝났어요. 마무리만 남았어요.', attendance(), open('마무리하기', 'settlement')],
       4:() => ['마무리한 일정', '마무리를 확정했어요.', attendance(), open('마무리 보기', 'settlement')]
@@ -599,6 +600,12 @@
       copy(href).then(result => notifyCopy(result, published ? `${what} 공개 예시 링크를 복사했어요.` : `${what} 링크(이 브라우저 미리보기)를 복사했어요.`));
       return;
     }
+    if (action === 'copy-vote-closed' && event && !pollIsOpen(event) && !event.cancelled) {
+      const {href} = window.clubShare.linkFor('vote', event);
+      copy(`${event.title} 투표가 마감됐어요. 일정과 내 응답은 아래 링크에서 확인해 주세요.\n${href}`)
+        .then(result => notifyCopy(result, '가상 모임 마감 안내를 복사했어요.'));
+      return;
+    }
     if (action === 'copy-share') {
       const href = modal.querySelector('#share-link').value;
       const message = control.hasAttribute('data-published-link')
@@ -651,13 +658,14 @@
       if (!report.recorded) return showToast('콕과 찬조금 기록을 먼저 입력해 주세요.');
       const lines = [`썬콕19 모임 마무리 · ${fullDate(event.date)}`, `운동 ${event.time}–${event.endTime} · ${event.place}`,
         `총 ${report.total}명 (회원 ${report.members}명 · 게스트 ${report.arrivals}명)`,
-        `콕 이월 ${report.singles}개 + ${report.priorTubes}타 (당일 잔여 ${report.remainingSingles}개)`,
+        `콕 최종 잔량 ${report.closingShuttles}개`,
         `코트 찬조금 ${report.courtDonation.toLocaleString('ko-KR')}원`];
-      copy(lines.join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
+      copy(lines.filter(Boolean).join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
       return;
     }
     if (action === 'toggle-poll' && !event.finalized && !event.cancelled && !deadlinePassed(event)) {
       event.pollOpen = !event.pollOpen;
+      event.voteClosed = !event.pollOpen;
       persist(pollIsOpen(event) ? '참석 투표를 열었어요.' : '참석 투표를 닫았어요.');
     } else if (action === 'mark-attendance' && event.date <= today && !event.finalized && event.roster.includes(member)) {
       if (value === 'present' || value === 'absent') event.attendance[member] = value;
@@ -715,6 +723,12 @@
     const input = ev.target;
     if (input.form && input.setCustomValidity) input.setCustomValidity('');
     if (!ev.isComposing) filterMembers(input);
+    const target = input.form?.querySelector('[data-stock-total]');
+    if (target) {
+      const fields = input.form.elements;
+      const total = Number(fields.openingShuttles.value) + Number(fields.addedShuttles.value) - Number(fields.usedShuttles.value);
+      target.textContent = total < 0 ? '사용 수량을 확인해 주세요' : `${total}개`;
+    }
   });
   document.addEventListener('compositionend', ev => filterMembers(ev.target));
   document.addEventListener('change', ev => {
@@ -768,7 +782,9 @@
       }
       Object.assign(event, Object.fromEntries(['title','date','time','endTime','earlyTime','lateTime','place','deadline','deadlineTime','notes'].map(key => [key,value(key)])));
       event.kind = kindLabels[value('kind')] ? value('kind') : 'regular';
-      event.pollOpen = formData.has('pollOpen') && !event.finalized && !event.cancelled;
+      const open = formData.has('pollOpen') && !event.finalized && !event.cancelled;
+      if (open || event.pollOpen) event.voteClosed = !open;
+      event.pollOpen = open;
       target = 'event/'+event.id+'/poll';
       message = '모임 일정을 저장했어요.';
     } else if (type === 'notice') {
@@ -794,13 +810,21 @@
       const event = state.events.find(item => item.id === id);
       if (!event || event.finalized || (type === 'settlement' && event.date > today)) return showToast('현재는 이 기록을 수정할 수 없어요.');
       if (type === 'guest') {
-        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false});
+        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false,
+          transferWon:value('transferWon') === '' ? null : Number(value('transferWon')),
+          receivedShuttles:value('receivedShuttles') === '' ? null : Number(value('receivedShuttles'))});
         message = '게스트를 추가했어요.';
       } else {
-        const fields = ['priorSingles','priorTubes','remainingSingles','courtDonation'];
+        const modern = formData.has('openingShuttles');
+        const fields = modern ? ['openingShuttles','addedShuttles','usedShuttles','courtDonation']
+          : ['priorSingles','priorTubes','remainingSingles','courtDonation'];
         for (const key of fields) {
           const number = Number(value(key));
-          if (!Number.isSafeInteger(number) || number < 0 || number > 100000000) return fieldError(form,key,'0에서 1억 사이의 숫자를 입력해 주세요.');
+          if (!Number.isSafeInteger(number) || number < 0 || number > 10000000) return fieldError(form,key,'0에서 1천만 사이의 숫자를 입력해 주세요.');
+        }
+        if (modern) {
+          const total = Number(value('openingShuttles')) + Number(value('addedShuttles')) - Number(value('usedShuttles'));
+          if (total < 0 || total > 10000000) return fieldError(form,'usedShuttles','최종 콕 수량을 확인해 주세요.');
         }
         event.settlement = Object.fromEntries(fields.map(key => [key,Number(value(key))]));
         message = '마무리 기록을 저장했어요.';

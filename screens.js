@@ -108,12 +108,13 @@
         const row = (member, detail) => `<li><span><strong>${e(member.name)}</strong>${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
           : action('응답 변경', 'open-vote', event.id, {tone: 'text btn-small', extra: `data-kind="${e(member.id)}" aria-label="${e(member.name)} 응답 변경"`})}</li>`;
         const silent = members.filter(member => !event.votes[member.id]);
+        const closed = !event.cancelled && !pollAvailable && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
         const order = {early: 0, late: 1, yes: 1, no: 2};
         const answered = members.filter(member => event.votes[member.id]).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
         return `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts"><p class="vote-total">응답 ${responded} / ${report.total}명</p>
             <p class="muted">선발 ${report.early} · 후발 ${report.late} · 불참 ${report.no} · 점심 ${report.lunch}</p>
             <svg class="now-meter" viewBox="0 0 ${Math.max(report.total, 1)} 1" preserveAspectRatio="none" role="img" aria-label="응답 ${responded}/${report.total}명"><rect width="${responded}" height="1"/></svg></div>
-            <div class="now-actions">${action('투표 링크 복사', 'copy-link', event.id, {tone: pollAvailable ? 'primary' : 'secondary', extra: 'data-kind="vote"'})}</div>
+            <div class="now-actions">${action(closed ? '마감 안내 복사' : '투표 링크 복사', closed ? 'copy-vote-closed' : 'copy-link', event.id, {tone: pollAvailable || closed ? 'primary' : 'secondary', extra: 'data-kind="vote"'})}</div>
             ${pollAvailable && members.length ? `<a class="btn btn-text now-own" href="#public-vote/${encodeURIComponent(event.id)}" data-route="public-vote/${encodeURIComponent(event.id)}">회원 화면 체험</a>` : ''}</section>
           <section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
             ${silent.length ? `<ul class="name-list">${silent.map(member => row(member, '')).join('')}</ul>` : `<p class="muted home-empty">${members.length ? '모두 응답했어요.' : '이 일정에 등록된 멤버가 없어요.'}</p>`}
@@ -164,27 +165,43 @@
               tone: guest[key] ? 'primary' : 'secondary',
               extra: `data-value="${key}" data-member="${e(guest.id)}" aria-pressed="${Boolean(guest[key])}" aria-label="${e(guest.name)} ${label}"`
             });
-          return `<tr><td><strong>${e(guest.name)}</strong></td><td>${toggle('arrived','도착 확인','미도착')}</td><td>${toggle('paid','입금 확인','미확인')}</td></tr>`;
+          const details = [guest.transferWon ? `이체 ${guest.transferWon.toLocaleString('ko-KR')}원` : '', guest.receivedShuttles ? `콕 ${guest.receivedShuttles}개` : ''].filter(Boolean).join(' · ');
+          return `<tr><td><strong>${e(guest.name)}</strong></td><td>${toggle('arrived','도착 확인','미도착')}</td>
+            <td>${toggle('paid','비용 확인','미확인')}${details ? `<small>${details}</small>` : ''}</td></tr>`;
         });
         const addGuest = event.finalized ? '' : `<form class="guest-form" data-form="guest" data-id="${e(event.id)}">
           ${field('예시 게스트', input('guestName', '', 'required maxlength="40" placeholder="예시 게스트 03"'))}
+          <details class="event-past form-field-full"><summary>이체·콕 기록 (선택)</summary><div class="form-grid">
+            ${field('이체액 (원)', input('transferWon', '', 'type="number" min="0" max="10000000" step="1"'))}
+            ${field('받은 콕 (개)', input('receivedShuttles', '', 'type="number" min="0" max="10000000" step="1"'))}
+          </div></details>
           <button class="btn btn-secondary" type="submit">게스트 추가</button>
         </form>`;
-        return panel('게스트', (guestRows.length ? table(['게스트', '도착', '입금'], guestRows) : empty('등록된 게스트가 없어요.')) + addGuest, {
+        return panel('게스트', (guestRows.length ? table(['게스트', '도착', '비용'], guestRows) : empty('등록된 게스트가 없어요.')) + addGuest, {
           subtitle: '도착을 확인한 게스트만 실제 참여 인원에 포함됩니다.'
         });
       }
 
       function finish() {
         const report = settlement(event);
-        const fields = [
-          ['이전 모인 콕 (낱개)', 'priorSingles'], ['이전 모인 콕 (타)', 'priorTubes'],
-          ['당일 잔여 콕 (낱개)', 'remainingSingles'], ['코트 찬조금 (원)', 'courtDonation']
-        ];
+        const previous = state.events.filter(item => item.finalized && !item.cancelled
+          && `${item.date}T${item.time}/${item.id}` < `${event.date}T${event.time}/${event.id}`
+          && settlement(item).recorded).sort((a, b) =>
+            `${b.date}T${b.time}/${b.id}`.localeCompare(`${a.date}T${a.time}/${a.id}`))[0];
+        const legacy = report.recorded && report.legacy;
+        const opening = report.openingShuttles ?? (previous ? settlement(previous).closingShuttles : 0);
+        const fields = (legacy ? [
+          ['이전 이월 (낱개)', 'priorSingles', report.priorSingles], ['이전 이월 (타)', 'priorTubes', report.priorTubes],
+          ['당일 잔여 (낱개)', 'remainingSingles', report.remainingSingles]
+        ] : [
+          ['이전 이월 (개)', 'openingShuttles', opening], ['이번에 추가 (개)', 'addedShuttles', report.addedShuttles],
+          ['이번에 사용 (개)', 'usedShuttles', report.usedShuttles]
+        ]).concat([['코트 찬조금 (원)', 'courtDonation', report.courtDonation]]);
         const enabled = event.date <= today && !event.finalized;
         const form = enabled
           ? `<form class="settlement-form form-grid" data-form="settlement" data-id="${e(event.id)}">
-              ${fields.map(([label, key]) => field(label, input(key, report[key], 'type="number" min="0" max="100000000" required'))).join('')}
+              ${fields.map(([label, key, amount]) => field(label, input(key, amount, 'type="number" min="0" max="10000000" required'))).join('')}
+              ${legacy ? '' : `<p class="stock-total form-field-full" aria-live="polite">최종 잔량 <strong data-stock-total>${report.recorded ? report.closingShuttles : opening}개</strong></p>`}
               <div class="form-field-full"><button class="btn btn-primary" type="submit">마무리 기록 저장</button></div>
             </form>`
           : '';
@@ -192,7 +209,7 @@
           ? action('카톡 마무리 복사', 'copy-settlement', event.id, {tone:'primary', symbol:'clipboard'}) : '';
         return panel('모임 마무리', summary([
           ['실제 참여', `${report.total}명`, 'green'], ['회원', `${report.members}명`], ['게스트 도착', `${report.arrivals}명`],
-          ['게스트 입금 확인', `${report.guestPaid}명`], ['콕 이월', report.recorded ? `${report.singles}개 + ${report.priorTubes}타` : '미기록'],
+          ['게스트 비용 확인', `${report.guestPaid}명${report.transferWon ? ` · 이체 ${report.transferWon.toLocaleString('ko-KR')}원` : ''}${report.receivedShuttles ? ` · 콕 ${report.receivedShuttles}개` : ''}`], ['콕 이월', report.recorded ? `${report.closingShuttles}개` : '미기록'],
           ['코트 찬조금', report.recorded ? `${report.courtDonation.toLocaleString('ko-KR')}원` : '미기록']
         ]) + form, {
           subtitle: event.finalized ? (report.recorded ? '확정한 인원과 마무리 기록을 한 번에 복사하세요.' : '출석을 다시 열어 콕과 찬조금 기록을 입력할 수 있어요.')

@@ -974,3 +974,46 @@ test('a pin another organiser made first lets go of nothing', async t => {
     .sort((a, b) => a.pinnedAt - b.pinnedAt).map(event => event.title);
   assert.deepEqual(pinned, ['가상 동시 0', '가상 동시 2', '가상 동시 3']);
 });
+
+test('guest payments and shuttle stock carry from the preceding confirmed session without changing legacy records', async t => {
+  const {client, DB} = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const day = offset => new Date(Date.now() + (9 + offset * 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const create = async (date, time = '10:00') => (await admin.request('/api/admin/events', {
+    method:'POST', expect:201, body:{...futureEvent(), date, time, deadline:date + 'T09:00', open:false}
+  })).event;
+  const path = event => '/api/admin/events/' + event.id;
+  const save = (event, body, expect = 200) => admin.request(path(event) + '/settlement', {method:'PUT', body, expect});
+  const old = await create(day(-2));
+  const current = await create(day(-1));
+  const later = await create(day(-1), '11:00');
+  const legacy = {priorSingles:2, priorTubes:1, remainingSingles:3, courtDonation:0, confirmed:true};
+  assert.deepEqual((await save(old, legacy)).settlement, legacy);
+
+  const initial = await admin.request(path(current));
+  assert.deepEqual(initial.carryStock, {shuttles:17, date:old.date, time:old.time});
+  const fields = {name:'가상 게스트', status:'arrived', paid:true};
+  const guestPath = path(current) + '/guests';
+  const stored = await admin.request(guestPath, {method:'POST', body:{...fields, transferWon:5000, receivedShuttles:2}, expect:201});
+  const {id} = stored.guest;
+  const olderEdit = await admin.request(guestPath, {method:'POST', body:{...fields, id, status:'confirmed'}});
+  assert.deepEqual([olderEdit.guest.transferWon, olderEdit.guest.receivedShuttles], [5000, 2]);
+  await admin.request(guestPath, {method:'POST', body:{...fields, id, transferWon:-1}, expect:400});
+
+  const stock = {openingShuttles:17, addedShuttles:2, usedShuttles:5, courtDonation:7000, confirmed:false};
+  await save(current, {...stock, usedShuttles:20}, 400);
+  await save(current, stock);
+  assert.equal((await admin.request(path(later))).carryStock.shuttles, 17, 'drafts do not carry forward');
+  assert.deepEqual((await save(current, {...stock, confirmed:true})).settlement,
+    {...stock, confirmed:true, closingShuttles:14, priorSingles:0, priorTubes:0, remainingSingles:14});
+  assert.deepEqual((await admin.request(path(later))).carryStock, {shuttles:14, date:current.date, time:current.time});
+  assert.deepEqual((await admin.request(path(old))).settlement, legacy);
+  await DB.prepare('UPDATE settlements SET prior_singles=2, prior_tubes=1, remaining_singles=4 WHERE event_id=?').bind(current.id).run();
+  assert.equal((await admin.request(path(later))).carryStock.shuttles, 18, 'stock edited by the old Worker is not lost');
+  assert.equal((await admin.request(path(current))).settlement.openingShuttles, undefined);
+  const future = (await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()})).event;
+  assert.equal((await admin.request(path(future), {method:'PATCH', body:{open:false}})).event.voteClosed, true);
+  assert.equal((await admin.request(path(future), {method:'PATCH', body:{open:true}})).event.voteClosed, undefined);
+  await admin.request(guestPath, {method:'POST', body:{...fields, id, transferWon:null}, expect:409});
+});

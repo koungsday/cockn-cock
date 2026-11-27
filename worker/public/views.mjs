@@ -314,7 +314,9 @@ export function memberVoteScreen(event, vote, eligible, voteSaved = false, signe
 // part as 내 응답, since organisers vote as members (ROLES.md 2단계).
 function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true) {
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
-  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
+  const closed = event.voteClosed || deadlinePassed(event);
+  let response = `<div class="public-form">${current}<p class="public-status">${closed ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p>
+    ${closed && !signedIn ? '<button class="share-button share-button--secondary" type="button" data-action="sign-in">로그인하고 내 응답 보기</button>' : ''}</div>`;
   if (event.cancelled) {
     response = `<div class="public-form">${current}<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? '위 안내를 확인해 주세요.' : ''}</p></div>`;
   } else if (event.canVote && !signedIn) {
@@ -360,7 +362,7 @@ function memberEventState(event, signedIn = true) {
   }
   if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
   if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 일정에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
-  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
+  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.voteClosed || deadlinePassed(event) ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
 function nextEventCard(event, signedIn) {
@@ -414,14 +416,19 @@ function attendanceMonths(year, { months, total }) {
 function recordCard(record) {
   if (!record) return '';
   const months = periodMonths(record.half, record.periods.length);
-  const reward = record.rewarded ? '받았어요' : record.eligible ? '수령 대상이에요' : '아직이에요';
+  const reward = record.rewarded ? '수령 완료' : record.eligible ? '수령 대상' : '미수령';
   return `<section class="public-share-card member-list member-record-card" aria-labelledby="member-record"><div class="public-share-content">
     <h1 id="member-record" tabindex="-1">내 기록</h1>
+    <dl class="public-event-facts"><div><dt>콕 수령</dt><dd><strong>${reward}</strong></dd></div>
+      ${record.periods.map((marks, index) => {
+        const remaining = Math.max(0, record.goal - marks.length);
+        return `<div><dt>${months[index]} 인정</dt><dd>${marks.length}/${record.goal}회 · <strong>${remaining ? `${remaining}회 남음` : '목표 달성'}</strong></dd></div>`;
+      }).join('')}</dl>
+    <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} · 확정된 일정의 기록이에요.</p>
+    <details class="event-past"><summary>출석·인정 상세</summary>
     ${attendanceMonths(record.year, record.attendance)}
-    <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
     ${record.periods.map((marks, index) => markSlots(periodName(record.periods.length, index), months[index], marks, record.goal)).join('')}
-    <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${reward}</dd></div></dl>
-    <p class="public-form-note">마무리한 일정에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
+    </details></div></section>`;
 }
 
 // One event or notice in the member lists (홈, 일정, 공지); the whole row opens it in the shell.
@@ -678,14 +685,16 @@ export function homeNow(detail, listing = null, fresh = false) {
   const open = (label, tab) => button(label, 'open-event', { id: event.id, tab });
   const attendance = () => nowStats(stage === 2 ? [['참석 예정', going], ['출석', present], ['게스트 도착', arrived]]
     : [['출석', present], ['게스트 도착', arrived], ['참석 예정', going]], present, going, `출석 ${present}/${going}명`);
-  const vote = event.canVote ? `${deadlineLabel(event.deadline)} 투표 마감` : event.open || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
+  const vote = event.canVote ? `${deadlineLabel(event.deadline)} 투표 마감` : event.voteClosed || event.open || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
   const [kicker, fact, numbers, actions] = [
     () => ['다음 일정', '아직 회원에게 보이지 않아요. 공개해야 투표할 수 있어요.', '', open('일정 열어 공개하기', 'poll')],
     () => ['다음 일정', `${esc(event.place)} · ${esc(vote)}`,
       active.length ? nowStats([['선발', counts.early], ['후발', counts.late], ['점심', counts.lunch], ['불참', counts.no], ['미응답', waiting]],
         responded, active.length, `응답 ${responded}/${active.length}명`)
         : '<p class="now-note">투표 대상 회원이 없어요. 회원 관리에서 활동 회원을 확인해 주세요.</p>',
-      open(waiting > 0 ? `미응답 ${waiting}명 보기` : '응답 명단 보기', 'poll') + button('투표 링크 복사', 'copy-vote-link', { id: event.id, css: 'secondary' })],
+      voteClosedForSharing(event, active)
+        ? button('마감 안내 복사', 'copy-vote-closed', { id: event.id }) + open('응답 명단 보기', 'poll')
+        : open(waiting > 0 ? `미응답 ${waiting}명 보기` : '응답 명단 보기', 'poll') + button('투표 링크 복사', 'copy-vote-link', { id: event.id, css: 'secondary' })],
     () => ['오늘 일정', esc(event.place), attendance(), open('출석 체크', 'attendance')],
     () => ['마무리할 일정', '운동이 끝났어요. 마무리만 남았어요.', attendance(), open('마무리하기', 'settlement')],
     () => ['마무리한 일정', '마무리를 확정했어요.', attendance(), open('마무리 보기', 'settlement')],
@@ -791,6 +800,17 @@ export function adminHome({ events, notices }, upcoming, last = null, listing = 
   </div>`;
 }
 
+function voteClosedForSharing(event, roster) {
+  return event.published && !event.cancelled && !event.canVote && (event.voteClosed || deadlinePassed(event) || roster.some(person => person.slot));
+}
+
+export function voteShareAction(event, roster) {
+  if (!event.published) return button('회원에게 공개하기', 'publish-event');
+  const closed = voteClosedForSharing(event, roster);
+  return button(closed ? '마감 안내 복사' : '투표 링크 복사', closed ? 'copy-vote-closed' : 'copy-vote-link',
+    { id: event.id, css: event.canVote || closed ? '' : 'secondary' });
+}
+
 export function countEvent(roster, guests) {
   return {
     early: roster.filter(row => row.slot === 'early').length,
@@ -830,7 +850,7 @@ export function eventForm(event, id = '') {
       ${textarea('공개 안내', 'notes', event.notes, 'maxlength="3000" placeholder="날짜별 준비물이나 안내를 적어 주세요."')}
     </div>`
       + note('로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.')
-      + check('카톡 공유 링크 공개', 'published', event.published)
+      + check('회원에게 일정 공개', 'published', event.published)
       + check('웹 투표 열기', 'open', event.open)),
     id ? '일정 저장' : '일정 만들기', id);
 }
@@ -889,7 +909,7 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
     iconAction('more', 'event-menu', { id: event.id, label: `${event.title} 일정 메뉴` }));
   // The event names the screen: its title, one line of when and where, one quiet line of where it stands. No box.
   const stands = event.cancelled ? '취소한 일정' : settlement?.confirmed ? '마무리 완료' : !event.published ? '공개 전 · 회원에게 보이지 않아요'
-    : event.canVote ? `공개 중 · ${deadlineLabel(event.deadline)} 투표 마감` : `공개 중 · ${event.open || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
+    : event.canVote ? `공개 중 · ${deadlineLabel(event.deadline)} 투표 마감` : `공개 중 · ${event.voteClosed || event.open || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
   const head = `<header class="event-head"><h1 tabindex="-1">${open ? '' : pinMark(event)}${esc(event.title)}</h1>${tools}
       <p>${esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`)}</p><p class="muted">${esc(stands)}</p></header>${cancelled}`;
   // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
@@ -904,12 +924,11 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
   const late = !event.canVote && deadlinePassed(event) && (event.open || event.date >= today())
     ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : '';
   // 카톡 공유 is copying the vote link (DESIGN.md 5 카톡 공유); the KakaoTalk preview waits in 더보기.
-  const share = event.published ? button('투표 링크 복사', 'copy-vote-link', { id: event.id, css: event.canVote ? '' : 'secondary' })
-    : button('회원에게 공개하기', 'publish-event');
-  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster)}</div>${late}<div class="now-actions">${share}</div></section>`;
+  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster)}</div>${late}
+    <div class="now-actions" id="vote-share">${voteShareAction(event, roster)}</div></section>`;
   const poll = vote + mine + voteRoster(event, roster);
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed, onlyUnmarked) + guestList
-    : current === 'settlement' ? settlementPanel(settlement, counts) : poll + guestList;
+    : current === 'settlement' ? settlementPanel(settlement, counts, detail.carryStock, guests) : poll + guestList;
   return `<div class="event-page">${back}${head}${nav}${content}</div>`;
 }
 
@@ -1011,10 +1030,16 @@ export function overrideForm(event, person) {
 
 const guestStatus = { pending: '신청', confirmed: '확정', arrived: '도착', cancelled: '취소' };
 
+function guestPaymentText(guest) {
+  return [guest.transferWon ? `이체 ${guest.transferWon.toLocaleString('ko-KR')}원` : '',
+    guest.receivedShuttles ? `콕 ${guest.receivedShuttles}개` : ''].filter(Boolean).join(' · ');
+}
+
 function guestsPanel(guests, confirmed) {
   const rows = guests.map(guest => `<tr><td><strong>${esc(guest.name)}</strong>${guest.level || guest.invitedBy ? `<small>${esc([guest.level, guest.invitedBy].filter(Boolean).join(' · '))}</small>` : ''}</td>
     <td>${pill(guestStatus[guest.status] ?? '', guest.status === 'arrived' ? 'green' : guest.status === 'cancelled' ? 'muted' : 'warm')}</td>
-    <td>${guest.paid ? pill('비용 확인', 'green') : pill('미확인')}</td>
+    <td>${guest.paid ? pill('비용 확인', 'green') : pill('미확인')}
+      ${guestPaymentText(guest) ? `<small>${guestPaymentText(guest)}</small>` : ''}</td>
     <td class="table-actions">${button('수정', 'edit-guest', { id: guest.id, css: 'text small', disabled: confirmed, label: `${guest.name} 게스트 수정` })}</td></tr>`);
   return panel('게스트', table(['게스트', '상태', '비용', '<span class="sr-only">수정</span>'], rows, '등록된 게스트가 없습니다.'), {
     id: 'guests', subtitle: '도착을 확인한 게스트만 실제 참여 인원에 포함됩니다.',
@@ -1028,20 +1053,45 @@ export function guestForm(guest = null) {
     ${field('급수 (선택)', 'level', guest?.level, { attrs: 'maxlength="30"' })}
     ${field('초대한 회원 (선택)', 'invitedBy', guest?.invitedBy, { attrs: 'maxlength="60"' })}
     ${select('상태', 'status', Object.entries(guestStatus), guest?.status ?? 'pending')}</div>`
-    + check('게스트 비용 확인', 'paid', guest?.paid), guest ? '게스트 저장' : '게스트 등록', guest?.id);
+    + check('게스트 비용 확인', 'paid', guest?.paid)
+    + `<details class="event-past"${guestPaymentText(guest ?? {}) ? ' open' : ''}><summary>이체·콕 기록 (선택)</summary>
+    <div class="form-grid">
+      ${field('이체액 (원)', 'transferWon', guest?.transferWon ?? '', { type: 'number', attrs: 'min="0" max="10000000" step="1" inputmode="numeric"' })}
+      ${field('받은 콕 (개)', 'receivedShuttles', guest?.receivedShuttles ?? '', { type: 'number', attrs: 'min="0" max="10000000" step="1" inputmode="numeric"' })}
+    </div></details>`, guest ? '게스트 저장' : '게스트 등록', guest?.id);
 }
 
-export function settlementPanel(value, counts) {
+function guestPaymentSummary(guests) {
+  const paid = guests.filter(guest => guest.paid && guest.status !== 'cancelled');
+  const won = paid.reduce((sum, guest) => sum + (guest.transferWon ?? 0), 0);
+  const shuttles = paid.reduce((sum, guest) => sum + (guest.receivedShuttles ?? 0), 0);
+  const unspecified = paid.filter(guest => guest.transferWon == null && guest.receivedShuttles == null).length;
+  return paid.length ? `게스트 비용 확인 ${paid.length}명${won ? ` · 이체 ${won.toLocaleString('ko-KR')}원` : ''}${shuttles ? ` · 콕 ${shuttles}개` : ''}${unspecified ? ` · 세부 미기록 ${unspecified}명` : ''}` : '';
+}
+
+export function settlementPanel(value, counts, carry = null, guests = []) {
   const s = value ?? {};
-  const numbers = [
-    ['이전 이월 (낱개)', 'priorSingles'], ['이전 이월 (타)', 'priorTubes'], ['당일 잔여 (낱개)', 'remainingSingles'], ['코트 찬조금 (원)', 'courtDonation'],
-  ].map(([label, key]) => field(label, key, s[key] ?? 0, { type: 'number', attrs: 'min="0" max="10000000" step="1" required' })).join('');
+  const legacy = value && s.openingShuttles == null;
+  const numberField = (label, key, amount) => field(label, key, amount,
+    { type: 'number', attrs: 'min="0" max="10000000" step="1" inputmode="numeric" required' });
+  const opening = s.openingShuttles ?? carry?.shuttles ?? 0;
+  const numbers = (legacy ? [
+    ['이전 이월 (낱개)', 'priorSingles', s.priorSingles], ['이전 이월 (타)', 'priorTubes', s.priorTubes],
+    ['당일 잔여 (낱개)', 'remainingSingles', s.remainingSingles],
+  ] : [
+    ['이전 이월 (개)', 'openingShuttles', opening], ['이번에 추가 (개)', 'addedShuttles', s.addedShuttles ?? 0],
+    ['이번에 사용 (개)', 'usedShuttles', s.usedShuttles ?? 0],
+  ]).map(([label, key, amount]) => numberField(label, key, amount)).join('');
+  const stock = legacy ? '' : `<p class="form-note">${!value && carry ? `${dateLabel(carry.date)} ${esc(carry.time)} 확정 잔량을 불러왔어요. ` : ''}게스트 콕을 공용 재고에 넣었다면 추가 수량에 포함해 주세요.</p>
+    <p class="stock-total" aria-live="polite">최종 잔량 <strong data-stock-total>${s.closingShuttles ?? opening}개</strong></p>`;
+  const payment = guestPaymentSummary(guests);
   return panel('모임 마무리', summary([
     ['실제 참석', `${counts.members + counts.guests}명`, 'green'], ['회원', `${counts.members}명`], ['게스트 도착', `${counts.guests}명`],
-  ]) + (counts.unmarked ? note(`출석을 확인하지 않은 회원 ${counts.unmarked}명은 마무리 집계에서 빠집니다.`) : '')
-    + form('settlement', `<div class="form-grid">${numbers}</div>` + check('마무리 집계를 확인했어요', 'confirmed', s.confirmed)
+  ]) + (payment ? note(payment) : '') + (counts.unmarked ? note(`출석을 확인하지 않은 회원 ${counts.unmarked}명은 마무리 집계에서 빠집니다.`) : '')
+    + form('settlement', `<div class="form-grid">${numbers}${numberField('코트 찬조금 (원)', 'courtDonation', s.courtDonation ?? 0)}</div>`
+      + stock + check('마무리 집계를 확인했어요', 'confirmed', s.confirmed)
       + (s.confirmed ? note('확인을 해제하고 저장하면 출석과 게스트를 다시 편집할 수 있습니다.') : ''), '마무리 기록 저장', '', 'settlement-form'), {
-    id: 'settlement', subtitle: '콕 잔여와 찬조금을 저장하고 마무리 글을 단체방에 붙여 넣으세요.',
+    id: 'settlement', subtitle: '콕 잔량을 확인하고 마무리 글을 단체방에 붙여 넣으세요.',
     actions: button(`${icon('clipboard', 16)} 마무리 글 복사`, 'copy-report', { css: 'secondary small', disabled: !s.confirmed }),
   });
 }
@@ -1053,13 +1103,13 @@ export function reportText(detail, clubName) {
     `${clubName} ${event.title} 마무리`,
     `${dateLine(event)} / ${event.place}`,
     `실제 참석 ${c.members + c.guests}명 (회원 ${c.members}명, 게스트 ${c.guests}명)`,
-    `콕 이월 ${s.priorSingles + s.remainingSingles}개 + ${s.priorTubes}타 (이전 ${s.priorSingles}개 + ${s.priorTubes}타, 당일 잔여 ${s.remainingSingles}개)`,
+    s.closingShuttles == null
+      ? `콕 이월 ${s.priorSingles + s.remainingSingles}개 + ${s.priorTubes}타 (이전 ${s.priorSingles}개 + ${s.priorTubes}타, 당일 잔여 ${s.remainingSingles}개)`
+      : `콕 최종 잔량 ${s.closingShuttles}개 (이월 ${s.openingShuttles} + 추가 ${s.addedShuttles} − 사용 ${s.usedShuttles})`,
     `코트 찬조금 ${Number(s.courtDonation).toLocaleString('ko-KR')}원`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
-// 운영진 (PLATFORM.md 인증): who may open this screen. Another organiser is issued, reissued or retired here;
-// one's own number is changed from the menu (번호 바꾸기).
 function organizersPanel(organizers, me) {
   const rows = organizers.map(organizer => {
     const self = organizer.id === me;
