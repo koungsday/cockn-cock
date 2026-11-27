@@ -10,7 +10,7 @@ const publicPath = new RegExp(`^/api/public/(vote|notice)/(${identifier})$`);
 const votePath = new RegExp(`^/api/votes/(${identifier})$`);
 const memberPath = new RegExp(`^/api/admin/members/(${identifier})(/reset)?$`);
 const organizerPath = new RegExp(`^/api/admin/organizers/(${identifier})(/reset)?$`);
-const eventPath = new RegExp(`^/api/admin/events/(${identifier})(?:/(attendance|votes|guests|settlement)(?:/(${identifier}))?)?$`);
+const eventPath = new RegExp(`^/api/admin/events/(${identifier})(?:/(attendance|votes|guests|guest-records|settlement)(?:/(${identifier}))?)?$`);
 const noticePath = new RegExp(`^/api/admin/notices/(${identifier})$`);
 const recordId = new RegExp(`^${identifier}$`);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -1090,7 +1090,7 @@ async function routeAdmin(db, env, url, method, body, user) {
       result.vote ? `${slotWords[result.vote.slot]}${result.vote.lunch ? ', 점심' : ''}` : '응답 지움'}`);
     return json(result);
   }
-  if (resource === 'guests' && !memberId && method === 'POST') {
+  if ((resource === 'guests' || resource === 'guest-records') && !memberId && method === 'POST') {
     const result = await setGuest(db, club, id, body);
     await record(body.id ? 'guest.update' : 'guest.add', result.guest.id, async () => `${await eventLabel(db, club, id)} · ${
       result.guest.name} · ${guestWords[result.guest.status]}${result.guest.paid ? ', 납부' : ''}`);
