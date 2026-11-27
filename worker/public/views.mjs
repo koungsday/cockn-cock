@@ -1176,7 +1176,7 @@ export function progressScreen(year, half, members, rules) {
   // Every 구간 sits in one cell as a box, green once its goal is met, so a month-by-month club does not push the table
   // past a phone's edge (live.css .period-counts).
   const counts = periods => `<ul class="period-counts">${periods.map((count, index) => `<li${count >= rules.goal ? ' class="period-met"' : ''}><span>${months[index]}</span><strong>${count}<small>/${rules.goal}</small></strong></li>`).join('')}</ul>`;
-  const rows = members.map(row => `<tr data-search="${esc(row.name)}"><td class="member-name"><strong>${esc(row.name)}</strong></td>
+  const rows = members.map(row => `<tr data-search="${esc(row.name)}"><td><div class="member-name"><strong>${esc(row.name)}</strong></div></td>
     <td class="progress-periods">${counts(row.periods)}</td><td>${reward(row)}</td>
     <td class="table-actions">${button(row.rewarded ? '수령 취소' : '수령 기록', 'reward', { id: row.id, css: row.rewarded ? 'text small' : 'secondary small', label: `${row.name} ${row.rewarded ? '수령 취소' : '수령 기록'}` })}</td></tr>`);
   const period = form('progress', `<div class="form-grid">${field('연도', 'year', year, { type: 'number', attrs: 'min="2000" max="2100" step="1" required' })}
