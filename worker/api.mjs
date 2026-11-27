@@ -1,6 +1,6 @@
 import {
   ApiError, changePin, clientUser, currentSeconds, login, logout, makeMemberCredential,
-  matchingCredentials, membersNamed, readSession, rosterOpenEvents, sql, temporaryPin
+  matchingCredentials, membersNamed, readSession, rosterOpenEvents, sameName, spaceless, sql, temporaryPin
 } from './auth.mjs';
 import { audit, organizerActor } from './audit.mjs';
 import { grantOrganizer, issueOrganizer, listOrganizers, organizerName, reissueOrganizer, retireOrganizer } from './organizers.mjs';
@@ -446,10 +446,10 @@ async function addMember(env, body) {
       INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version)
       SELECT ?, ?, ?, ?, ?, ?
       WHERE NOT EXISTS (
-        SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?)
+        SELECT 1 FROM members WHERE club_id = ? AND ${sameName('name')} IN (?, ?)
           AND credential_version NOT IN (SELECT value FROM json_each(?))
       )
-    `, id, club, name, salt, hash, version, club, name, name.normalize('NFD'),
+    `, id, club, name, salt, hash, version, club, spaceless(name), spaceless(name.normalize('NFD')),
     JSON.stringify(candidates.map(row => row.credential_version))),
     rosterOpenEvents(db, club, id)
   ]);
@@ -501,10 +501,11 @@ async function resetMember(env, id) {
         credential_version = ?, must_change = 1
       WHERE id = ? AND club_id = ? AND name = ? AND credential_version = ?
         AND NOT EXISTS (
-          SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?, ?)
+          SELECT 1 FROM members WHERE club_id = ? AND ${sameName('name')} IN (?, ?, ?)
             AND credential_version NOT IN (SELECT value FROM json_each(?))
         )
-    `, salt, hash, version, id, club, target.name, target.credential_version, club, name, name.normalize('NFD'), target.name,
+    `, salt, hash, version, id, club, target.name, target.credential_version, club,
+    spaceless(name), spaceless(name.normalize('NFD')), spaceless(target.name),
     JSON.stringify(candidates.map(row => row.credential_version))),
     sql(db, `
       DELETE FROM sessions WHERE role = 'member' AND member_id = ?
