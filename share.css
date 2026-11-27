@@ -15,8 +15,8 @@
 
 .share-dialog-head h2 {
   margin: 0;
-  color: #172c22;
-  font-size: 1.45rem;
+  color: var(--ink);
+  font-size: var(--t1);
   letter-spacing: -.04em;
 }
 
@@ -49,7 +49,7 @@
   border-radius: 12px;
   background: #d9ee8f;
   color: #193c29;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: -.075em;
 }
 
@@ -62,7 +62,7 @@
 
 .share-chat-head {
   margin-bottom: 14px;
-  font-size: .875rem;
+  font-size: var(--t4);
 }
 
 .share-chat-head span {
@@ -70,8 +70,8 @@
   border-radius: 20px;
   background: #f0f5f9;
   color: #415967;
-  font-size: .75rem;
-  font-weight: 700;
+  font-size: var(--t4);
+  font-weight: 600;
 }
 
 .share-chat-thread {
@@ -106,13 +106,13 @@
 
 .share-chat-caption strong {
   color: #1e2928;
-  font-size: .95rem;
+  font-size: var(--t3);
 }
 
 .share-chat-caption span,
 .share-chat-caption small {
   color: #46575c;
-  font-size: .81rem;
+  font-size: var(--t4);
   line-height: 1.5;
 }
 
@@ -158,7 +158,7 @@
   align-items: center;
   gap: 1.45cqw;
   font-size: 3.3cqw;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -.035em;
 }
 
@@ -182,7 +182,7 @@
   margin-top: 4.6cqw;
   color: #e1f59f;
   font-size: 3.6cqw;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .share-art--notice .share-art-label {
@@ -201,7 +201,7 @@
 .share-art-title {
   margin-top: 1cqw;
   font-size: 7.1cqw;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: -.048em;
   line-height: 1.12;
   -webkit-line-clamp: 2;
@@ -212,7 +212,7 @@
   margin-top: 2.1cqw;
   color: #ecf5e6;
   font-size: 3.4cqw;
-  font-weight: 550;
+  font-weight: 600;
   line-height: 1.35;
   -webkit-line-clamp: 2;
 }
@@ -297,45 +297,45 @@
   border: 1px solid transparent;
   border-radius: 11px;
   font: inherit;
-  font-weight: 750;
+  font-weight: 600;
   text-align: center;
   cursor: pointer;
 }
 
 .share-button--primary {
-  background: var(--ink);
+  background: var(--court);
   color: #fff;
 }
 
 .share-button--primary:not(:disabled):hover {
-  background: var(--menu-hover);
+  background: var(--court-deep);
 }
 
 .share-button--primary:not(:disabled):active {
-  background: var(--menu-line);
+  background: var(--ink);
 }
 
 .share-button--secondary {
-  border-color: #cfdcd2;
+  border-color: var(--edge);
   background: #fff;
-  color: #23523b;
+  color: var(--ink);
 }
 
 .share-button--secondary:hover {
-  background: #edf4ec;
+  background: var(--accent-soft);
 }
 
 .share-preview-note {
   margin: 0;
-  color: #55675c;
-  font-size: .875rem;
+  color: var(--muted);
+  font-size: var(--t4);
   line-height: 1.55;
 }
 
 .share-feedback {
-  color: #23523b;
-  font-size: .88rem;
-  font-weight: 750;
+  color: var(--ink);
+  font-size: var(--t4);
+  font-weight: 600;
 }
 
 .share-feedback:empty {
@@ -346,9 +346,9 @@
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: #273c30;
-  font-size: .875rem;
-  font-weight: 750;
+  color: var(--ink);
+  font-size: var(--t4);
+  font-weight: 600;
 }
 
 .share-link-field input {
@@ -359,17 +359,17 @@
   box-sizing: border-box;
   border: 1px solid var(--field-line);
   border-radius: 9px;
-  background: #f2f5f0;
-  color: #405349;
+  background: var(--hint);
+  color: var(--muted);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .public-share-page {
   width: min(100% - 32px, 640px);
   margin: 0 auto;
   padding: clamp(20px, 5vw, 56px) 0;
-  color: #1e3026;
+  color: var(--ink);
 }
 
 .public-masthead {
@@ -380,13 +380,13 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: #214333;
-  font-size: 1.05rem;
+  color: var(--court);
+  font-size: var(--t3);
 }
 
 .public-example {
-  color: #536859;
-  font-size: .875rem;
+  color: var(--muted);
+  font-size: var(--t4);
 }
 
 
@@ -433,8 +433,8 @@
 
 .public-share-type {
   color: #e2f49e;
-  font-size: .875rem;
-  font-weight: 850;
+  font-size: var(--t4);
+  font-weight: 600;
 }
 
 .share-art--notice .public-share-type {
@@ -443,8 +443,8 @@
 
 .public-share-card h1 {
   margin: 7px 0 0;
-  color: #172c22;
-  font-size: clamp(1.65rem, 5vw, 2.15rem);
+  color: var(--ink);
+  font-size: var(--t1);
   letter-spacing: -.055em;
   line-height: 1.24;
   overflow-wrap: anywhere;
@@ -458,14 +458,14 @@
 .public-share-card time {
   display: block;
   margin-top: 8px;
-  font-size: .925rem;
+  font-size: var(--t4);
 }
 
 .public-share-body,
 .public-status {
   margin: 18px 0 0;
-  color: #344b3b;
-  font-size: 1rem;
+  color: var(--ink);
+  font-size: var(--t3);
   line-height: 1.65;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -477,7 +477,7 @@
   margin: 0;
   padding: 14px 16px;
   border-radius: 12px;
-  background: #f1f5ef;
+  background: var(--hint);
 }
 
 .public-share-body:first-child {
@@ -491,14 +491,14 @@
 }
 
 .public-event-facts dt {
-  color: #506455;
-  font-size: .875rem;
+  color: var(--muted);
+  font-size: var(--t4);
 }
 
 .public-event-facts dd {
   margin: 0;
-  color: #263c2d;
-  font-weight: 700;
+  color: var(--ink);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -519,15 +519,15 @@
   margin: 0;
   padding: 11px 13px;
   border-radius: 10px;
-  background: #e2efdc;
-  color: #244b31;
+  background: var(--accent-soft);
+  color: var(--ink);
   line-height: 1.55;
 }
 
 .public-field {
   display: grid;
   gap: 6px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-field select,
@@ -538,7 +538,7 @@
   border: 1px solid var(--field-line);
   border-radius: 10px;
   background-color: #fff;
-  color: #243f30;
+  color: var(--ink);
   font: inherit;
 }
 
@@ -552,7 +552,7 @@
 .public-choices legend {
   padding: 0;
   margin-bottom: 7px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-choice {
@@ -574,18 +574,18 @@
   padding: 8px;
   border: 1px solid var(--field-line);
   border-radius: 10px;
-  color: #2a4a37;
-  font-size: .94rem;
-  font-weight: 750;
+  color: var(--ink);
+  font-size: var(--t3);
+  font-weight: 600;
   text-align: center;
   cursor: pointer;
 }
 
 .public-choice input:checked + span {
-  border-color: #376044;
-  background: #e2efdc;
-  color: #193b27;
-  box-shadow: inset 0 0 0 1px #376044;
+  border-color: var(--court);
+  background: var(--accent-soft);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--court);
 }
 
 .public-choice-slots {
@@ -597,12 +597,12 @@
   min-height: var(--touch-target, 44px);
   align-items: center;
   gap: 9px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-form-note {
-  color: #496354;
-  font-size: .9rem;
+  color: var(--muted);
+  font-size: var(--t4);
 }
 
 .share-button:focus-visible,
@@ -627,7 +627,7 @@
     width: 28px;
     height: 28px;
     border-radius: 9px;
-    font-size: .875rem;
+    font-size: var(--t4);
   }
 }
 
@@ -636,33 +636,33 @@
 /* In the shell (ROLES.md 2·3단계) they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content
    area's own padding. */
 .main-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
-.member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: #23523b; font-size: .9rem; font-weight: 700; }
+.member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: var(--ink); font-size: var(--t4); font-weight: 600; }
 .member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
 .public-receipt strong { margin-left: 4px; }
-.member-confirmed { margin-left: 6px; color: #1f5a36; font-weight: 800; }
+.member-confirmed { margin-left: 6px; color: var(--court); font-weight: 600; }
 .public-status strong { display: block; }
 .member-records { list-style: none; margin: 0; padding: 0; }
 .member-record + .member-record { border-top: 1px solid var(--line); }
 .member-record-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 10px 0; overflow-wrap: anywhere; }
 .member-record-link strong { display: block; }
 .member-record-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.member-record-meta { display: grid; color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
-.member-record-action { padding: 6px 10px; border: 1px solid #cfdcd2; border-radius: 8px; color: #23523b; font-size: .86rem; font-weight: 750; white-space: nowrap; }
-.member-record-open { border-color: transparent; background: #e2efdc; }
+.member-record-meta { display: grid; color: var(--muted); font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.member-record-action { padding: 6px 10px; border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: var(--t4); font-weight: 600; white-space: nowrap; }
+.member-record-open { border-color: transparent; background: var(--accent-soft); }
 .member-record-arrow { display: grid; color: var(--muted); }
-.member-list :is(h1, h2) { font-size: 1.12rem; margin-bottom: 4px; }
-.member-record-done { border-color: transparent; background: #e8f3e7; color: #28583e; }
+.member-list :is(h1, h2) { font-size: var(--t2); margin-bottom: 4px; }
+.member-record-done { border-color: transparent; background: var(--accent-soft); color: var(--court); }
 .public-story-head .public-title {
   margin: 7px 0 0;
   color: inherit;
-  font-size: clamp(1.65rem, 5vw, 2.15rem);
+  font-size: var(--t1);
   letter-spacing: -.055em;
   line-height: 1.24;
   overflow-wrap: anywhere;
 }
 .member-next .public-share-content { display: grid; gap: 14px; }
-.member-answer { margin: 0; color: #344b3b; font-size: 1rem; line-height: 1.55; }
-.member-answer strong { color: #193b27; }
+.member-answer { margin: 0; color: var(--ink); font-size: var(--t3); line-height: 1.55; }
+.member-answer strong { color: var(--ink); }
 .member-next-action { width: 100%; }
 .member-record-card .public-share-content { display: grid; gap: 10px; }
 .member-record-card .public-share-content > * { margin: 0; }
@@ -673,34 +673,34 @@
 /* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */
 .public-form + .member-counts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; }
-.member-counts-head span, .member-counts-note { color: #496354; font-size: .875rem; }
+.member-counts-head span, .member-counts-note { color: var(--muted); font-size: var(--t4); }
 .member-counts ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .member-counts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; align-items: baseline; }
-.member-counts li > span { color: #344b3b; font-size: .94rem; }
-.member-counts li > strong { color: #193b27; font-variant-numeric: tabular-nums; }
-.member-count-bar { grid-column: 1 / -1; display: block; width: 100%; height: 8px; border-radius: 8px; background: #e9eee7; overflow: hidden; }
-.member-count-slot { fill: #458563; }
+.member-counts li > span { color: var(--ink); font-size: var(--t3); }
+.member-counts li > strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.member-count-bar { grid-column: 1 / -1; display: block; width: 100%; height: 8px; border-radius: 8px; background: var(--hint); overflow: hidden; }
+.member-count-slot { fill: var(--court); }
 .member-count-lunch { fill: var(--field-line); }
 .member-counts-note { margin: 0; word-break: keep-all; }
 /* 내 기록 date slots (views.mjs markSlots), like the club's 출석완료자 명단 sheet. */
 .member-marks { display: grid; gap: 7px; }
 .member-marks-head { display: flex; align-items: baseline; gap: 6px; margin: 0; }
-.member-marks-head span { color: #496354; font-size: .875rem; }
-.member-marks-head .member-marks-count { margin-left: auto; color: #193b27; font-weight: 750; font-variant-numeric: tabular-nums; }
+.member-marks-head span { color: var(--muted); font-size: var(--t4); }
+.member-marks-head .member-marks-count { margin-left: auto; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .member-mark-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
-.member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: 6px 4px; border-radius: 8px; background: #e2efdc; box-shadow: inset 0 0 0 1px #458563; color: #193b27; font-weight: 750; font-variant-numeric: tabular-nums; text-align: center; }
-.member-mark small { color: #28583e; font-size: .75rem; font-weight: 700; word-break: keep-all; }
-.member-mark-empty { background: #f1f5ef; box-shadow: none; }
+.member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: 6px 4px; border-radius: 8px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+.member-mark small { color: var(--court); font-size: var(--t4); font-weight: 600; word-break: keep-all; }
+.member-mark-empty { background: var(--hint); box-shadow: none; }
 /* 내 기록 출석 by month (views.mjs attendanceMonths): a track per month, filled from the bottom in 응답 현황's green. */
 .member-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; align-items: end; }
 .member-month { display: grid; justify-items: center; gap: 3px; min-width: 0; }
-.member-month small { min-height: 1.1em; color: #193b27; font-size: .72rem; font-weight: 750; font-variant-numeric: tabular-nums; }
-.member-month svg { display: block; width: 100%; height: 56px; border-radius: 4px; background: #e9eee7; overflow: hidden; }
-.member-month rect { fill: #458563; }
-.member-month > span { color: #496354; font-size: .72rem; font-variant-numeric: tabular-nums; }
-.member-month-now > span { color: #193b27; font-weight: 800; }
+.member-month small { min-height: 1.1em; color: var(--ink); font-size: var(--t4); font-weight: 600; font-variant-numeric: tabular-nums; }
+.member-month svg { display: block; width: 100%; height: 56px; border-radius: 4px; background: var(--hint); overflow: hidden; }
+.member-month rect { fill: var(--court); }
+.member-month > span { color: var(--muted); font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.member-month-now > span { color: var(--ink); font-weight: 600; }
 .member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
-.member-pin h2 { font-size: 1.05rem; }
+.member-pin h2 { font-size: var(--t3); }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }
 
 /* 로그인 없이 보기: what waits for sign-in reads quieter than what is shown. */

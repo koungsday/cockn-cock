@@ -18,13 +18,13 @@ body:has(.admin-app) .site-header { display: none; }
 .site-header .brand { margin: 0; min-width: var(--touch-target); min-height: var(--touch-target); }
 .site-header .brand-mark { width: 38px; height: 38px; }
 .current-club { min-width: 0; min-height: var(--touch-target); display: grid; align-content: center; line-height: 1.2; }
-.current-club strong { font-size: 1.08rem; letter-spacing: -.04em; }
-.current-club small { color: var(--muted); font-size: .75rem; margin-top: 2px; }
+.current-club strong { font-size: var(--t2); letter-spacing: -.04em; }
+.current-club small { color: var(--muted); font-size: var(--t4); margin-top: 2px; }
 .current-club small:empty { display: none; }
 .current-club :is(strong, small), .account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #account { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px 4px; }
 #account:empty { display: none; }
-.account-name { max-width: 14ch; margin-right: 4px; color: var(--muted); font-size: .88rem; }
+.account-name { max-width: 14ch; margin-right: 4px; color: var(--muted); font-size: var(--t4); }
 
 /* Loading (DESIGN.md 6): a still skeleton of the coming screen; only the shuttlecock in the middle of the viewport moves. */
 .loading-center { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; pointer-events: none; }
@@ -98,7 +98,7 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-crumb { width: 120px; height: 16px; }
 .sk-icon { width: 24px; height: 24px; border-radius: 7px; }
 .admin-skeleton .topbar .sk-icon { display: none; }
-.shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: .94rem; font-weight: 650; text-align: center; }
+.shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: var(--t3); font-weight: 600; text-align: center; }
 .shuttle-loader .shuttle-spin { width: 64px; height: 60px; color: var(--court); }
 .shuttle-inline { width: 1.2em; height: 1.12em; margin-right: .35em; vertical-align: -.22em; flex: none; }
 .admin-content { position: relative; }
@@ -118,7 +118,7 @@ button.metric { width: 100%; color: inherit; text-align: left; }
 button.notice-home-link { border: 0; background: none; padding: 0; text-align: left; }
 button.small-link { border: 0; background: none; }
 .mobile-nav-account { margin: 18px 6px 0; padding-top: 14px; border-top: 1px solid var(--menu-line); }
-.topbar .btn-text { color: #46584d; }
+.topbar .btn-text { color: var(--muted); }
 :is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden]) { position: relative; }
 button[data-pending]:not([hidden])::after { content: ''; position: absolute; inset: auto .75rem 4px; height: 2px; border-radius: 1px; background: currentColor; opacity: .6; pointer-events: none; }
 
@@ -127,27 +127,27 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
    On a phone the boxes take their own line and 콕 수령 shares the last line with its button. */
 .period-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .period-counts li { display: grid; min-width: 44px; padding: 4px 7px; border-radius: 6px; background: var(--hint); line-height: 1.25; }
-.period-counts li span { color: var(--muted); font-size: .75rem; white-space: nowrap; }
+.period-counts li span { color: var(--muted); font-size: var(--t4); white-space: nowrap; }
 .period-counts strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: .78rem; font-weight: 600; }
-.period-counts .period-met { background: #e2efdc; box-shadow: inset 0 0 0 1px #458563; }
+.data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: var(--t4); font-weight: 600; }
+.period-counts .period-met { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); }
 @media (max-width: 700px) {
   .progress-table tbody td.progress-periods { grid-column: 1 / -1; }
   .progress-table.stack-table tbody td.table-actions { grid-column: auto; text-align: right; }
 }
 /* The live CSP blocks style attributes, so the response bar is SVG; colours match styles.css .vote-yes/.vote-no. */
 svg.poll-track { display: block; width: 100%; }
-svg.poll-track .vote-yes { fill: #458563; }
-svg.poll-track .vote-no { fill: #d8e68e; }
+svg.poll-track .vote-yes { fill: var(--court); }
+svg.poll-track .vote-no { fill: var(--line); }
 .panel-body > * + * { margin-top: 12px; }
 .panel-actions .search-field input { width: min(150px, 100%); }
 .event-overview .panel-body { display: grid; gap: 12px; }
 .event-overview .panel-body > * + * { margin-top: 0; }
 .event-picker { max-width: 26rem; }
 .event-overview-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.event-overview-title h2 { font-size: 1.3rem; overflow-wrap: anywhere; }
+.event-overview-title h2 { font-size: var(--t2); overflow-wrap: anywhere; }
 .share-preview { padding-left: 0; }
-.data-table tr[data-selected="true"] td { background: #f3f8ef; }
+.data-table tr[data-selected="true"] td { background: var(--accent-soft); }
 .data-table tr[hidden] { display: none; }
 .form { display: grid; gap: 14px; }
 .form .form-grid + .form-check, .form .form-note + .form-grid { margin-top: 2px; }
@@ -155,7 +155,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .form-note { line-height: 1.55; }
 .progress-form .form-grid { max-width: 26rem; }
 .settlement-form { margin-top: 0; }
-.inline-error { color: #9d2e30; font-weight: 650; overflow-wrap: anywhere; }
+.inline-error { color: #9d2e30; font-weight: 600; overflow-wrap: anywhere; }
 
 /* Dialogs follow styles.css .dialog; these keep scroll and the sign-in menu under the header. */
 .dialog { color: var(--ink); background: var(--surface); overflow: auto; overscroll-behavior: contain; }
@@ -182,18 +182,18 @@ svg.poll-track .vote-no { fill: #d8e68e; }
   background-image: linear-gradient(90deg, var(--court) 12%, #10483aed 54%, #10483a75 100%), url("/assets/court.webp");
   background-position: center, right center; background-size: cover;
 }
-.hero h1 { font-size: clamp(2rem, 6vw, 3.1rem); font-weight: 850; letter-spacing: -.055em; }
-.hero .tagline { display: flex; align-items: center; gap: .5rem; color: var(--lime); font-size: .9rem; font-weight: 700; }
+.hero h1 { font-size: clamp(2rem, 6vw, 3.1rem); font-weight: 600; letter-spacing: -.055em; }
+.hero .tagline { display: flex; align-items: center; gap: .5rem; color: var(--lime); font-size: .9rem; font-weight: 600; }
 .hero .tagline::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
 .hero-meta { display: flex; flex-wrap: wrap; gap: .25rem .9rem; color: #f4f6eb; }
 .login-card { padding: 6px clamp(14px, 3vw, 20px) 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
 .login-form { gap: 12px; }
 .login-label-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
-.login-label-row label { color: var(--muted); font-size: .875rem; font-weight: 650; }
+.login-label-row label { color: var(--muted); font-size: var(--t4); font-weight: 600; }
 .login-help-button { color: var(--muted); }
 .login-guide { display: grid; gap: .65rem; word-break: keep-all; }
 .login-greeting { display: flex; align-items: center; gap: .45rem; padding-top: .25rem; }
-.login-greeting p { font-weight: 750; overflow-wrap: anywhere; }
+.login-greeting p { font-weight: 600; overflow-wrap: anywhere; }
 .login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
 .login-form input[name="name"] { width: 100%; min-height: 46px; }
 .login-form input[name], .login-code-cells > span { border: 1px solid var(--field-line); border-radius: 8px; background: #fff; }
@@ -209,7 +209,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) { border-color: #b13f39; background: #fff1ef; }
 .login-form .login-field.login-rejected input[name="credential"]:focus { outline-color: #b13f39; }
 .login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
-.login-pending { display: flex; align-items: center; color: var(--muted); font-size: .9rem; font-weight: 650; }
+.login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t4); font-weight: 600; }
 .login-pending .shuttle-inline { color: var(--court); }
 
 /* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
@@ -241,7 +241,7 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 .message {
   position: fixed; z-index: 20; left: 50%; bottom: calc(18px + var(--safe-bottom)); transform: translateX(-50%);
   width: max-content; max-width: min(520px, calc(100% - 32px)); padding: 12px 15px; border-radius: 10px;
-  background: #1f5039; color: #fff; font-size: .91rem; font-weight: 650; box-shadow: 0 8px 25px #15362630; pointer-events: none;
+  background: var(--ink); color: #fff; font-size: var(--t4); font-weight: 600; box-shadow: 0 8px 25px #15362630; pointer-events: none;
 }
 .message.error { background: var(--ink); }
 .message.visually-hidden { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }

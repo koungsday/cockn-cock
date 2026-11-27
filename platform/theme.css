@@ -30,16 +30,24 @@
   --dur-arrive: 220ms;
   --dur-nudge: 300ms;
   --shuttle-turn: 3s;
+  /* Type (DESIGN.md 2): four steps and two weights (400, 600) for every club screen. */
+  --t1: 1.375rem;
+  --t2: 1.125rem;
+  --t3: 1rem;
+  --t4: .875rem;
   --paper: #f3f2ec;
   --surface: #ffffff;
   --ink: #252c29;
   --muted: #56605a;
   --court: #10483a;
+  --court-deep: #0a372c;
   --action: #126047;
   --lime: #d0f988;
   --leaf: #def49f;
   --line: #e3e1d9;
   --hint: #edf0ee;
+  --accent-soft: #e8f0eb;
+  --edge: #b9c0ba;
   --field-line: #7b8f78;
   /* Dark menu (sidebar, mobile menu) on --ink: text 12.5 / 10.0 / 6.6:1, hover and current surfaces, dividers. */
   --menu-text: #eef1ee;
