@@ -220,7 +220,7 @@ function voteLabel(slot, event) {
   return '미응답';
 }
 
-// Members choose 선발 or 후발 (worker/api.mjs memberSlots); the organisers' 회원 응답 변경 also offers 불참.
+// 선발, 후발, 불참 for members and for the organisers' 회원 응답 변경 alike (사용자 결정 2026-11-27).
 function choiceFields(event, vote, lunchLabel, slots = ['early', 'late', 'no']) {
   const choices = slots.map(slot => `<label class="public-choice">
     <input type="radio" name="slot" value="${slot}"${vote?.slot === slot ? ' checked' : ''} required><span>${esc(voteLabel(slot, event))}</span></label>`);
@@ -281,16 +281,16 @@ const signInCard = `<section class="member-pin" aria-labelledby="member-sign-in-
     <button type="button" class="share-button share-button--secondary" data-action="sign-in">로그인</button></section>`;
 
 // 응답 현황: how many answered each way, never who (worker/api.mjs countColumns), drawn like the club's 카카오톡 투표:
-// a bar per choice as a share of everyone coming (선발 + 후발; members have no 불참). The live CSP blocks style
+// a bar per choice as a share of everyone coming (선발 + 후발); 불참 is said beside the total. The live CSP blocks style
 // attributes, so each bar is an SVG sized by its viewBox, as the organisers' .poll-track is. The demo's share.js
 // draws the same markup.
 function countsBlock(counts, event) {
   if (!counts) return '';
   const coming = counts.early + counts.late;
-  if (!coming && !counts.lunch) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+  if (!coming && !counts.lunch && !counts.no) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
   const rows = [[voteLabel('early', event), counts.early, 'slot'], [voteLabel('late', event), counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
-  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명</span></p>
-    <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
+  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명${counts.no ? ` · 불참 ${counts.no}명` : ''}</span></p>
+    <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch, 1)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
     <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
@@ -319,7 +319,7 @@ function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true)
     response = `<div class="public-form"><p class="public-status"><strong>투표하려면 로그인해 주세요.</strong>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 계속 바로 투표할 수 있어요.</p>
       <button class="share-button share-button--primary" type="button" data-action="sign-in">로그인하고 투표하기</button></div>`;
   } else if (event.canVote && eligible) {
-    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 식사에도 참여해요', ['early', 'late'])}
+    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 함께해요')}
       <p class="inline-error" role="alert" hidden></p>
       <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
       ${vote ? '<button class="share-button share-button--secondary" type="button" data-action="cancel-vote">응답 취소</button>' : ''}</form>`;
@@ -474,14 +474,18 @@ function calendarEvents(events, now) {
     regular: (event.kind ?? 'regular') === 'regular', done: event.date < now.day || finished(event, now) }));
 }
 
-// 일정 (회원): the month's calendar above every published upcoming event in the member order (FLOW.md 4); each opens its
-// vote. month: the calendar's 'YYYY-MM', this month when none was picked.
-export function memberEventsScreen({ events }, user = null, month = null) {
+// 달력으로 보기: the month grid is folded until asked for (단순화 2, docs/simplify): a club has five to seven events a month,
+// and the list is the screen. One button opens and folds it, in the member's and the organisers' 일정 alike.
+const calendarToggle = open => button(open ? '달력 접기' : '달력으로 보기', 'calendar-toggle', { css: 'text small calendar-toggle' });
+
+// 일정 (회원): every published upcoming event in the member order (FLOW.md 4), each opening its vote, with the month's
+// calendar above them when asked for. month: the calendar's 'YYYY-MM', this month when none was picked.
+export function memberEventsScreen({ events }, user = null, month = null, calendarOpen = false) {
   const now = koreanNow();
   const rows = memberOrder(events, now).map(event => memberEventRow(event, Boolean(user)));
-  const calendar = calendarBlock(calendarEvents(events, now), { month: month ?? now.day.slice(0, 7), today: now.day, icon });
+  const calendar = calendarOpen ? calendarBlock(calendarEvents(events, now), { month: month ?? now.day.slice(0, 7), today: now.day, icon }) : '';
   return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
-    <h1 id="member-events" tabindex="-1">일정</h1>${calendar}${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`);
+    <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${rows.length}개</span>${calendarToggle(calendarOpen)}</div>${calendar}${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`);
 }
 
 export function memberNoticesScreen({ notices }) {
@@ -898,9 +902,9 @@ function eventLink(event, title, detail) {
 
 // 일정 (#event): the month's calendar, then every unfinished event in the 운영 홈 order, then the finished ones (마무리
 // 확정 or 취소) folded under 끝난 일정, the latest first.
-function eventList(events, month) {
+function eventList(events, month, calendarOpen) {
   const now = koreanNow();
-  const calendar = `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendarBlock(calendarEvents(events, now),
+  const calendar = !calendarOpen ? '' : `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendarBlock(calendarEvents(events, now),
     { month: month ?? now.day.slice(0, 7), today: now.day, icon })}</div></section>`;
   const flows = flowOrder(events, now);
   const past = events.filter(event => finished(event, now))
@@ -913,17 +917,18 @@ function eventList(events, month) {
     esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.place}`)));
   return calendar + panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>`
     : '<p class="empty-state">진행 중인 일정이 없어요. 새 회차를 만들어 투표를 시작하세요.</p>')
-    + (pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''));
+    + (pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''),
+  { actions: calendarToggle(calendarOpen) });
 }
 
 // own: the organiser's own answer ({ vote, eligible, saved }); 내 응답 shows when they are on the roster or answered.
-// month: the list's calendar month (calendar.mjs).
-export function eventScreen(events, detail, tab = null, own = null, month = null) {
+// month: the list's calendar month (calendar.mjs); calendarOpen: whether the list shows it.
+export function eventScreen(events, detail, tab = null, own = null, month = null, calendarOpen = false) {
   const event = detail?.event;
   const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' });
   const head = pageHead('일정', event ? '투표 응답, 당일 출석, 마무리를 기록하세요.' : '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
   if (!event) {
-    return `<div class="secondary-page">${head}${events.length ? eventList(events, month)
+    return `<div class="secondary-page">${head}${events.length ? eventList(events, month, calendarOpen)
       : panel('회차', '<p class="empty-state">회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p>')}</div>`;
   }
   const { roster, guests, settlement } = detail;

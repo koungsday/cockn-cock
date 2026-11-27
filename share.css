@@ -705,3 +705,47 @@
 
 /* 로그인 없이 보기: what waits for sign-in reads quieter than what is shown. */
 .member-locked { color: var(--muted); font-weight: 600; }
+
+/* 단순화 2 (docs/simplify, DESIGN.md 4 회원 화면): inside the club shell a member card is one flat white surface — no
+   green or sand head, no grey box around the facts — and the lists (응답할 투표, 이후 일정, 공지, the 일정 and 공지 screens)
+   are rows on the page, not cards. The 카톡 share preview outside the shell keeps its brand head. */
+.main-content .member-page { gap: 4px; }
+.main-content .public-share-card { border-radius: 15px; }
+.main-content .public-story-head, .main-content .public-story-head.share-art--notice { padding: 20px 18px 0; background: none; color: var(--ink); }
+.main-content .public-story-head .share-art-decoration { display: none; }
+.main-content .public-story-head > :not(.share-art-decoration) { max-width: none; }
+.main-content .public-share-type, .main-content .share-art--notice .public-share-type { display: flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 400; }
+.main-content .public-share-card h1, .main-content .public-story-head .public-title { margin-top: 2px; letter-spacing: -.01em; line-height: 1.3; }
+.main-content .public-story-head time { margin-top: 4px; color: var(--ink); font-size: var(--t3); }
+/* A date in a sentence reads with its own digit widths: tabular figures (.member-record-meta) spread 11월 into "1 1월". */
+.main-content .member-record-meta { font-variant-numeric: normal; }
+.main-content .member-record-meta time { margin-top: 2px; }
+.main-content .public-share-content { padding: 14px 18px 20px; }
+.main-content .public-event-facts { gap: 4px; padding: 0; border-radius: 0; background: none; }
+.main-content .public-event-facts dd { font-weight: 400; }
+.main-content .public-receipt { padding: 0; border-radius: 0; background: none; }
+.main-content .public-choice span { min-height: 56px; transition: background-color var(--dur-quick), border-color var(--dur-quick); }
+.main-content .member-count-bar { height: 6px; }
+.main-content .member-list:not(.member-record-card) { overflow: visible; border: 0; border-radius: 0; background: none; }
+.main-content .member-list:not(.member-record-card) > .public-share-content { padding: 0; }
+.main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: 14px 0 0; color: var(--muted); font-size: var(--t4); font-weight: 400; }
+/* The top bar already names the screen (썬콕19 / 일정): the list's own h1 stays for reading programs and focus only. */
+.main-content .member-list h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.list-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch-target); color: var(--muted); font-size: var(--t4); }
+.main-content .member-list .calendar { margin: 4px 0 12px; }
+.main-content .member-records { border-top: 1px solid var(--line); }
+.main-content .member-record { border-bottom: 1px solid var(--line); }
+.main-content .member-record + .member-record { border-top: 0; }
+.main-content .member-record-link { min-height: 64px; }
+.main-content .member-record-link strong { transition: color var(--dur-quick); }
+.main-content .member-record-action, .main-content .member-record-done { padding: 0; border: 0; background: none; color: var(--muted); font-weight: 400; }
+.main-content .member-record-open { background: none; color: var(--court); font-weight: 600; }
+.main-content .member-record-arrow { transition: translate var(--dur-quick) var(--ease-settle), color var(--dur-quick); }
+/* 내 번호 정하기 comes first, 내 로그인 last: the rows start at the page edge now, so the note does too. */
+.main-content .member-pin { padding: 0 0 12px; }
+.main-content .public-share-card ~ .member-pin { margin-top: 14px; padding-bottom: 0; }
+@media (hover: hover) {
+  .main-content .member-record-link:hover strong { color: var(--court); text-decoration: none; }
+  .main-content .member-record-link:hover .member-record-arrow { color: var(--court); translate: 3px 0; }
+  .main-content .public-choice:hover span { border-color: var(--court); }
+}

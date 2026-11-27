@@ -6,7 +6,7 @@
 
   function makeView(helpers) {
     const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats, deadlinePassed, settlement, qualification,
-      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar } = helpers;
+      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle } = helpers;
 
     function action(text, name, id, options = {}) {
       const { tone = 'secondary', symbol, extra = '' } = options;
@@ -80,9 +80,10 @@
       const past = finishedEvents().map(event => eventLink(event, `${event.cancelled ? pill('취소', 'muted') : pill('마무리 완료', 'green')} ${e(event.title)}`,
         e(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.place}`)));
       return heading('일정', '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', addButton('새 일정', 'open-event'))
-        + `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendar(state.events)}</div></section>`
+        + (calendarOpen() ? `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendar(state.events)}</div></section>` : '')
         + panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : empty('진행 중인 일정이 없어요. 새 회차를 만들어 투표를 시작하세요.'))
-          + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : ''));
+          + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : ''),
+          {actions: calendarToggle()});
     }
 
     function eventDetail(route, state) {

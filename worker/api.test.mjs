@@ -656,8 +656,9 @@ test('members see vote counts without names and their own half-year record', asy
   // Three on the roster: the two members and the organiser, who is a member too (ROLES.md 1단계).
   assert.equal(await waiting(), 3);
   assert.deepEqual((await first.request(votePath, {method:'PUT', body:{slot:'early', lunch:true}})).counts, {early:1, late:0, no:0, lunch:1});
-  // Members answer 선발 or 후발 only; 불참 is the organisers' record.
-  await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}, expect:400});
+  // Members answer 불참 too (사용자 결정 2026-11-27): it is an answer, so they leave 미응답, but it is not counted as coming.
+  assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'no', lunch:false}})).counts, {early:1, late:0, no:1, lunch:1});
+  assert.equal(await waiting(), 1);
   assert.deepEqual((await second.request(votePath, {method:'PUT', body:{slot:'late', lunch:false}})).counts, {early:1, late:1, no:0, lunch:1});
   assert.equal(await waiting(), 1);
 
