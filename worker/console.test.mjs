@@ -326,7 +326,7 @@ test('reissue, removal and a pause take effect at once', async t => {
   const added = await receive('/console/clubs/paused-club/organizers', { method: 'POST', form: { organizer: '가상 둘째 운영진' }, cookie });
   assert.equal(added.status, 201);
   const addedPage = await added.text();
-  assert.match(addedPage, /<h1>운영진을 추가했어요<\/h1>/, 'adding an organiser is not a reset');
+  assert.match(addedPage, /<h1>운영진 추가<\/h1>/, 'adding an organiser is not a reset');
   const second = issuedPin(addedPage);
   assert.equal((await receive('/console/clubs/paused-club/organizers', { method: 'POST', form: { organizer: '가상 둘째 운영진' }, cookie })).status, 409);
   const secondLogin = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: second } });
