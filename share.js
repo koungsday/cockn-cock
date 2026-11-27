@@ -187,9 +187,9 @@
           <div><dt>장소</dt><dd>${escape(item.place)}</dd></div>
           <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))} ${escape(item.deadlineTime)}</dd></div>
         </dl>
-        ${countsBlock(item, escape)}
         ${item.notes ? `<p class="public-share-body">${escape(item.notes)}</p>` : ''}
-        ${voteForm(item, state, helpers)}`
+        ${voteForm(item, state, helpers)}
+        ${countsBlock(item, escape)}`
       : `<p class="public-share-body">${escape(item.body)}</p>`;
 
     return memberPage(`

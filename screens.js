@@ -90,10 +90,9 @@
 
       function poll() {
         const report = counts(event);
-        const closeAction = !event.finalized && !event.cancelled && !deadlinePassed(event) ? action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id) : '';
+        // 투표 마감 and 응답 조정 wait in the 회차 메뉴 (actionsDialog), as in the live 회차 화면.
         const shareAction = action('카톡 공유', 'open-share', event.id, {tone: 'primary', symbol: 'share', extra: 'data-kind="vote"'});
         const voteLink = pollAvailable && members.length ? routeLink('회원 투표 체험', `public-vote/${encodeURIComponent(event.id)}`) : '';
-        const correction = !event.finalized && members.length ? action('응답 조정', 'open-vote', event.id, {tone: 'text'}) : '';
         const rows = members.map(member => {
           const vote = event.votes[member.id];
           return `<tr><td><strong>${e(member.name)}</strong></td><td>${pill(voteLabels[vote] || '미응답', vote && vote !== 'no' ? 'green' : 'neutral')}</td><td>${event.lunch[member.id] ? '함께해요' : '—'}</td></tr>`;
@@ -104,7 +103,7 @@
         ])
           + (rows.length ? table(['멤버', '응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), {
           subtitle: `참석 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
-          actions: closeAction + shareAction + voteLink + correction
+          actions: shareAction + voteLink
         });
       }
 
@@ -193,18 +192,14 @@
         });
       }
 
-      // 상단 고정 and 일정 취소 (FLOW.md 5·10), as the live 회차 화면: a pin button by the title, a quiet 일정 취소 under the
-      // facts, and a cancelled event says so with the way back. A finished session has neither.
-      const pinControl = event.finalized || event.cancelled ? '' : action(event.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', event.id,
-        { symbol: 'pushpin', extra: `data-kind="event" aria-label="${e(event.title)} ${event.pinnedAt ? '상단 고정 해제' : '상단 고정'}"` });
-      const cancelControl = event.finalized ? '' : event.cancelled
-        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${action('취소 풀기', 'restore-event', event.id)}</div>`
-        : `<div class="event-cancel">${action('일정 취소', 'cancel-event', event.id, { tone: 'text' })}</div>`;
+      // 더보기 (DESIGN.md 6 UX 점검표 15), as the live 회차 화면: 상단 고정, 공지 초안, 일정 수정, 투표 마감, 응답 조정 and
+      // 일정 취소 wait in one menu (actionsDialog); a pinned event keeps its mark by the title, and a cancelled one says so
+      // with the way back.
+      const cancelled = event.cancelled && !event.finalized
+        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${action('취소 풀기', 'restore-event', event.id)}</div>` : '';
+      const more = `<button class="btn btn-secondary btn-icon" type="button" data-action="open-actions" data-id="${e(event.id)}" data-kind="event" aria-label="${e(event.title)} 회차 메뉴" title="${e(event.title)} 회차 메뉴">${icon('more', 22)}</button>`;
       return `<div class="back-link">${routeLink('일정 목록', 'events', 'text', 'arrow-left')}</div>`
-        + heading(`${e(event.title)}${event.cancelled ? ` ${pill('취소', 'muted')}` : ''}`, subheader + cancelControl,
-          pinControl
-          + action('공지 초안 만들기', 'open-event-notice', event.id, {symbol: 'megaphone'})
-          + action('일정 수정', 'open-event', event.id, {symbol: 'edit'}))
+        + heading(`${pinMark(event)}${e(event.title)}${event.cancelled ? ` ${pill('취소', 'muted')}` : ''}`, subheader + cancelled, more)
         + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
         + nav
         + (route.tab === 'attendance' ? attendance() : route.tab === 'settlement' ? finish() : poll() + guests());
@@ -217,7 +212,7 @@
         <div class="notice-date"><time datetime="${e(notice.date)}">${e(dateLabel(notice.date))}</time>${pinMark(notice)}</div>
         <h3>${e(notice.title)}</h3>
         <p class="preserve-lines">${e(notice.body)}</p>
-        <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'})}${action('텍스트 복사', 'copy-notice', notice.id, {tone: 'text', symbol: 'clipboard'})}${action('수정', 'open-notice', notice.id, {tone: 'text', symbol: 'edit'})}${action(notice.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', notice.id, {tone: 'text', symbol: 'pushpin', extra: `data-kind="notice" aria-label="${e(notice.title)} ${notice.pinnedAt ? '상단 고정 해제' : '상단 고정'}"`})}</div>
+        <div class="notice-actions">${action('카톡 공유', 'open-share', notice.id, {symbol: 'share', extra: 'data-kind="notice"'})}<button class="btn btn-text btn-icon" type="button" data-action="open-actions" data-id="${e(notice.id)}" data-kind="notice" aria-label="${e(notice.title)} 공지 메뉴" title="${e(notice.title)} 공지 메뉴">${icon('more', 20)}</button></div>
       </article>`);
       return heading('공지', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
         + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
@@ -324,17 +319,19 @@
 
     function eventDialog(dialog, state) {
       const event = state.events.find(event => event.id === dialog.id) || state.repeat;
+      // Three groups, as the live eventForm (DESIGN.md 6 UX 점검표 16): what and where, when, what members see.
+      const group = (legend, body) => `<fieldset class="form-group"><legend>${legend}</legend><div class="form-grid">${body}</div></fieldset>`;
       return form(dialog, dialog.id ? '일정 수정' : '새 일정',
-        field('일정 이름', input('title', event.title, 'required maxlength="80"'))
-        + field('종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
-        + field('날짜', input('date', event.date || today, 'type="date" required'))
-        + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
-        + field('시작 시간', input('time', event.time, 'type="time" required'))
-        + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
-        + slotFields(event)
-        + field('장소', input('place', event.place, 'required maxlength="100"'), true)
-        + field('안내 메모', `<textarea name="notes" rows="3" maxlength="500">${e(event.notes || '')}</textarea>`, true)
-        + check('pollOpen', '참석 투표 열기', event.cancelled ? false : event.pollOpen ?? true));
+        group('무엇을, 어디서', field('일정 이름', input('title', event.title, 'required maxlength="80"'))
+          + field('종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
+          + field('장소', input('place', event.place, 'required maxlength="100"'), true))
+        + group('언제', field('날짜', input('date', event.date || today, 'type="date" required'))
+          + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
+          + field('시작 시간', input('time', event.time, 'type="time" required'))
+          + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
+          + slotFields(event))
+        + group('회원에게 보이기', field('안내 메모', `<textarea name="notes" rows="3" maxlength="500">${e(event.notes || '')}</textarea>`, true)
+          + check('pollOpen', '참석 투표 열기', event.cancelled ? false : event.pollOpen ?? true)));
     }
 
     // 접속 재설정 (the live memberAccess, worker/public/views.mjs): the same section and words under 회원 수정. Here it is a
@@ -437,8 +434,30 @@
         <p>취소 사유는 일정 수정의 안내 메모에 적으면 회원에게 보여요.</p>`, action('일정 취소하기', 'confirm-cancel-event', event.id, { tone: 'primary' }));
     }
 
+    // 회차 메뉴 / 공지 메뉴 (더보기, the live eventMenu / noticeMenu): the rarely used buttons of one event or notice, with
+    // the same rules as where they were before.
+    function actionsDialog(dialog, state) {
+      const buttons = [];
+      if (dialog.kind === 'notice') {
+        const notice = state.notices.find(item => item.id === dialog.id);
+        if (!notice) return '';
+        buttons.push(action('수정', 'open-notice', notice.id, {symbol: 'edit'}), action('텍스트 복사', 'copy-notice', notice.id, {symbol: 'clipboard'}),
+          action(notice.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', notice.id, {symbol: 'pushpin', extra: 'data-kind="notice"'}));
+      } else {
+        const event = state.events.find(item => item.id === dialog.id);
+        if (!event) return '';
+        const open = !event.finalized && !event.cancelled;
+        buttons.push(action('일정 수정', 'open-event', event.id, {symbol: 'edit'}), action('공지 초안 만들기', 'open-event-notice', event.id, {symbol: 'megaphone'}));
+        if (open && !deadlinePassed(event)) buttons.push(action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id));
+        if (!event.finalized && event.roster.length) buttons.push(action('응답 조정', 'open-vote', event.id));
+        if (open) buttons.push(action(event.pinnedAt ? '고정 해제' : '상단 고정', 'toggle-pin', event.id, {symbol: 'pushpin', extra: 'data-kind="event"'}),
+          action('일정 취소', 'cancel-event', event.id, {tone: 'text'}));
+      }
+      return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '회차 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');
+    }
+
     return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, pinDialog, cancelDialog,
-      resetDialog, credentialDialog};
+      resetDialog, credentialDialog, actionsDialog};
   }
 
   window.clubScreens = {
@@ -465,7 +484,8 @@
         pin: view.pinDialog,
         cancel: view.cancelDialog,
         reset: view.resetDialog,
-        credential: view.credentialDialog
+        credential: view.credentialDialog,
+        actions: view.actionsDialog
       }[dialog.type];
       return render ? render(dialog, state) : '';
     }

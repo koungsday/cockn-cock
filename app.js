@@ -37,6 +37,7 @@
     x:'<path d="m6 6 12 12M18 6 6 18"/>',
     'chevron-right':'<path d="m9 6 6 6-6 6"/>',
     'chevron-left':'<path d="m15 6-6 6 6 6"/>',
+    more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
     'arrow-left':'<path d="m12 19-7-7 7-7m-7 7h15"/>',
     edit:'<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
     megaphone:'<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
@@ -461,6 +462,12 @@
     return `<a class="panel metric" href="#${route}" data-route="${route}"><span class="metric-icon ${tone}">${icon(glyph,21)}</span><div><span class="metric-label">${label}</span><div class="metric-value">${value}<small>${unit}</small></div></div>${icon('chevron-right',16)}</a>`;
   }
 
+  // A step inside an open dialog (접속 재설정 → 확인 → 접속 안내, or a 더보기 menu → 일정 수정) took the pressed button
+  // away: focus starts again at ×.
+  function showModal() {
+    if (!modal.open) return modal.showModal();
+    modal.querySelector('[data-action="close-dialog"]')?.focus();
+  }
   function openDialog(type,id,trigger,kind) {
     const data = {type,id,kind};
     modal.innerHTML = type === 'share'
@@ -468,9 +475,7 @@
       : window.clubScreens.renderDialog(data,state,helpers);
     if (!modal.innerHTML.trim()) return;
     dialogTrigger = trigger;
-    if (!modal.open) modal.showModal();
-    // A step inside an open dialog (접속 재설정 → 확인 → 접속 안내) took the pressed button away: focus starts again at ×.
-    else modal.querySelector('[data-action="close-dialog"]')?.focus();
+    showModal();
   }
   function openEventNotice(event,trigger) {
     const draft = {
@@ -481,7 +486,7 @@
     };
     modal.innerHTML = window.clubScreens.renderDialog({type:'notice',draft}, state, helpers);
     dialogTrigger = trigger;
-    modal.showModal();
+    showModal();
   }
   function idFor(prefix) {
     return prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -563,9 +568,15 @@
     const {action,id,kind,member,value} = control.dataset;
     const controlLabel = control.getAttribute('aria-label');
     const event = state.events.find(item => item.id === id);
-    const openTypes = ['event','member','notice','repeat','vote','share'];
+    const openTypes = ['event','member','notice','repeat','vote','share','actions'];
+    // 더보기 (DESIGN.md 6 UX 점검표 15): a dialog opened from the menu takes its place and gives focus back to 더보기 when
+    // it closes; a button that saves closes the menu first (the live app does the same in app.mjs).
+    const inMenu = Boolean(control.closest('.action-menu'));
+    const trigger = inMenu ? dialogTrigger : control;
+    const opensDialog = openTypes.includes(action.replace(/^open-/, '')) || ['cancel-event', 'open-event-notice', 'close-dialog'].includes(action);
+    if (inMenu && !opensDialog) modal.close();
     if (openTypes.includes(action.replace(/^open-/, ''))) {
-      openDialog(action.slice(5),id,control,kind);
+      openDialog(action.slice(5),id,trigger,kind);
       return;
     }
     // 일정 달력 (the live doAction): the asked month slides in from its side; a date marks its rows in the list below.
@@ -635,7 +646,7 @@
     }
     if (!event) return;
     // 일정 취소 (FLOW.md 10): asked once, undone with 취소 풀기; the answers stay.
-    if (action === 'cancel-event' && !event.finalized && !event.cancelled) return openDialog('cancel', id, control);
+    if (action === 'cancel-event' && !event.finalized && !event.cancelled) return openDialog('cancel', id, trigger);
     if ((action === 'confirm-cancel-event' && !event.finalized && !event.cancelled) || (action === 'restore-event' && event.cancelled)) {
       const cancelling = action === 'confirm-cancel-event';
       Object.assign(event, cancelling ? {cancelled:true, pollOpen:false, pinnedAt:null} : {cancelled:false});
@@ -645,7 +656,7 @@
       app.querySelector(`[data-action="${cancelling ? 'restore-event' : 'cancel-event'}"]`)?.focus({preventScroll:true});
       return;
     }
-    if (action === 'open-event-notice') return openEventNotice(event,control);
+    if (action === 'open-event-notice') return openEventNotice(event,trigger);
     if (action === 'copy-settlement' && event.finalized) {
       const report = settlement(event);
       if (!report.recorded) return showToast('콕과 찬조금 기록을 먼저 입력해 주세요.');
@@ -837,6 +848,7 @@
     const bounds = modal.getBoundingClientRect();
     if (ev.clientX < bounds.left || ev.clientX > bounds.right || ev.clientY < bounds.top || ev.clientY > bounds.bottom) modal.close();
   });
+  // Focus goes back to what opened the dialog; when a save from a 더보기 menu redrew the page, to the same 더보기.
   modal.addEventListener('close', () => {
     // A save redraws the page: the opener's twin (same action and id, like the 연필 of the row just saved) takes the focus,
     // as the live matchingControl does.

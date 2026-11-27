@@ -670,6 +670,8 @@
 /* 응답 현황 bars (views.mjs countsBlock): colours of the organisers' .poll-track, track #e9eee7 and 참석 #458563. */
 .member-counts { display: grid; gap: 10px; }
 .public-event-facts + .member-counts { margin-top: 16px; }
+/* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */
+.public-form + .member-counts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 .member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; }
 .member-counts-head span, .member-counts-note { color: #496354; font-size: .875rem; }
 .member-counts ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
