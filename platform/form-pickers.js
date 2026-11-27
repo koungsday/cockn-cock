@@ -21,8 +21,19 @@
   };
   const button = (text, attrs) => make('button', text, { type: 'button', ...attrs });
 
+  function voteStart(field) {
+    const form = field.form;
+    if (form?.dataset.form !== 'event' || !['deadline', 'deadlineTime'].includes(field.name)) return '';
+    if (form.elements.namedItem('pollOpen')?.checked) return window.clubModel.demoNow;
+    if (!form.elements.namedItem('open')?.checked) return '';
+    return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })
+      .format(new Date()).replace(' ', 'T');
+  }
+
   function calendar(panel, date, onPick, min, max) {
-    let [year, month] = (date || today()).split('-').map(Number);
+    const initialDay = date || today();
+    const firstDay = min && initialDay < min ? min : initialDay;
+    let [year, month] = firstDay.split('-').map(Number);
     const header = make('div', '', { class: 'picker-month' });
     const previous = button('‹', { 'aria-label': '이전 달' });
     const next = button('›', { 'aria-label': '다음 달' });
@@ -145,9 +156,9 @@
         popup.hidePopover();
         return;
       }
-      const close = button('닫기', { class: 'btn btn-text' });
+      const close = button('×', { class: 'icon-button picker-close', 'aria-label': '닫기' });
       close.addEventListener('click', () => { popup.hidePopover(); trigger.focus(); });
-      const header = make('div', '', { class: 'picker-month' });
+      const header = make('div', '', { class: 'picker-heading' });
       header.append(make('strong', name), close);
       popup.replaceChildren(header);
       if (select) {
@@ -161,18 +172,33 @@
       } else {
         let [day, clock] = field.value.split('T');
         if (!date) { clock = day; day = ''; }
+        const minDay = [field.min.slice(0, 10), voteStart(field).slice(0, 10)].sort().at(-1);
+        let refreshClock;
         if (date) calendar(popup, day, value => {
           day = value;
+          refreshClock?.();
           if (!time) commit(day);
-        }, field.min.slice(0, 10), field.max.slice(0, 10));
+        }, minDay, field.max.slice(0, 10));
         if (time) {
           let [hour = '', minute = ''] = (clock || '').split(':');
           if (minute && Number(minute) % 10 !== 0) minute = '';
           const apply = button('선택 적용', { class: 'btn btn-secondary' });
           const error = make('p', '', { role: 'status' });
           const row = make('div', '', { class: 'picker-clock' });
-          row.append(clockChoices('시', 24, 1, hour, value => { hour = value; }),
-            clockChoices('분', 6, 10, minute, value => { minute = value; }));
+          const hours = clockChoices('시', 24, 1, hour, value => { hour = value; refreshClock(); });
+          const minutes = clockChoices('분', 6, 10, minute, value => { minute = value; });
+          refreshClock = () => {
+            const start = voteStart(field);
+            const dateValue = date ? day : field.form?.elements.namedItem('deadline')?.value;
+            for (const choice of hours.querySelectorAll('button')) {
+              choice.disabled = Boolean(start && dateValue && `${dateValue}T${choice.textContent}:50` <= start);
+            }
+            for (const choice of minutes.querySelectorAll('button')) {
+              choice.disabled = Boolean(start && dateValue && hour && `${dateValue}T${hour}:${choice.textContent}` <= start);
+            }
+          };
+          row.append(hours, minutes);
+          refreshClock();
           popup.append(row, apply, error);
           apply.addEventListener('click', () => {
             if ((date && !day) || !hour || !minute) {
@@ -180,6 +206,12 @@
               return;
             }
             const value = (date ? day + 'T' : '') + hour + ':' + minute;
+            const start = voteStart(field);
+            const deadline = date ? value : `${field.form?.elements.namedItem('deadline')?.value ?? ''}T${value}`;
+            if (start && deadline <= start) {
+              error.textContent = '투표 마감은 투표를 여는 시각보다 늦어야 해요.';
+              return;
+            }
             const check = field.cloneNode();
             check.value = value;
             if (!check.checkValidity()) { error.textContent = '선택할 수 있는 시각을 확인해 주세요.'; return; }

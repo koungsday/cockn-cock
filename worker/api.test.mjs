@@ -564,7 +564,7 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   for (const suffix of dates) {
     const date = year + '-' + suffix;
     const {event} = await admin.request('/api/admin/events', {
-      method:'POST', expect:201, body:{...futureEvent(), date, deadline:date + 'T09:00'}
+      method:'POST', expect:201, body:{...futureEvent(), date, deadline:date + 'T09:00', open:false}
     });
     const path = '/api/admin/events/' + event.id;
     events.push(path);
@@ -601,7 +601,8 @@ test('attendance, guests and shuttle balances drive only finalized half-year rec
   await admin.request(lastPath + '/guests', {
     method:'POST', expect:409, body:{name:'가상 마감 뒤 게스트', status:'pending', paid:false}
   });
-  await admin.request(lastPath, {method:'PATCH', body:{open:true}, expect:409});
+  const {date: futureDate, deadline: futureDeadline} = futureEvent();
+  await admin.request(lastPath, {method:'PATCH', body:{date:futureDate, deadline:futureDeadline, open:true}, expect:409});
   const final = mine(await admin.request(endpoint));
   assert.deepEqual(final.periods, [1, 2]);
   assert.equal(final.rewarded, false);
@@ -688,7 +689,7 @@ test('members see vote counts without names and their own half-year record', asy
   const record = (periods, rewarded, attendance) => ({year, half, periods, goal:3, reward:'manual', rewarded, eligible:false, attendance});
   assert.deepEqual(home.record, record([[], []], false, noAttendance));
   const {event: done} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
-    ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', earlyTime:'00:01', lateTime:'00:02'
+    ...futureEvent(), date:today, time:'00:01', endTime:'00:03', deadline:today + 'T00:00', open:false, earlyTime:'00:01', lateTime:'00:02'
   }});
   const donePath = '/api/admin/events/' + done.id;
   await admin.request(donePath + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:'substitute'}});
@@ -696,7 +697,7 @@ test('members see vote counts without names and their own half-year record', asy
   await admin.request(donePath + '/settlement', {method:'PUT', body:{priorSingles:1, priorTubes:0, remainingSingles:0, courtDonation:0, confirmed:true}});
   // Present at an event not yet finalized does not count until its 마무리 is confirmed.
   const {event: open} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{
-    ...futureEvent(), date:today, time:'00:04', endTime:'00:06', deadline:today + 'T00:00', earlyTime:'00:04', lateTime:'00:05'
+    ...futureEvent(), date:today, time:'00:04', endTime:'00:06', deadline:today + 'T00:00', open:false, earlyTime:'00:04', lateTime:'00:05'
   }});
   await admin.request('/api/admin/events/' + open.id + '/attendance/' + members[0].id, {method:'PUT', body:{present:true, recognition:null}});
   await admin.request('/api/admin/progress', {method:'PUT', body:{year, half, memberId:members[0].id, rewarded:true}});
@@ -745,12 +746,16 @@ test('published notices and KST deadlines are respected without exposing drafts'
   const inKorea = offset => new Date(Date.now() + (9 * 60 + offset) * 60 * 1000).toISOString().slice(0, 16);
   const date = inKorea(24 * 60).slice(0, 10);
   const recent = {...futureEvent(), date, deadline:inKorea(-15)};
-  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:recent});
+  assert.match((await admin.request('/api/admin/events', {method:'POST', expect:400, body:recent})).error, /투표를 여는 시각/);
+  const {event} = await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...recent, open:false}});
+  const path = '/api/admin/events/' + event.id;
+  assert.match((await admin.request(path, {method:'PATCH', body:{open:true}, expect:400})).error, /투표를 여는 시각/);
   assert.equal((await visitor.request('/api/public/vote/' + event.id)).event.canVote, false);
   await admin.request('/api/admin/events/' + event.id, {
-    method:'PATCH', body:{date:inKorea(48 * 60).slice(0, 10), deadline:inKorea(15)}
+    method:'PATCH', body:{date:inKorea(48 * 60).slice(0, 10), deadline:inKorea(15), open:true}
   });
   assert.equal((await visitor.request('/api/public/vote/' + event.id)).event.canVote, true);
+  assert.match((await admin.request(path, {method:'PATCH', body:{deadline:recent.deadline}, expect:400})).error, /투표를 여는 시각/);
 });
 
 test('concurrent schedule patches do not silently overwrite one another', async t => {
@@ -815,7 +820,7 @@ test('organisers pin up to three events and three notices, oldest first, and a f
   // A confirmed 마무리 takes the event out: it frees its place and cannot be pinned again.
   const lastWeek = new Date(Date.now() + 9 * 60 * 60 * 1000 - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const {event: past} = await admin.request('/api/admin/events', {
-    method:'POST', expect:201, body:{...futureEvent(), title:'가상 지난 고정', date:lastWeek, deadline:lastWeek + 'T09:00'}
+    method:'POST', expect:201, body:{...futureEvent(), title:'가상 지난 고정', date:lastWeek, deadline:lastWeek + 'T09:00', open:false}
   });
   await pin(events[4], {pinned:false});
   await pin(past, {pinned:true});
@@ -863,7 +868,7 @@ test('event kinds default to 정기 and the 모임 규칙 choose which kinds cou
   const ids = {};
   for (const [kind, date] of [[undefined, '08-02'], ['flash', '08-05'], ['social', '08-09']]) {
     const {event} = await admin.request('/api/admin/events', {
-      method:'POST', expect:201, body:{...futureEvent(), date:year + '-' + date, deadline:year + '-' + date + 'T09:00', ...(kind && {kind})}
+      method:'POST', expect:201, body:{...futureEvent(), date:year + '-' + date, deadline:year + '-' + date + 'T09:00', open:false, ...(kind && {kind})}
     });
     ids[kind ?? 'regular'] = event.id;
     assert.equal(event.kind, kind ?? 'regular');

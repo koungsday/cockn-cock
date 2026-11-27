@@ -236,7 +236,7 @@ function validateEvent(input) {
   if (fields.endTime <= fields.time || fields.lateTime <= fields.earlyTime) {
     bad('시간과 선발·후발 순서를 확인해 주세요.');
   }
-  if (fields.deadline > fields.date + 'T' + fields.time) bad('투표 마감 시간은 시작 시간보다 늦을 수 없어요.');
+  if (fields.deadline > fields.date + 'T' + fields.time) bad('투표 마감 시간은 운동 시작 시간보다 늦을 수 없어요.');
   return fields;
 }
 
@@ -519,8 +519,14 @@ async function resetMember(env, id) {
   return { temporaryPin: temporary };
 }
 
+function ensureVoteStartsBeforeDeadline(event, previous) {
+  if (!event.open || (previous?.open && previous.deadline === event.deadline && (previous.published || !event.published))) return;
+  if (toEpoch(event.deadline) <= currentSeconds()) bad('투표 마감은 투표를 여는 시각보다 늦어야 해요.');
+}
+
 async function addEvent(db, club, body) {
   const data = validateEvent(body);
+  ensureVoteStartsBeforeDeadline(data);
   const id = crypto.randomUUID();
   await db.batch([
     sql(db, `
@@ -536,6 +542,7 @@ async function updateEvent(db, club, id, body) {
   const previous = await fetchEvent(db, club, id);
   const data = validateEvent({ ...previous, ...body });
   if (data.open && previous.cancelled) throw new ApiError(409, '취소한 일정은 투표를 열 수 없어요. 먼저 취소를 풀어 주세요.');
+  ensureVoteStartsBeforeDeadline(data, previous);
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
       early_time=?, late_time=?, notes=?, open=?, published=?, kind=?

@@ -381,7 +381,7 @@ test('member overview opens without sign-in for when and deadlines, and limits r
     published.push(await addEvent('가상 예정 일정 ' + offset, futureDate(offset), true, offset > 13));
   }
   const draft = await addEvent('가상 비공개 일정', futureDate(1), false);
-  const previous = await addEvent('가상 지난 일정', futureDate(-1));
+  const previous = await addEvent('가상 지난 일정', futureDate(-1), true, false);
   const notices = [];
   for (let index = 0; index <= 9; index++) {
     const response = await request(first, '/admin/notices', {

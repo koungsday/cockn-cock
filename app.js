@@ -755,6 +755,11 @@
     if (type === 'event') {
       if (value('deadline') && value('deadline') > value('date')) return fieldError(form,'deadline','투표 마감은 일정 날짜 이전으로 정해 주세요.');
       let event = state.events.find(item => item.id === id);
+      const changedDeadline = event?.deadline !== value('deadline') || event?.deadlineTime !== value('deadlineTime');
+      if (formData.has('pollOpen') && (!event?.pollOpen || changedDeadline)
+        && deadlinePassed({deadline:value('deadline'), deadlineTime:value('deadlineTime')})) {
+        return fieldError(form, 'deadlineTime', '투표 마감은 투표를 여는 시각보다 늦어야 해요.');
+      }
       if (event?.finalized && value('date') > today) return fieldError(form,'date','출석을 확정한 모임은 미래 날짜로 옮길 수 없어요.');
       if (!event) {
         event = {id:idFor('event'),finalized:false,pinnedAt:null,cancelled:false,roster:state.members.filter(member => member.status === 'active').map(member => member.id),
