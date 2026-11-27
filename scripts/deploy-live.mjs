@@ -124,7 +124,7 @@ for (let attempt = 1; attempt <= 5 && served !== release; attempt++) {
   served = html.match(/\/club-ui\/([a-f0-9]{20})\//)?.[1] ?? '';
 }
 if (served !== release) stop(`운영 주소가 새 화면(${release})이 아닌 ${served || '응답 없음'}을 보여 줍니다.`, '몇 분 뒤 npm run live:verify -- ' + origin + ' 로 다시 확인하세요.');
-step('운영 주소 검증', 'node', ['scripts/verify-live.mjs', origin]);
+step('운영 주소 검증', 'node', ['scripts/verify-live.mjs', origin, release]);
 
 step('배포 기록(live 태그) 갱신', 'git', ['push', '--force', 'origin', `${head}:refs/tags/live`]);
 execFileSync('git', ['tag', '--force', 'live', head], { stdio: 'ignore' });

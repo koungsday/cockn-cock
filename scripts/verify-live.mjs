@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { CLUBS } from '../platform/clubs.mjs';
 
 const origin = new URL(process.argv[2] ?? 'http://127.0.0.1:8787');
+// The UI release this deploy built (scripts/deploy-live.mjs passes worker/site/club-ui/<hash>). Each request can reach an
+// edge that still has the previous release, even after one request saw the new one (2026-11-27, #54: the page came back
+// with the old hash and its files were already gone, 404). Without it, any release the page names is checked.
+const expected = process.argv[3] ?? '';
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const club = CLUBS[0];
 const home = `/clubs/${club.slug}/`;
 const admin = `${home}admin/`;
@@ -62,25 +67,27 @@ async function release() {
   const starts = await Promise.all([manifest, oldManifest].map(response => response.ok ? response.json().then(body => body.start_url) : null));
   return { page, moved, manifest, starts };
 }
+const releaseOf = page => page.script.split('/')[2];
 const settled = ({ page, moved, starts }) => moved.status === 308 && page.html.includes(`href="${home}manifest.webmanifest"`)
-  && starts.every(start => start === home);
+  && starts.every(start => start === home) && (!expected || releaseOf(page) === expected);
 let current = await release();
 const settleStart = Date.now();
 let waits = 0;
 while (!settled(current) && Date.now() - settleStart < 60000) {
   waits++;
-  console.log(`모임 페이지가 아직 이전 배포입니다 (옛 운영 주소 ${current.moved.status}, 앱 시작 주소 ${current.starts.join(' · ')}). 5초 뒤 다시 받습니다 (${waits}번째).`);
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log(`모임 페이지가 아직 이전 배포입니다 (화면 ${releaseOf(current.page)}${expected ? `, 기다리는 화면 ${expected}` : ''}, 옛 운영 주소 ${current.moved.status}, 앱 시작 주소 ${current.starts.join(' · ')}). 5초 뒤 다시 받습니다 (${waits}번째).`);
+  await wait(5000);
   current = await release();
 }
 if (waits) {
   const seconds = Math.round((Date.now() - settleStart) / 1000);
   console.log(settled(current) ? `${waits}번 기다린 뒤(${seconds}초) 새 배포가 됐습니다.` : `${waits}번 기다렸지만(${seconds}초) 여전히 이전 배포라 실패합니다.`);
 }
-const { page, moved, manifest, starts } = current;
+const { moved, manifest, starts } = current;
+if (expected) assert.equal(releaseOf(current.page), expected, `the club page serves this deploy's UI (${expected})`);
 assert.equal(moved.status, 308, 'the old 운영 화면 address moves to the club address');
 assert.equal(moved.headers.get('location'), new URL(home, origin).href);
-assert(page.html.includes(`href="${home}manifest.webmanifest"`));
+assert(current.page.html.includes(`href="${home}manifest.webmanifest"`));
 assert.equal(manifest.status, 200);
 assert.deepEqual(starts, [home, home], 'both app manifests start at the club address');
 const privateApi = await get(`${home}api/admin`);
@@ -88,8 +95,10 @@ assert.equal(privateApi.status, 401);
 assert.equal(privateApi.headers.get('cache-control'), 'private, no-store');
 
 // Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
-const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs', 'calendar.mjs'].map(file => page.script.replace('app.mjs', file));
-await Promise.all([page.style, page.script, ...modules].map(async path => {
+// A file can still come from an edge without this release (404 for a moment), so a failed round fetches the page again
+// and checks its release once more, for at most 60 s; what still fails then is reported.
+const assets = page => Promise.all([page.style, page.script, ...['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs', 'calendar.mjs']
+  .map(file => page.script.replace('app.mjs', file))].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);
   assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable', path);
@@ -104,6 +113,22 @@ await Promise.all([page.style, page.script, ...modules].map(async path => {
     assert.equal(font.headers.get('cache-control'), 'public, max-age=31536000, immutable', url);
   }));
 }));
+let page = current.page;
+const assetStart = Date.now();
+for (let round = 1; ; round++) {
+  try {
+    // A page fetched again from an edge with the previous release must not pass with that release's files.
+    if (expected) assert.equal(releaseOf(page), expected, `the club page serves this deploy's UI (${expected})`);
+    await assets(page);
+    if (round > 1) console.log(`${round}번째에 화면 파일이 모두 확인됐습니다 (${Math.round((Date.now() - assetStart) / 1000)}초).`);
+    break;
+  } catch (error) {
+    if (Date.now() - assetStart >= 60000) throw error;
+    console.log(`화면 파일 확인 실패(${error.message.split('\n')[0]}). 5초 뒤 모임 페이지부터 다시 받습니다 (${round}번째).`);
+    await wait(5000);
+    page = await shell(home);
+  }
+}
 
 for (const [kind, value] of [['vote', process.env.CLUB_VOTE_PATH], ['notice', process.env.CLUB_NOTICE_PATH]]) {
   const image = new URL(`/assets/kakao-${kind}.png`, origin).href;
