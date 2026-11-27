@@ -3,7 +3,7 @@ import {
   accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceCount, brand, button,
   countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeNow, noticeMenu,
   icon, loader, loadingPage, menuIcon, messagePage,
-  guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
+  guestForm, homeScreen, loginForm, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
   rulesScreen, sharePreview, today, voteRoster, voteShareAction, voteSummary,
 } from './views.mjs';
@@ -16,7 +16,6 @@ const main = document.querySelector('#main');
 const account = document.querySelector('#account');
 const clubLink = document.querySelector('#club-home');
 const brandLink = document.querySelector('.site-header .brand');
-const loginMenu = document.querySelector('#login-menu');
 const dialog = document.querySelector('#dialog');
 const message = document.querySelector('#message');
 // Matches the width where styles.css shows the sidebar instead of the menu button.
@@ -100,10 +99,9 @@ let renderedAccount = null;
 let dialogOpener = null;
 let startedOnBackdrop = false;
 let dialogScrollTop = null;
-// requested: someone asked for the login screen (로그인 버튼); the shell otherwise shows what is open before sign-in
-// (사용자 결정, 2026-11-26): 링크 → 보기 → (처음 한 번) 로그인 → 저장.
-const signIn = { name: null, numberStep: false, requested: false };
-const signingIn = () => !state.user && signIn.requested;
+let responsiveFocus = null;
+let loginPending = false;
+const signIn = { name: null, numberStep: false };
 
 const clubTitle = `${club.name} · 콕콕콕!`;
 const savedNameKey = `cockcockcock:member-name:${clubBase}`;
@@ -190,7 +188,6 @@ function applyHash() {
 }
 
 function writeHash({ replace = false } = {}) {
-  if (signingIn()) return;
   const hash = state.section === 'event' && state.selectedEvent ? `#event/${id(state.selectedEvent)}${state.eventTab ? `/${state.eventTab}` : ''}`
     : state.section === 'notices' && state.selectedNotice ? `#notices/${id(state.selectedNotice)}` : `#${state.section}`;
   if (location.hash !== hash) history[replace ? 'replaceState' : 'pushState'](null, '', hash);
@@ -217,18 +214,16 @@ function showMessage(text, error = false, { visuallyHidden = false } = {}) {
   messageTimer = setTimeout(() => { message.hidden = true; }, 5000);
 }
 
-// The site header shows only where the shell does not (the login screen, a page that failed to load); the shell
+// The site header shows only where the shell does not (such as a page that failed to load); the shell
 // carries its own menu and account.
 function renderAccount() {
   document.title = operating(state.user) ? `${club.name} 운영진 · 콕콕콕!` : clubTitle;
-  const key = `${state.user?.id ?? ''}:${signingIn()}`;
+  const key = state.user?.id ?? '';
   if (renderedAccount === key) return;
   renderedAccount = key;
   clubLink.hidden = !state.user;
-  // The login menu (모임 홈, 로그인 도움말) belongs to the login screen; elsewhere before sign-in, 로그인.
-  loginMenu.hidden = !signingIn();
   account.innerHTML = state.user ? button('로그아웃', 'logout', { css: 'text small' })
-    : signingIn() ? '' : button('로그인', 'sign-in', { css: 'text small' });
+    : button('로그인', 'sign-in', { css: 'text small' });
 }
 
 function failedPage(error) {
@@ -265,7 +260,6 @@ async function loadOwnVote(eventId) {
 }
 
 async function load() {
-  if (signingIn()) return;
   // Without the 운영 메뉴 (before sign-in, members, an organiser yet to set their number): what /api/public opens
   // (worker/api.mjs fetchPublic), more once signed in.
   if (!operating(state.user)) {
@@ -350,13 +344,8 @@ function render({ voteSaved = false, motion = '', arrive = '' } = {}) {
   const lastTab = main.querySelector('.tab-bar')?.dataset.current;
   const search = main.querySelector('input[data-filter]');
   renderAccount();
-  main.classList.toggle('narrow', signingIn());
-  if (signingIn()) {
-    main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, true);
-    return;
-  }
-  main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user,
-    operating(state.user) && state.section === 'event' && !state.selectedEvent);
+  main.classList.remove('narrow');
+  main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user, Boolean(state.selectedEvent));
   if (arrive) main.querySelector('.admin-content').dataset.arrive = arrive;
   const bar = main.querySelector('.tab-bar');
   if (bar?.dataset.current && lastTab && lastTab !== bar.dataset.current) {
@@ -385,7 +374,7 @@ function clearProtectedView() {
     detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
   });
   eventSnapshot = null;
-  Object.assign(signIn, { name: null, numberStep: false, requested: false });
+  Object.assign(signIn, { name: null, numberStep: false });
   dialogOpener = null;
   closeDialog({ instant: true });
   dialog.replaceChildren();
@@ -398,11 +387,20 @@ function clearProtectedView() {
   showLoading(false);
 }
 
-function loginExpired() {
+async function loginExpired() {
   clearProtectedView();
-  signIn.requested = true;
-  render();
-  showMessage('로그인이 만료됐어요. 다시 로그인해 주세요.', true);
+  applyHash();
+  try {
+    await load();
+    render();
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    failedPage(error);
+  }
+  showLoginStep();
+  const alert = dialog.querySelector('.dialog-body > .inline-error');
+  alert.textContent = '로그인이 만료됐어요. 다시 로그인해 주세요.';
+  alert.hidden = false;
 }
 
 async function initialize() {
@@ -465,10 +463,10 @@ function showDialog(markup, className, focusTarget) {
   dialog.querySelector(focusTarget).focus({ preventScroll: true });
 }
 
-function openDialog(title, body, className = '') {
+function openDialog(title, body, className = '', focusTarget = '#dialog-title') {
   showDialog(`<header class="dialog-head"><h2 id="dialog-title" tabindex="-1">${title}</h2>
     <button type="button" class="icon-button dialog-close" data-action="close" aria-label="닫기">${icon('x')}</button></header>
-    <div class="dialog-body"><p class="inline-error" role="alert" hidden></p>${body}</div>`, `dialog ${className}`.trim(), '#dialog-title');
+    <div class="dialog-body"><p class="inline-error" role="alert" hidden></p>${body}</div>`, `dialog ${className}`.trim(), focusTarget);
 }
 
 // The demo's full-screen mobile menu: brand, the same section links as the sidebar, and the account (or 로그인).
@@ -513,11 +511,17 @@ function closeDialog({ instant = false } = {}) {
 }
 
 function matchingControl(control) {
-  if (control?.isConnected) return control;
-  if (control?.id === 'profile-toggle') return document.getElementById(control.id);
+  if (control?.isConnected && control.getClientRects().length) return control;
+  if (control?.id === 'profile-toggle') {
+    return main.querySelector(desktopNavigation.matches ? '#profile-toggle' : '.topbar-menu');
+  }
+  if (control?.dataset.action === 'admin-menu' && desktopNavigation.matches) {
+    return main.querySelector('#profile-toggle, .sidebar-user[data-action="sign-in"]');
+  }
   if (!control?.dataset.action) return null;
   return [...document.querySelectorAll('button[data-action]')].find(candidate =>
-    candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id && !candidate.disabled);
+    candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id
+    && !candidate.disabled && candidate.getClientRects().length);
 }
 
 // The one-time 접속 안내. After a member's 비밀번호 재설정 and an organiser's 번호 재발급 it is titled "비밀번호 재설정"
@@ -642,10 +646,17 @@ async function openSharePreview(kind, itemId) {
   openDialog(kind === 'vote' ? '참석 투표 공유' : '공지 공유', sharePreview(link, preview), 'share-preview-dialog');
 }
 
-function showLoginStep(motion) {
+function showLoginStep(motion = '') {
   hideMessage();
-  render({ motion });
-  main.querySelector('.login-form input').focus();
+  const form = loginForm(signIn.name ?? rememberedName(), signIn.numberStep);
+  if (dialog.open && dialog.classList.contains('club-login-dialog')) {
+    dialog.dataset.motion = motion;
+    dialog.querySelector('.dialog-body').innerHTML = form;
+    dialog.scrollTop = 0;
+    dialog.querySelector('#login-value').focus({ preventScroll: true });
+  } else {
+    openDialog('로그인', form, 'club-login-dialog', '#login-value');
+  }
 }
 
 function clearLoginRejection(input) {
@@ -718,15 +729,6 @@ async function doAction(action, itemId, tab) {
     case 'close':
       closeDialog();
       break;
-    case 'login-menu': {
-      const home = `<a class="btn btn-secondary" href="${esc(club.home)}">모임 홈</a>`;
-      openDialog('메뉴', `<div class="menu-actions">${home}${button('로그인 도움말', 'login-help', { css: 'secondary' })}</div>`, 'login-menu-dialog');
-      break;
-    }
-    case 'login-help':
-      hideMessage();
-      openDialog('로그인 도움말', loginHelp());
-      break;
     case 'login-back':
       signIn.numberStep = false;
       showLoginStep('login-back');
@@ -740,18 +742,12 @@ async function doAction(action, itemId, tab) {
       render();
       writeHash({ replace: true });
       showMessage('로그아웃했어요.');
+      main.querySelector(desktopNavigation.matches ? '.sidebar-user[data-action="sign-in"]' : '.topbar [data-action="sign-in"]')?.focus({ preventScroll: true });
       break;
-    // 로그인 없이 보기 (사용자 결정, 2026-11-26): the shell asks for sign-in only when someone wants to answer, read the
-    // whole notice, see the place or their 내 기록; 로그인 없이 보기 goes back to the screen as it was.
+    // Keep the public screen in place while the member signs in over it.
     case 'sign-in':
-      signIn.requested = true;
-      showLoginStep('');
-      break;
-    case 'sign-in-cancel':
-      Object.assign(signIn, { requested: false, numberStep: false });
-      hideMessage();
-      render();
-      main.focus({ preventScroll: true });
+      Object.assign(signIn, { name: null, numberStep: false });
+      showLoginStep();
       break;
     case 'pin':
       openDialog(state.user?.organizer && state.user.mustChange ? '내 번호 정하기' : '번호 바꾸기', pinForm({ organizer: Boolean(state.user?.organizer) }));
@@ -1067,11 +1063,19 @@ async function doSubmit(kind, itemId, data) {
     }
     case 'login': {
       // Everyone signs in on the same screen and stays on the address they were reading (ROLES.md 결정 2).
-      const { user } = await request('/api/login', 'POST', { name: signIn.name, credential: raw(data, 'credential') });
+      let signedIn;
+      loginPending = true;
+      try {
+        signedIn = await request('/api/login', 'POST', { name: signIn.name, credential: raw(data, 'credential') });
+      } finally {
+        loginPending = false;
+      }
+      const { user } = signedIn;
       if (!user?.id) throw new Error('로그인 권한을 확인하지 못했어요.');
       rememberName(user.name);
       state.user = user;
-      signIn.requested = false;
+      dialogOpener = null;
+      closeDialog({ instant: true });
       await openSignedInPage();
       break;
     }
@@ -1299,6 +1303,7 @@ async function run(work, control) {
       matchingControl(control)?.focus({ preventScroll: true });
     }
     if (version === navigationVersion) busy = false;
+    if (form?.dataset.form === 'login') followAddress();
   }
 }
 
@@ -1350,19 +1355,33 @@ async function markPresent(control, memberId) {
 }
 
 document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || dialog.open) return;
+  if (!['Escape', 'Tab'].includes(event.key) || dialog.open) return;
   const profile = main.querySelector('.profile-menu[open]');
   if (!profile) return;
+  if (event.key === 'Tab') {
+    requestAnimationFrame(() => {
+      if (profile.open && !profile.contains(document.activeElement)) profile.open = false;
+    });
+    return;
+  }
   profile.open = false;
   profile.querySelector('summary').focus({ preventScroll: true });
+});
+
+document.addEventListener('focusin', event => {
+  responsiveFocus = event.target.closest('#profile-toggle, .profile-actions button, .sidebar-user[data-action="sign-in"], .topbar [data-action="sign-in"], .topbar-menu');
 });
 
 document.addEventListener('click', event => {
   const control = event.target.closest('button[data-action]');
   const profile = main.querySelector('.profile-menu[open]');
   const fromProfile = control && profile?.contains(control);
-  if (fromProfile || (profile && !profile.contains(event.target))) profile.open = false;
-  if (fromProfile) profile.querySelector('summary').focus({ preventScroll: true });
+  if (fromProfile || (profile && !profile.contains(event.target))) {
+    profile.open = false;
+    if (fromProfile || !event.target.closest('a[href], button, input, select, textarea, summary, [tabindex="0"]')) {
+      profile.querySelector('summary').focus({ preventScroll: true });
+    }
+  }
   if (!control) return;
   const { action, id: itemId, tab } = control.dataset;
   if (action === 'mark-present') {
@@ -1400,14 +1419,18 @@ main.addEventListener('toggle', event => {
   if (event.target.id === 'my-vote') state.myVoteOpen = event.target.open;
 }, true);
 
+dialog.addEventListener('input', event => {
+  const input = event.target;
+  if (!input.hasAttribute('data-login-code')) return;
+  const digits = input.value.replace(/[^0-9]/g, '');
+  if (input.value !== digits) input.value = digits;
+  clearLoginRejection(input);
+  submitCompleteCode(input);
+});
+
 main.addEventListener('input', event => {
   const input = event.target;
-  if (input.hasAttribute('data-login-code')) {
-    const digits = input.value.replace(/[^0-9]/g, '');
-    if (input.value !== digits) input.value = digits;
-    clearLoginRejection(input);
-    submitCompleteCode(input);
-  } else if (input.dataset.filter) applyFilter(input);
+  if (input.dataset.filter) applyFilter(input);
   else if (input.form?.dataset.form === 'settlement') {
     const target = input.form.querySelector('[data-stock-total]');
     if (!target) return;
@@ -1418,12 +1441,12 @@ main.addEventListener('input', event => {
 });
 
 for (const type of ['focusin', 'click', 'keyup', 'select']) {
-  main.addEventListener(type, event => {
+  dialog.addEventListener(type, event => {
     if (event.target.hasAttribute('data-login-code')) updateLoginCode(event.target);
   });
 }
 
-main.addEventListener('paste', event => {
+dialog.addEventListener('paste', event => {
   const input = event.target;
   if (!input.hasAttribute('data-login-code') || input.readOnly || !event.clipboardData) return;
   const digits = event.clipboardData.getData('text').replace(/[\s.-]/g, '');
@@ -1462,6 +1485,7 @@ dialog.addEventListener('close', () => {
   if (dialog.open) return;
   unlockDialogScroll();
   dialog.className = 'dialog';
+  dialog.removeAttribute('data-motion');
   dialog.replaceChildren();
   const opener = dialogOpener;
   dialogOpener = null;
@@ -1473,7 +1497,8 @@ dialog.addEventListener('close', () => {
 // section loader, errors and focus as run(). An answer still on its way is dropped (as on pagehide); the screen that
 // opens loads what the server kept. A link brings both popstate and hashchange; the second finds the screen moving.
 function followAddress() {
-  if (signingIn()) return;
+  // A login response can have already set the session cookie. Apply it first, then read the address the browser shows.
+  if (loginPending) return;
   const { section, itemId, tab } = readHash();
   if (state.section === section && (section !== 'event' || (state.selectedEvent === itemId && state.eventTab === tab))
     && (section !== 'notices' || state.selectedNotice === itemId)) return;
@@ -1498,7 +1523,15 @@ document.querySelector('.skip-link')?.addEventListener('click', event => {
 });
 
 desktopNavigation.addEventListener('change', event => {
-  if (!event.matches) main.querySelector('.profile-menu[open]')?.removeAttribute('open');
+  const previous = responsiveFocus;
+  if (!event.matches) {
+    const profile = main.querySelector('.profile-menu[open]');
+    if (profile) profile.open = false;
+  }
+  if (!dialog.open && previous?.isConnected && !previous.getClientRects().length) {
+    const target = previous.closest('.profile-menu') && !event.matches ? main.querySelector('.topbar-menu') : matchingControl(previous);
+    target?.focus({ preventScroll: true });
+  }
   if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
   dialogOpener = main.querySelector('.sidebar [aria-current="page"]');
   closeDialog({ instant: true });

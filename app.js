@@ -217,25 +217,31 @@
   }
   function renderShell() {
     const member = memberView(currentRoute);
+    const schedule = !member && menuPage() === 'events';
+    const eventDetail = schedule && currentRoute.page === 'event';
     app.innerHTML = `
       <aside class="sidebar">
         ${brand()}
         ${platformHome ? `<a class="platform-link" href="${escape(platformHome)}">콕콕콕! 모임 목록</a>` : ''}
         ${menuLinks(menuPage(), member)}
         <div class="sidebar-footer">
-          <span class="operator-mark">${icon('user',18)}</span>
-          <span>${member ? '<strong>예시 회원</strong><small>회원 화면</small>' : '<strong>모임 운영진</strong><small>운영 화면</small>'}</span>
+          <div class="sidebar-user">
+            <span class="operator-mark">${icon('user',18)}</span>
+            <span class="sidebar-user-info"><strong>${member ? '예시 회원' : '모임 운영진'}</strong><small>가상 데이터 체험</small></span>
+          </div>
+          ${viewSwitch(member)}
         </div>
       </aside>
-      <div class="main-shell">
-        <header class="topbar">
+      <div class="main-shell${schedule ? ' schedule-shell' : ''}">
+        <header class="topbar"><div class="topbar-inner">
+          ${eventDetail ? `<a class="btn btn-text schedule-back" href="#events" data-route="events">${icon('arrow-left',20)} 뒤로</a>` : ''}
           <div class="breadcrumb">
-            <span class="breadcrumb-parent">썬콕19</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
+            ${eventDetail ? '' : '<span class="breadcrumb-parent">썬콕19</span><span class="breadcrumb-divider">/</span>'}<strong>${currentLabel(currentRoute)}</strong>
           </div>
-          <div class="topbar-actions">${currentRoute.page === 'events'
-            ? `<button class="icon-button" type="button" data-action="open-event" aria-label="새 일정">${icon('plus', 18)}</button>` : ''}${viewSwitch(member)}<span class="demo-label"><i></i> 가상 데이터 체험</span>
+          <div class="topbar-actions">${schedule && !eventDetail
+            ? `<button class="icon-button box-action" type="button" data-action="open-event" aria-label="새 일정" title="새 일정">${icon('plus', 20)}</button>` : ''}${viewSwitch(member)}<span class="demo-label"><i></i> 가상 데이터 체험</span>
             <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${menuIcon}</button></div>
-        </header>
+        </div></header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
         ${tabBar(menuPage(), member)}
       </div>`;
@@ -245,7 +251,7 @@
     const member = memberView(currentRoute);
     const label = currentLabel(currentRoute);
     // The shell is redrawn when the breadcrumb or the view changes; the menus follow the view.
-    const section = `${member ? 'member' : 'organizer'}:${label}:${menuPage()}`;
+    const section = `${member ? 'member' : 'organizer'}:${currentRoute.page}`;
     document.title = `${label} · 썬콕19 · 콕콕콕!`;
     const lastTab = app.querySelector('.tab-bar')?.dataset.current;
     if (!app.querySelector('.main-shell') || app.dataset.section !== section) renderShell();
@@ -351,7 +357,7 @@
   function sessionStage(event) {
     return event.finalized ? 4 : event.date < today ? 3 : event.date === today ? 2 : 1;
   }
-  const stepNames = ['일정 준비', '참석 투표', '당일 출석', '마무리'];
+  const stepNames = ['일정 준비', '참석 투표', '출석 체크', '마무리'];
   function nowSteps(stage) {
     const at = Math.min(stage, 3);
     return `<ol class="now-steps" aria-label="일정 진행 ${at + 1}/4단계: ${stepNames[at]}">${stepNames.map((name, index) => {
@@ -521,8 +527,16 @@
   mobileNav.addEventListener('close', () => {
     if (!mobileNav.open) unlockMobileMenu(true);
   });
+  let roleSwitchFocus = null;
+  app.addEventListener('focusin', event => {
+    roleSwitchFocus = event.target.closest('.view-switch [data-route]');
+  });
   window.matchMedia('(max-width: 700px)').addEventListener('change', event => {
     if (!event.matches) closeMobileMenu(false, true);
+    if (roleSwitchFocus?.isConnected && !roleSwitchFocus.getClientRects().length) {
+      const visible = event.matches ? '.topbar .view-switch' : '.sidebar .view-switch';
+      app.querySelector(`${visible} [data-route="${CSS.escape(roleSwitchFocus.dataset.route)}"]`)?.focus({preventScroll:true});
+    }
   });
   function handleClick(ev) {
     const control = ev.target.closest('[data-route], [data-action]');

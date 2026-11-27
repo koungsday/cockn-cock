@@ -92,7 +92,7 @@
       const event = state.events.find(item => item.id === route.id);
       if (!event) return heading('일정', '일정을 찾을 수 없어요.', routeLink('일정 목록', 'events', 'secondary btn-small'));
       const pollAvailable = event.pollOpen && !event.finalized && !deadlinePassed(event);
-      const nav = `<nav class="tabs" aria-label="일정 단계">${[['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']].map(([tab, label]) => {
+      const nav = `<nav class="tabs" aria-label="일정 단계">${[['poll', '참석 투표'], ['attendance', '출석 체크'], ['settlement', '마무리']].map(([tab, label]) => {
         const path = eventPath(event, tab);
         const active = tab === route.tab;
         return `<a href="#${path}" data-route="${path}"${active ? ' aria-current="page"' : ''}>${label}</a>`;
@@ -150,7 +150,7 @@
           : actionAllowed
             ? (report.pending ? action('미확인 모두 결석', 'mark-pending-absent', event.id) : '') + action('출석·게스트 확정', 'finalize', event.id, {tone: 'primary', extra: report.pending ? 'disabled' : ''})
             : '';
-        return `<section id="attendance" class="att" aria-label="당일 출석"${helpers.onlyUnmarked() ? ' data-only="unmarked"' : ''}>
+        return `<section id="attendance" class="att" aria-label="출석 체크"${helpers.onlyUnmarked() ? ' data-only="unmarked"' : ''}>
             ${note ? `<p class="form-note">${note}</p>` : ''}
             ${members.length ? '' : '<p class="muted home-empty">이 일정에 등록된 멤버가 없어요.</p>'}
             ${going.length ? list(going) : members.length ? '<p class="muted home-empty">참석한다고 응답한 회원이 아직 없어요.</p>' : ''}
@@ -236,11 +236,9 @@
       const stands = event.cancelled ? '취소한 일정' : event.finalized ? '마무리 완료'
         : pollAvailable ? `공개 중 · ${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : `공개 중 · ${event.pollOpen || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
       // The event names the screen (the live event head): its title, one line of when and where, one of where it stands.
-      return `<div class="back-link">${routeLink('일정', 'events', 'text', 'arrow-left')}</div>
-        <header class="event-head"><h1>${open ? '' : pinMark(event)}${e(event.title)}</h1>${tools}
-          <p>${e(kindPrefix(event))}${e(dateLabel(event.date))} ${eventTime(event)} · ${e(event.place)}</p><p class="muted">${e(stands)}</p></header>${cancelled}`
-        + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
-        + nav
+      return `<header class="event-head"><h1>${open ? '' : pinMark(event)}${e(event.title)}</h1>${tools}
+          <div class="event-facts"><p>${e(kindPrefix(event))}${e(dateLabel(event.date))} ${eventTime(event)} · ${e(event.place)}</p><p class="muted">${e(stands)}</p></div></header>${cancelled}`
+        + nav + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
         + (route.tab === 'attendance' ? attendance() : route.tab === 'settlement' ? finish() : poll() + guests());
     }
 
@@ -533,7 +531,8 @@
         repeat: () => view.repeat(state)
       }[route.page]?.();
       // Every screen is a single column, as the 운영 홈 (styles.css .event-page, .plain-page).
-      return content ? `<div class="${['events', 'event'].includes(route.page) ? 'event-page' : 'plain-page'}">${content}</div>` : '';
+      const css = { events: 'event-page', event: 'event-page event-detail' }[route.page] ?? 'plain-page';
+      return content ? `<div class="${css}">${content}</div>` : '';
     },
     renderDialog(dialog, state, helpers) {
       const view = makeView(helpers);
