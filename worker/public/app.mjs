@@ -5,7 +5,7 @@ import {
   icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
-  rulesScreen, sharePreview, today, voteRoster, voteSummary,
+  rulesScreen, sharePreview, today, voteRoster, voteShareAction, voteSummary,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { loadingKind } from './skeleton.mjs';
@@ -598,6 +598,13 @@ async function refreshVoteCounts() {
         // The names follow the numbers, so the list under them never disagrees; the fold stays as it was.
         state.detail = detail;
         target.innerHTML = voteSummary(detail.roster);
+        const share = main.querySelector('#vote-share');
+        const actions = voteShareAction(detail.event, detail.roster);
+        if (share && share.innerHTML !== actions) {
+          const focused = share.contains(document.activeElement);
+          share.innerHTML = actions;
+          if (focused) share.querySelector('button')?.focus({ preventScroll: true });
+        }
         replaceKeepingFocus('.vote-roster', voteRoster(detail.event, detail.roster, main.querySelector('.vote-roster details')?.open ?? false));
       }
     }

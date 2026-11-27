@@ -183,7 +183,8 @@ function serializeEvent(row) {
     id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
     place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
     notes: row.notes, open, published, canVote: open && published && row.deadline_at > currentSeconds(),
-    kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at)
+    kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
+    ...(row.vote_closed_at != null && { voteClosed: true })
   };
 }
 
@@ -200,19 +201,25 @@ function serializeGuest(row) {
     transferWon: row.transfer_won, receivedShuttles: row.received_shuttles };
 }
 
+function stockBreakdown(row) {
+  if (row.opening_shuttles == null) return null;
+  const total = row.opening_shuttles + row.added_shuttles - row.used_shuttles;
+  // If an older deployed Worker edited the legacy fields, its latest count takes precedence.
+  if (row.prior_singles !== 0 || row.prior_tubes !== 0 || row.remaining_singles !== total) return null;
+  return { openingShuttles: row.opening_shuttles, addedShuttles: row.added_shuttles,
+    usedShuttles: row.used_shuttles, closingShuttles: total };
+}
+
 function closingShuttles(row) {
-  return row.opening_shuttles == null
-    ? row.prior_singles + row.prior_tubes * 12 + row.remaining_singles
-    : row.opening_shuttles + row.added_shuttles - row.used_shuttles;
+  return stockBreakdown(row)?.closingShuttles ?? row.prior_singles + row.prior_tubes * 12 + row.remaining_singles;
 }
 
 function serializeSettlement(row) {
   if (!row) return null;
-  const common = { courtDonation: row.court_donation, confirmed: Boolean(row.confirmed) };
-  return row.opening_shuttles == null
-    ? { ...common, priorSingles: row.prior_singles, priorTubes: row.prior_tubes, remainingSingles: row.remaining_singles }
-    : { ...common, openingShuttles: row.opening_shuttles, addedShuttles: row.added_shuttles,
-      usedShuttles: row.used_shuttles, closingShuttles: closingShuttles(row) };
+  return {
+    priorSingles: row.prior_singles, priorTubes: row.prior_tubes, remainingSingles: row.remaining_singles,
+    courtDonation: row.court_donation, confirmed: Boolean(row.confirmed), ...stockBreakdown(row)
+  };
 }
 
 function serializeVote(row) {
@@ -255,7 +262,7 @@ function eventParams(event) {
 }
 
 async function fetchEvent(db, club, id) {
-  const row = await sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at FROM events WHERE id = ? AND club_id = ?`, id, club).first();
+  const row = await sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, vote_closed_at FROM events WHERE id = ? AND club_id = ?`, id, club).first();
   if (!row) missing();
   return serializeEvent(row);
 }
@@ -265,7 +272,7 @@ async function fetchEvent(db, club, id) {
 // wait for sign-in. Answering always needs sign-in (/api/votes).
 async function fetchPublic(db, club, kind, id, signedIn) {
   if (kind === 'vote') {
-    const row = await sql(db, `SELECT ${eventFields}, cancelled_at, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
+    const row = await sql(db, `SELECT ${eventFields}, cancelled_at, vote_closed_at, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ? AND published = 1`, id, club).first();
     if (!row) missing();
     const event = { ...serializeEvent(row), counts: readCounts(row) };
     return { event: signedIn ? event : { ...event, place: null, notes: null } };
@@ -312,7 +319,7 @@ async function listPublic(db, club, memberId) {
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
   const seconds = currentSeconds();
-  const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at, e.cancelled_at,
+  const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at, e.cancelled_at, e.vote_closed_at,
         e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
   const upcoming = `FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
@@ -337,6 +344,7 @@ async function listPublic(db, club, memberId) {
       id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
       place: memberId ? row.place : null, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
       canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
+      ...(row.vote_closed_at != null && { voteClosed: true }),
       open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
     })),
     notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
@@ -421,7 +429,7 @@ async function listAdmin(db, club) {
     // settled and waiting are for the organisers' screens only (the session picker, the 운영 홈 일정 흐름 of FLOW.md):
     // waiting counts active members on the roster without an answer, as the 운영 홈 counts 미응답. serializeEvent
     // stays shared with the member screens.
-    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
+    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, vote_closed_at, EXISTS (SELECT 1 FROM settlements s WHERE s.event_id = events.id AND s.confirmed = 1) AS settled,
       (SELECT COUNT(*) FROM roster r JOIN members m ON m.id = r.member_id
         LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
         WHERE r.event_id = events.id AND m.active = 1 AND v.member_id IS NULL) AS waiting
@@ -554,7 +562,8 @@ async function updateEvent(db, club, id, body) {
   ensureVoteStartsBeforeDeadline(data, previous);
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
-      early_time=?, late_time=?, notes=?, open=?, published=?, kind=?
+      early_time=?, late_time=?, notes=?, open=?, published=?, kind=?,
+      vote_closed_at=CASE WHEN ?=1 THEN NULL WHEN open=1 THEN unixepoch() ELSE vote_closed_at END
     WHERE id=? AND club_id=?
       AND title=? AND date=? AND time=? AND end_time=? AND place=? AND deadline=? AND deadline_at=?
       AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=?
@@ -562,7 +571,7 @@ async function updateEvent(db, club, id, body) {
         (date=? AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
       AND (?=0 OR cancelled_at IS NULL)
-  `, ...eventParams(data), id, club, ...eventParams(previous), data.date, +data.open, id, +data.open).run();
+  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.date, +data.open, id, +data.open).run();
   if (!updates.meta.changes) {
     throw new ApiError(409, '다른 곳에서 일정이 바뀌었거나 마무리가 확정됐어요. 새로고침한 뒤 확인해 주세요.');
   }
@@ -571,7 +580,7 @@ async function updateEvent(db, club, id, body) {
 
 async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement, previous] = await db.batch([
-    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at FROM events WHERE id = ? AND club_id = ?`, id, club),
+    sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, vote_closed_at FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
       SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition
       FROM roster r JOIN members m ON r.member_id = m.id
@@ -708,13 +717,14 @@ async function setSettlement(db, club, id, body) {
     ON CONFLICT (event_id)
     DO UPDATE SET prior_singles=excluded.prior_singles, prior_tubes=excluded.prior_tubes,
       remaining_singles=excluded.remaining_singles, court_donation=excluded.court_donation, confirmed=excluded.confirmed,
-      opening_shuttles=excluded.opening_shuttles, added_shuttles=excluded.added_shuttles, used_shuttles=excluded.used_shuttles
-    WHERE settlements.opening_shuttles IS NULL OR excluded.opening_shuttles IS NOT NULL
+      opening_shuttles=COALESCE(excluded.opening_shuttles, settlements.opening_shuttles),
+      added_shuttles=COALESCE(excluded.added_shuttles, settlements.added_shuttles),
+      used_shuttles=COALESCE(excluded.used_shuttles, settlements.used_shuttles)
   `, ...values, id, club, +body.confirmed, today)];
   if (body.confirmed) {
     // A confirmed 마무리 ends the event's flow (FLOW.md): its vote closes and it lets go of its 상단 고정 place.
     statements.push(sql(db, `
-      UPDATE events SET open=0, pinned_at=NULL WHERE id=? AND club_id=? AND EXISTS (
+      UPDATE events SET vote_closed_at=CASE WHEN open=1 THEN unixepoch() ELSE vote_closed_at END, open=0, pinned_at=NULL WHERE id=? AND club_id=? AND EXISTS (
         SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1
       )
     `, id, club, id));

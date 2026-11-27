@@ -314,7 +314,9 @@ export function memberVoteScreen(event, vote, eligible, voteSaved = false, signe
 // part as 내 응답, since organisers vote as members (ROLES.md 2단계).
 function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true) {
   const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
-  let response = `<div class="public-form">${current}<p class="public-status">${event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p></div>`;
+  const closed = event.voteClosed || deadlinePassed(event);
+  let response = `<div class="public-form">${current}<p class="public-status">${closed ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p>
+    ${closed && !signedIn ? '<button class="share-button share-button--secondary" type="button" data-action="sign-in">로그인하고 내 응답 보기</button>' : ''}</div>`;
   if (event.cancelled) {
     response = `<div class="public-form">${current}<p class="public-status"><strong>이 일정은 취소됐어요.</strong>${event.notes ? '위 안내를 확인해 주세요.' : ''}</p></div>`;
   } else if (event.canVote && !signedIn) {
@@ -360,7 +362,7 @@ function memberEventState(event, signedIn = true) {
   }
   if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
   if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 일정에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
-  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
+  return { action: '일정 확인', primary: false, row: '일정 확인', note: event.voteClosed || deadlinePassed(event) ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
 function nextEventCard(event, signedIn) {
@@ -683,7 +685,7 @@ export function homeNow(detail, listing = null, fresh = false) {
   const open = (label, tab) => button(label, 'open-event', { id: event.id, tab });
   const attendance = () => nowStats(stage === 2 ? [['참석 예정', going], ['출석', present], ['게스트 도착', arrived]]
     : [['출석', present], ['게스트 도착', arrived], ['참석 예정', going]], present, going, `출석 ${present}/${going}명`);
-  const vote = event.canVote ? `${deadlineLabel(event.deadline)} 투표 마감` : event.open || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
+  const vote = event.canVote ? `${deadlineLabel(event.deadline)} 투표 마감` : event.voteClosed || event.open || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
   const [kicker, fact, numbers, actions] = [
     () => ['다음 일정', '아직 회원에게 보이지 않아요. 공개해야 투표할 수 있어요.', '', open('일정 열어 공개하기', 'poll')],
     () => ['다음 일정', `${esc(event.place)} · ${esc(vote)}`,
@@ -799,7 +801,14 @@ export function adminHome({ events, notices }, upcoming, last = null, listing = 
 }
 
 function voteClosedForSharing(event, roster) {
-  return event.published && !event.cancelled && !event.canVote && (deadlinePassed(event) || roster.some(person => person.slot));
+  return event.published && !event.cancelled && !event.canVote && (event.voteClosed || deadlinePassed(event) || roster.some(person => person.slot));
+}
+
+export function voteShareAction(event, roster) {
+  if (!event.published) return button('회원에게 공개하기', 'publish-event');
+  const closed = voteClosedForSharing(event, roster);
+  return button(closed ? '마감 안내 복사' : '투표 링크 복사', closed ? 'copy-vote-closed' : 'copy-vote-link',
+    { id: event.id, css: event.canVote || closed ? '' : 'secondary' });
 }
 
 export function countEvent(roster, guests) {
@@ -900,7 +909,7 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
     iconAction('more', 'event-menu', { id: event.id, label: `${event.title} 일정 메뉴` }));
   // The event names the screen: its title, one line of when and where, one quiet line of where it stands. No box.
   const stands = event.cancelled ? '취소한 일정' : settlement?.confirmed ? '마무리 완료' : !event.published ? '공개 전 · 회원에게 보이지 않아요'
-    : event.canVote ? `공개 중 · ${deadlineLabel(event.deadline)} 투표 마감` : `공개 중 · ${event.open || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
+    : event.canVote ? `공개 중 · ${deadlineLabel(event.deadline)} 투표 마감` : `공개 중 · ${event.voteClosed || event.open || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
   const head = `<header class="event-head"><h1 tabindex="-1">${open ? '' : pinMark(event)}${esc(event.title)}</h1>${tools}
       <p>${esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time}–${event.endTime} · ${event.place}`)}</p><p class="muted">${esc(stands)}</p></header>${cancelled}`;
   // The three steps of a session are tabs, as in the demo (screens.js eventDetail), so the gym check-in is one tap away.
@@ -915,12 +924,8 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
   const late = !event.canVote && deadlinePassed(event) && (event.open || event.date >= today())
     ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : '';
   // 카톡 공유 is copying the vote link (DESIGN.md 5 카톡 공유); the KakaoTalk preview waits in 더보기.
-  const closedVote = voteClosedForSharing(event, roster);
-  const share = event.published
-    ? button(closedVote ? '마감 안내 복사' : '투표 링크 복사', closedVote ? 'copy-vote-closed' : 'copy-vote-link',
-      { id: event.id, css: event.canVote || closedVote ? '' : 'secondary' })
-    : button('회원에게 공개하기', 'publish-event');
-  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster)}</div>${late}<div class="now-actions">${share}</div></section>`;
+  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster)}</div>${late}
+    <div class="now-actions" id="vote-share">${voteShareAction(event, roster)}</div></section>`;
   const poll = vote + mine + voteRoster(event, roster);
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed, onlyUnmarked) + guestList
     : current === 'settlement' ? settlementPanel(settlement, counts, detail.carryStock, guests) : poll + guestList;
@@ -1098,7 +1103,6 @@ export function reportText(detail, clubName) {
     `${clubName} ${event.title} 마무리`,
     `${dateLine(event)} / ${event.place}`,
     `실제 참석 ${c.members + c.guests}명 (회원 ${c.members}명, 게스트 ${c.guests}명)`,
-    guestPaymentSummary(guests),
     s.closingShuttles == null
       ? `콕 이월 ${s.priorSingles + s.remainingSingles}개 + ${s.priorTubes}타 (이전 ${s.priorSingles}개 + ${s.priorTubes}타, 당일 잔여 ${s.remainingSingles}개)`
       : `콕 최종 잔량 ${s.closingShuttles}개 (이월 ${s.openingShuttles} + 추가 ${s.addedShuttles} − 사용 ${s.usedShuttles})`,

@@ -108,7 +108,7 @@
         const row = (member, detail) => `<li><span><strong>${e(member.name)}</strong>${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
           : action('응답 변경', 'open-vote', event.id, {tone: 'text btn-small', extra: `data-kind="${e(member.id)}" aria-label="${e(member.name)} 응답 변경"`})}</li>`;
         const silent = members.filter(member => !event.votes[member.id]);
-        const closed = !event.cancelled && !pollAvailable && (deadlinePassed(event) || Object.values(event.votes).some(Boolean));
+        const closed = !event.cancelled && !pollAvailable && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
         const order = {early: 0, late: 1, yes: 1, no: 2};
         const answered = members.filter(member => event.votes[member.id]).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
         return `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts"><p class="vote-total">응답 ${responded} / ${report.total}명</p>
@@ -209,7 +209,7 @@
           ? action('카톡 마무리 복사', 'copy-settlement', event.id, {tone:'primary', symbol:'clipboard'}) : '';
         return panel('모임 마무리', summary([
           ['실제 참여', `${report.total}명`, 'green'], ['회원', `${report.members}명`], ['게스트 도착', `${report.arrivals}명`],
-          ['게스트 비용 확인', `${report.guestPaid}명`], ['콕 이월', report.recorded ? `${report.closingShuttles}개` : '미기록'],
+          ['게스트 비용 확인', `${report.guestPaid}명${report.transferWon ? ` · 이체 ${report.transferWon.toLocaleString('ko-KR')}원` : ''}${report.receivedShuttles ? ` · 콕 ${report.receivedShuttles}개` : ''}`], ['콕 이월', report.recorded ? `${report.closingShuttles}개` : '미기록'],
           ['코트 찬조금', report.recorded ? `${report.courtDonation.toLocaleString('ko-KR')}원` : '미기록']
         ]) + form, {
           subtitle: event.finalized ? (report.recorded ? '확정한 인원과 마무리 기록을 한 번에 복사하세요.' : '출석을 다시 열어 콕과 찬조금 기록을 입력할 수 있어요.')

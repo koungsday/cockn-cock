@@ -976,7 +976,7 @@ test('a pin another organiser made first lets go of nothing', async t => {
 });
 
 test('guest payments and shuttle stock carry from the preceding confirmed session without changing legacy records', async t => {
-  const {client} = setup(t);
+  const {client, DB} = setup(t);
   const admin = client();
   await admin.adminLogin();
   const day = offset => new Date(Date.now() + (9 + offset * 24) * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -1006,8 +1006,14 @@ test('guest payments and shuttle stock carry from the preceding confirmed sessio
   await save(current, stock);
   assert.equal((await admin.request(path(later))).carryStock.shuttles, 17, 'drafts do not carry forward');
   assert.deepEqual((await save(current, {...stock, confirmed:true})).settlement,
-    {...stock, confirmed:true, closingShuttles:14});
+    {...stock, confirmed:true, closingShuttles:14, priorSingles:0, priorTubes:0, remainingSingles:14});
   assert.deepEqual((await admin.request(path(later))).carryStock, {shuttles:14, date:current.date, time:current.time});
   assert.deepEqual((await admin.request(path(old))).settlement, legacy);
+  await DB.prepare('UPDATE settlements SET prior_singles=2, prior_tubes=1, remaining_singles=4 WHERE event_id=?').bind(current.id).run();
+  assert.equal((await admin.request(path(later))).carryStock.shuttles, 18, 'stock edited by the old Worker is not lost');
+  assert.equal((await admin.request(path(current))).settlement.openingShuttles, undefined);
+  const future = (await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()})).event;
+  assert.equal((await admin.request(path(future), {method:'PATCH', body:{open:false}})).event.voteClosed, true);
+  assert.equal((await admin.request(path(future), {method:'PATCH', body:{open:true}})).event.voteClosed, undefined);
   await admin.request(guestPath, {method:'POST', body:{...fields, id, transferWon:null}, expect:409});
 });

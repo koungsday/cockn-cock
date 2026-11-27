@@ -377,12 +377,13 @@
     const open = (label, tab) => `<a class="btn btn-primary" href="#event/${id}/${tab}" data-route="event/${id}/${tab}">${label}</a>`;
     const attendance = () => nowStats(stage === 2 ? [['참석 예정', yes], ['출석', present], ['게스트 도착', arrived]]
       : [['출석', present], ['게스트 도착', arrived], ['참석 예정', yes]], present, yes, `출석 ${present}/${yes}명`);
-    const vote = pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : event.pollOpen || deadlinePassed(event) ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
+    const closed = !pollIsOpen(event) && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
+    const vote = pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : closed ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
     const [kicker, fact, numbers, actions] = {
       1:() => ['다음 일정', `${escape(event.place)} · ${escape(vote)}`,
         nowStats([['선발', early], ['후발', late], ['점심', lunch], ['불참', no], ['미응답', pending]], yes + no, total, `응답 ${yes + no}/${total}명`),
         open(pending > 0 ? `미응답 ${pending}명 보기` : '응답 명단 보기', 'poll')
-          + `<button class="btn btn-secondary" type="button" data-action="copy-link" data-kind="vote" data-id="${id}">투표 링크 복사</button>`],
+          + `<button class="btn btn-secondary" type="button" data-action="${closed ? 'copy-vote-closed' : 'copy-link'}" data-kind="vote" data-id="${id}">${closed ? '마감 안내 복사' : '투표 링크 복사'}</button>`],
       2:() => ['오늘 일정', escape(event.place), attendance(), open('출석 체크', 'attendance')],
       3:() => ['마무리할 일정', '운동이 끝났어요. 마무리만 남았어요.', attendance(), open('마무리하기', 'settlement')],
       4:() => ['마무리한 일정', '마무리를 확정했어요.', attendance(), open('마무리 보기', 'settlement')]
@@ -657,7 +658,6 @@
       if (!report.recorded) return showToast('콕과 찬조금 기록을 먼저 입력해 주세요.');
       const lines = [`썬콕19 모임 마무리 · ${fullDate(event.date)}`, `운동 ${event.time}–${event.endTime} · ${event.place}`,
         `총 ${report.total}명 (회원 ${report.members}명 · 게스트 ${report.arrivals}명)`,
-        report.guestPaid ? `게스트 비용 확인 ${report.guestPaid}명 · 이체 ${report.transferWon.toLocaleString('ko-KR')}원 · 콕 ${report.receivedShuttles}개` : '',
         `콕 최종 잔량 ${report.closingShuttles}개`,
         `코트 찬조금 ${report.courtDonation.toLocaleString('ko-KR')}원`];
       copy(lines.filter(Boolean).join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
@@ -665,6 +665,7 @@
     }
     if (action === 'toggle-poll' && !event.finalized && !event.cancelled && !deadlinePassed(event)) {
       event.pollOpen = !event.pollOpen;
+      event.voteClosed = !event.pollOpen;
       persist(pollIsOpen(event) ? '참석 투표를 열었어요.' : '참석 투표를 닫았어요.');
     } else if (action === 'mark-attendance' && event.date <= today && !event.finalized && event.roster.includes(member)) {
       if (value === 'present' || value === 'absent') event.attendance[member] = value;
@@ -781,7 +782,9 @@
       }
       Object.assign(event, Object.fromEntries(['title','date','time','endTime','earlyTime','lateTime','place','deadline','deadlineTime','notes'].map(key => [key,value(key)])));
       event.kind = kindLabels[value('kind')] ? value('kind') : 'regular';
-      event.pollOpen = formData.has('pollOpen') && !event.finalized && !event.cancelled;
+      const open = formData.has('pollOpen') && !event.finalized && !event.cancelled;
+      if (open || event.pollOpen) event.voteClosed = !open;
+      event.pollOpen = open;
       target = 'event/'+event.id+'/poll';
       message = '모임 일정을 저장했어요.';
     } else if (type === 'notice') {
