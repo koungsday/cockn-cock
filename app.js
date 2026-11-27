@@ -74,7 +74,7 @@
     closed:['투표 마감','muted'], today:['오늘','warm'], wrapup:['마무리 전','warm']
   };
   const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar};
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -325,6 +325,9 @@
       regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), today, icon});
   }
+  // 달력으로 보기 / 달력 접기 (the live calendarToggle): the month grid is folded until asked for.
+  function calendarOpen() { return Boolean(ui.calendarOpen); }
+  function calendarToggle() { return `<button class="btn btn-text btn-small calendar-toggle" type="button" data-action="calendar-toggle">${calendarOpen() ? '달력 접기' : '달력으로 보기'}</button>`; }
   function pollIsOpen(event) {
     return event.pollOpen && !event.finalized && !event.cancelled && !deadlinePassed(event);
   }
@@ -589,6 +592,13 @@
       const days = app.querySelector('.calendar-days');
       if (days) days.dataset.slide = month > shown ? 'next' : 'back';
       app.querySelector(`.calendar [data-action="calendar-month"][data-id="${id}"]`)?.focus({preventScroll:true});
+      return;
+    }
+    if (action === 'calendar-toggle') {
+      ui.calendarOpen = !ui.calendarOpen;
+      ui.calendarMonth = null;
+      renderPage();
+      app.querySelector('.calendar-toggle')?.focus({preventScroll:true});
       return;
     }
     if (action === 'calendar-day') {

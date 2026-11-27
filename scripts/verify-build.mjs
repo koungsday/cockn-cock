@@ -121,11 +121,12 @@ assert.match(memberHome, /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/
 for (const marker of ['public-share-card member-next', 'member-next-action', 'member-records', 'data-route="public-vote/e-nov28"']) {
   assert(memberHome.includes(marker), `the demo member home uses ${marker}`);
 }
-// 일정 달력 (DESIGN.md 5): both 일정 lists open with the live month grid (calendar.js) and mark the event dates.
+// 일정 달력 (DESIGN.md 5): both 일정 lists keep the month grid folded behind 달력으로 보기 (단순화 2); the grid itself is
+// checked in worker/calendar.test.mjs.
 for (const hash of ['#events', '#member-events']) {
   const page = openDemo(() => hash).html;
-  assert.match(page, /<div class="calendar" data-month="\d{4}-\d{2}">/, `${hash} shows the month calendar`);
-  assert.match(page, /data-action="calendar-day" data-id="\d{4}-\d{2}-\d{2}"/, `${hash} marks the event dates`);
+  assert.match(page, /data-action="calendar-toggle">달력으로 보기</, `${hash} offers the calendar`);
+  assert.doesNotMatch(page, /<div class="calendar" data-month=/, `${hash} opens with the list alone`);
 }
 assert(home.includes(`href="${basePath}share.css"`));
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);

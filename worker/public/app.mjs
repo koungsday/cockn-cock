@@ -74,6 +74,7 @@ const state = {
   selectedNotice: null,
   eventTab: null,
   calendarMonth: null,
+  calendarOpen: false,
   admin: null,
   upcoming: null,
   last: null,
@@ -322,7 +323,7 @@ function sectionScreen(voteSaved) {
   if (!operating(user)) {
     if (section === 'event') {
       return state.selectedEvent ? memberVoteScreen(state.event, state.vote, state.eligible, voteSaved, Boolean(user))
-        : memberEventsScreen(state.listing, user, state.calendarMonth);
+        : memberEventsScreen(state.listing, user, state.calendarMonth, state.calendarOpen);
     }
     return section === 'notices' ? memberNoticesScreen(state.listing) : homeScreen(state.listing, club, user);
   }
@@ -331,7 +332,7 @@ function sectionScreen(voteSaved) {
   if (section === 'notices') return noticesScreen(state.admin.notices);
   if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
   if (section === 'rules') return rulesScreen(state.admin.rules);
-  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved }, state.calendarMonth);
+  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved }, state.calendarMonth, state.calendarOpen);
 }
 
 // arrive (DESIGN.md 6 섹션 도착): 'next' or 'back' slides the new section in from that side, 'enter' rises the first one.
@@ -768,6 +769,13 @@ async function doAction(action, itemId, tab) {
       main.querySelector(`.calendar [data-action="calendar-month"][data-id="${itemId}"]`)?.focus({ preventScroll: true });
       break;
     }
+    // 달력으로 보기 / 달력 접기: the list stays, the month grid comes and goes above it; focus stays on the button.
+    case 'calendar-toggle':
+      state.calendarOpen = !state.calendarOpen;
+      state.calendarMonth = null;
+      render();
+      main.querySelector('.calendar-toggle')?.focus({ preventScroll: true });
+      break;
     case 'calendar-day':
       pickCalendarDay(main, itemId, !reducedMotion.matches);
       break;

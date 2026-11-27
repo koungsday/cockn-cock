@@ -10,18 +10,19 @@ const panel = body => `<section class="panel sk-panel">${body}</section>`;
 const rows = (count, plain = false) => `<div class="sk-rows">${Array.from({ length: count }, () => plain
   ? `<div class="sk-row sk-row--plain"><span class="sk-stack">${bar('sk-line')}${bar('sk-meta')}</span>${bar('sk-chip')}</div>`
   : `<div class="sk-row">${bar('sk-dot')}${bar('sk-line')}${bar('sk-chip')}</div>`).join('')}</div>`;
-// The grey box of 장소·마감 and the 응답 현황 bars of a member's event card (views.mjs nextEventCard, memberVoteScreen).
+// The 장소·마감 lines and the 응답 현황 bars of a member's event card (views.mjs nextEventCard, memberVoteScreen).
 const facts = count => `<div class="sk-facts">${bars(count, 'sk-fact')}</div>`;
 const counts = `<div class="sk-counts">${bar('sk-h2')}${Array.from({ length: 3 }, () => `<span class="sk-count">${bar('sk-line')}${bar('sk-meter')}</span>`).join('')}${bar('sk-meta')}</div>`;
 const head = `<div class="page-head sk-head"><div>${bar('sk-h1')}${bar('sk-text')}</div>${bar('sk-button')}</div>`;
 // The 일정 heads carry a longer sentence that wraps on a phone (measured 80–98px at 375px).
 const longHead = `<div class="page-head sk-head"><div>${bar('sk-h1')}${bar('sk-text')}<span class="sk sk-text sk-wrap"></span></div>${bar('sk-button')}</div>`;
-// 일정 달력 (calendar.mjs): the month title with its three steps, the weekday line, then five weeks of dates.
-const calendar = `<div class="sk-calendar"><div class="sk-calendar-head">${bar('sk-h2')}<span>${bars(3, 'sk-step')}</span></div>
-  ${bar('sk-weekdays')}<div class="sk-days">${bars(35, 'sk-day')}</div></div>`;
-// A member card (worker/public/views.mjs memberCard): the green head (sand for a notice) or none, then its content.
-const card = (body, headKind = '') => `<div class="public-share-card sk-card">${headKind ? `<div class="sk-card-head${headKind === 'notice' ? ' sk-card-head--notice' : ''}">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-card-date')}</div>` : ''}
+// A member card (worker/public/views.mjs memberCard): one white surface, its label·title·date head (or none), then its
+// content (단순화 2: no green or sand head).
+const card = (body, head = false) => `<div class="public-share-card sk-card">${head ? `<div class="sk-card-head">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-card-date')}</div>` : ''}
   <div class="public-share-content">${body}</div></div>`;
+// A member list (views.mjs memberList): rows on the page itself under a muted label, or under the 일정 count and its
+// 달력으로 보기 (tools).
+const list = (count, top = 'label') => `<div class="sk-list">${top === 'tools' ? `<div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>` : top ? bar('sk-meta sk-label') : ''}${rows(count, true)}</div>`;
 const memberPage = (body, back = false) => `<div class="public-share-page member-page">${back ? bar('sk-back') : ''}${body}</div>`;
 
 const bodies = {
@@ -31,19 +32,19 @@ const bodies = {
     <div class="dashboard-grid"><div class="sk-featured"></div>${panel(bar('sk-h2') + bar('sk-number') + bar('sk-meter') + counts.replace(bar('sk-h2'), ''))}</div>
     <div class="dashboard-grid dashboard-bottom">${panel(bar('sk-h2') + rows(4))}${panel(bar('sk-h2') + bars(3, 'sk-line'))}</div>
   </div>`,
-  'event-list': `<div class="secondary-page">${longHead}${panel(calendar)}${panel(bar('sk-h2') + rows(4))}</div>`,
+  'event-list': `<div class="secondary-page">${longHead}${panel(bar('sk-h2') + rows(4))}</div>`,
   // 회차 상세 (views.mjs eventScreen): ← 일정 목록, the head, the 개요 panel, the three tabs, then the tab's panel.
   event: `<div class="secondary-page">${bar('sk-back')}${longHead}
     ${panel(bar('sk-h2') + bars(4, 'sk-fact') + bar('sk-chip'))}
     <div class="sk-tabs">${bars(3, 'sk-tab')}</div>
     ${panel(bar('sk-h2') + rows(5))}</div>`,
   list: `<div class="secondary-page">${head}${panel(bar('sk-h2') + rows(6))}</div>`,
-  // 회원·로그인 전 (and 내 기록·공지 하나, the same screens for everyone): the member cards.
-  'member-home': memberPage(card(facts(2) + counts + bar('sk-text') + bar('sk-cta'), 'vote') + card(bar('sk-h2') + rows(3, true))),
-  'member-events': memberPage(card(bar('sk-h1') + calendar + rows(3, true))),
-  'member-vote': memberPage(card(facts(3) + counts + `<div class="sk-choices">${bars(2, 'sk-choice')}</div>` + bar('sk-cta'), 'vote'), true),
-  'member-notices': memberPage(card(bar('sk-h1') + rows(4, true))),
-  notice: memberPage(card(bars(2, 'sk-line') + bar('sk-text'), 'notice'), true),
+  // 회원·로그인 전 (and 내 기록·공지 하나, the same screens for everyone): one card for the next event, lists as rows.
+  'member-home': memberPage(card(facts(2) + counts + bar('sk-text') + bar('sk-cta'), true) + list(3)),
+  'member-events': memberPage(list(3, 'tools')),
+  'member-vote': memberPage(card(facts(3) + `<div class="sk-choices">${bars(3, 'sk-choice')}</div>` + bar('sk-cta') + counts, true), true),
+  'member-notices': memberPage(list(4, '')),
+  notice: memberPage(card(bars(2, 'sk-line') + bar('sk-text'), true), true),
   record: memberPage(card(bar('sk-h1') + `<div class="sk-months">${bars(12, 'sk-month')}</div>` + bar('sk-text') + `<div class="sk-slots">${bars(3, 'sk-slot')}</div>`)),
 };
 

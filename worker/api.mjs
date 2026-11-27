@@ -15,9 +15,8 @@ const noticePath = new RegExp(`^/api/admin/notices/(${identifier})$`);
 const recordId = new RegExp(`^${identifier}$`);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+// 선발, 후발, 불참. Members answer all three (사용자 결정 2026-11-27: 투표에 불참 선택지도 둔다; #28 had left 불참 to organisers).
 const slots = ['early', 'late', 'no'];
-// Members answer 선발 or 후발 only, as in the club's 카카오톡 투표; 불참 stays for organisers' own records.
-const memberSlots = ['early', 'late'];
 const markKinds = ['direct', 'substitute', 'approved'];
 // 일정 종류 (worker/migrations/0008_pins_kinds.sql): 정기, 번개, 대회, 모임.
 const eventKinds = ['regular', 'flash', 'match', 'social'];
@@ -385,7 +384,7 @@ async function memberVote(db, club, method, id, user, body = {}) {
   }
   if (method !== 'PUT') methodNotAllowed();
   // slot null is 응답 취소: the answer is removed under the same conditions that let it be saved.
-  const { slot, lunch } = validateVote(body, true, memberSlots);
+  const { slot, lunch } = validateVote(body, true);
   const canAnswer = `FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
     WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND e.club_id = ?
       AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()`;
