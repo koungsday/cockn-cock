@@ -1,7 +1,7 @@
 .share-dialog-content {
   display: grid;
-  gap: 18px;
-  padding: clamp(13px, 4vw, 20px);
+  gap: var(--space-16);
+  padding: var(--space-16);
 }
 
 .share-dialog-head,
@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .share-dialog-head h2 {
@@ -26,7 +26,7 @@
   width: var(--touch-target, 44px);
   height: var(--touch-target, 44px);
   place-items: center;
-  padding: 0 0 2px;
+  padding: 0 0 var(--space-2);
   border: 0;
   border-radius: 12px;
   background: #edf1eb;
@@ -54,19 +54,19 @@
 }
 
 .share-chat {
-  padding: 16px;
+  padding: var(--space-16);
   border-radius: 16px;
   background: #dce8ef;
   color: #283d48;
 }
 
 .share-chat-head {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-16);
   font-size: var(--t4);
 }
 
 .share-chat-head span {
-  padding: 3px 9px;
+  padding: var(--space-4) var(--space-8);
   border-radius: 20px;
   background: #f0f5f9;
   color: #415967;
@@ -77,7 +77,7 @@
 .share-chat-thread {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-12);
 }
 
 .share-chat-message {
@@ -91,8 +91,8 @@
 
 .share-chat-caption {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--space-16);
 }
 
 .share-chat-caption strong,
@@ -117,11 +117,11 @@
 }
 
 .share-chat-caption small {
-  margin-top: 5px;
+  margin-top: var(--space-4);
 }
 
 /* 카톡 공유 (운영 화면, views.mjs sharePreview): the share page's real og:image in the chat bubble. */
-.share-preview { display: grid; gap: 16px; }
+.share-preview { display: grid; gap: var(--space-16); }
 .share-chat-image { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; }
 
 .share-art {
@@ -286,14 +286,14 @@
 .public-choice-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-12);
 }
 
 .share-button {
   display: inline-grid;
   min-height: 46px;
   place-items: center;
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   border: 1px solid transparent;
   border-radius: 11px;
   font: inherit;
@@ -339,12 +339,12 @@
 }
 
 .share-feedback:empty {
-  margin-top: -18px;
+  margin-top: calc(-1 * var(--space-16));
 }
 
 .share-link-field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-8);
   min-width: 0;
   color: var(--ink);
   font-size: var(--t4);
@@ -355,7 +355,7 @@
   width: 100%;
   min-width: 0;
   min-height: 44px;
-  padding: 8px 10px;
+  padding: var(--space-8) var(--space-12);
   box-sizing: border-box;
   border: 1px solid var(--field-line);
   border-radius: 9px;
@@ -368,18 +368,18 @@
 .public-share-page {
   width: min(100% - 32px, 640px);
   margin: 0 auto;
-  padding: clamp(20px, 5vw, 56px) 0;
+  padding: var(--space-24) 0;
   color: var(--ink);
 }
 
 .public-masthead {
-  margin: 0 0 18px;
+  margin: 0 0 var(--space-16);
 }
 
 .public-brand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-8);
   color: var(--court);
   font-size: var(--t3);
 }
@@ -397,11 +397,11 @@
 }
 
 .public-share-card:has(> h1) {
-  padding: 24px;
+  padding: var(--space-24);
 }
 
 .public-share-content {
-  padding: clamp(20px, 5vw, 34px);
+  padding: var(--space-16);
 }
 
 .public-story-head {
@@ -409,7 +409,7 @@
   isolation: isolate;
   overflow: hidden;
   container-type: inline-size;
-  padding: clamp(21px, 6vw, 38px);
+  padding: var(--space-24);
   background: #174331;
   color: #f7fbf2;
 }
@@ -441,7 +441,7 @@
 }
 
 .public-share-card h1 {
-  margin: 7px 0 0;
+  margin: var(--space-8) 0 0;
   color: var(--ink);
   font-size: var(--t1);
   letter-spacing: -.055em;
@@ -456,13 +456,13 @@
 
 .public-share-card time {
   display: block;
-  margin-top: 8px;
+  margin-top: var(--space-8);
   font-size: var(--t4);
 }
 
 .public-share-body,
 .public-status {
-  margin: 18px 0 0;
+  margin: var(--space-16) 0 0;
   color: var(--ink);
   font-size: var(--t3);
   line-height: 1.65;
@@ -472,9 +472,9 @@
 
 .public-event-facts {
   display: grid;
-  gap: 9px;
+  gap: var(--space-8);
   margin: 0;
-  padding: 14px 16px;
+  padding: var(--space-16) var(--space-16);
   border-radius: 12px;
   background: var(--hint);
 }
@@ -486,7 +486,7 @@
 .public-event-facts > div {
   display: grid;
   grid-template-columns: 72px 1fr;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .public-event-facts dt {
@@ -508,15 +508,15 @@
 
 .public-form {
   display: grid;
-  gap: 16px;
-  margin-top: 22px;
-  padding-top: 18px;
+  gap: var(--space-16);
+  margin-top: var(--space-24);
+  padding-top: var(--space-16);
   border-top: 1px solid var(--line);
 }
 
 .public-receipt {
   margin: 0;
-  padding: 11px 13px;
+  padding: var(--space-12) var(--space-12);
   border-radius: 10px;
   background: var(--accent-soft);
   color: var(--ink);
@@ -525,7 +525,7 @@
 
 .public-field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-8);
   font-weight: 600;
 }
 
@@ -533,7 +533,7 @@
 .public-field input:not([type=checkbox]):not([type=radio]) {
   width: 100%;
   min-height: 46px;
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   border: 1px solid var(--field-line);
   border-radius: 10px;
   background-color: #fff;
@@ -550,7 +550,7 @@
 
 .public-choices legend {
   padding: 0;
-  margin-bottom: 7px;
+  margin-bottom: var(--space-8);
   font-weight: 600;
 }
 
@@ -570,7 +570,7 @@
   display: grid;
   min-height: 46px;
   place-items: center;
-  padding: 8px;
+  padding: var(--space-8);
   border: 1px solid var(--field-line);
   border-radius: 10px;
   color: var(--ink);
@@ -595,7 +595,7 @@
   display: flex;
   min-height: var(--touch-target, 44px);
   align-items: center;
-  gap: 9px;
+  gap: var(--space-8);
   font-weight: 600;
 }
 
@@ -614,11 +614,11 @@
 
 @media (max-width: 450px) {
   .share-chat {
-    padding: 12px;
+    padding: var(--space-12);
   }
 
   .share-chat-thread {
-    gap: 7px;
+    gap: var(--space-8);
   }
 
   .share-chat-thread > .share-brand-mark {
@@ -630,50 +630,53 @@
 }
 
 /* Member club screens (DESIGN.md 5): the same markup in the demo and the live member home. */
-.member-page { display: grid; gap: 12px; padding-top: clamp(14px, 4vw, 36px); }
+.member-page { display: grid; gap: var(--space-12); padding-top: var(--space-16); }
 /* In the shell (ROLES.md 2·3단계) they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content
    area's own padding. */
 .main-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
-.member-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; min-height: var(--touch-target); color: var(--ink); font-size: var(--t4); font-weight: 600; }
+.member-back { display: inline-flex; align-items: center; gap: var(--space-8); width: fit-content; min-height: var(--touch-target); color: var(--ink); font-size: var(--t4); font-weight: 600; }
 .member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
-.public-receipt strong { margin-left: 4px; }
-.member-confirmed { margin-left: 6px; color: var(--court); font-weight: 600; }
+.public-receipt strong { margin-left: var(--space-4); }
+.member-confirmed { margin-left: var(--space-8); color: var(--court); font-weight: 600; }
 .public-status strong { display: block; }
 .member-records { list-style: none; margin: 0; padding: 0; }
 .member-record + .member-record { border-top: 1px solid var(--line); }
-.member-record-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; padding: 10px 0; overflow-wrap: anywhere; }
+.member-record-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-12); min-height: 58px; padding: var(--space-12) 0; overflow-wrap: anywhere; }
 .member-record-link strong { display: block; }
+.member-record-link > span:first-child { display: grid; gap: var(--space-4); min-width: 0; }
+/* The card's own date (.public-share-card time) sits 8 under its title; a row's date keeps the row's 4. */
+.member-record-link time { margin-top: 0; }
 .member-record-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.member-record-meta { display: grid; color: var(--muted); font-size: var(--t4); font-variant-numeric: tabular-nums; }
-.member-record-action { padding: 6px 10px; border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: var(--t4); font-weight: 600; white-space: nowrap; }
+.member-record-meta { display: grid; color: var(--muted); font-size: var(--t4); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.member-record-action { padding: var(--space-8) var(--space-12); border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: var(--t4); font-weight: 600; white-space: nowrap; }
 .member-record-open { border-color: transparent; background: var(--accent-soft); }
 .member-record-arrow { display: grid; color: var(--muted); }
-.member-list :is(h1, h2) { font-size: var(--t2); margin-bottom: 4px; }
+.member-list :is(h1, h2) { font-size: var(--t2); margin-bottom: var(--space-4); }
 .member-record-done { border-color: transparent; background: var(--accent-soft); color: var(--court); }
 .public-story-head .public-title {
-  margin: 7px 0 0;
+  margin: var(--space-8) 0 0;
   color: inherit;
   font-size: var(--t1);
   letter-spacing: -.055em;
   line-height: 1.24;
   overflow-wrap: anywhere;
 }
-.member-next .public-share-content { display: grid; gap: 14px; }
+.member-next .public-share-content { display: grid; gap: var(--space-16); }
 .member-answer { margin: 0; color: var(--ink); font-size: var(--t3); line-height: 1.55; }
 .member-answer strong { color: var(--ink); }
 .member-next-action { width: 100%; }
-.member-record-card .public-share-content { display: grid; gap: 10px; }
+.member-record-card .public-share-content { display: grid; gap: var(--space-12); }
 .member-record-card .public-share-content > * { margin: 0; }
 .member-record-card .public-form-note { word-break: keep-all; }
 /* 응답 현황 bars (views.mjs countsBlock): track #e9eee7 and 참석 #458563. */
-.member-counts { display: grid; gap: 10px; }
-.public-event-facts + .member-counts { margin-top: 16px; }
+.member-counts { display: grid; gap: var(--space-12); }
+.public-event-facts + .member-counts { margin-top: var(--space-16); }
 /* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */
-.public-form + .member-counts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
-.member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0; }
+.public-form + .member-counts { margin-top: var(--space-24); padding-top: var(--space-16); border-top: 1px solid var(--line); }
+.member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-8); margin: 0; }
 .member-counts-head span, .member-counts-note { color: var(--muted); font-size: var(--t4); }
-.member-counts ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.member-counts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; align-items: baseline; }
+.member-counts ul { display: grid; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
+.member-counts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4) var(--space-8); align-items: baseline; }
 .member-counts li > span { color: var(--ink); font-size: var(--t3); }
 .member-counts li > strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .member-count-bar { grid-column: 1 / -1; display: block; width: 100%; height: 8px; border-radius: 8px; background: var(--hint); overflow: hidden; }
@@ -681,23 +684,23 @@
 .member-count-lunch { fill: var(--field-line); }
 .member-counts-note { margin: 0; word-break: keep-all; }
 /* 내 기록 date slots (views.mjs markSlots), like the club's 출석완료자 명단 sheet. */
-.member-marks { display: grid; gap: 7px; }
-.member-marks-head { display: flex; align-items: baseline; gap: 6px; margin: 0; }
+.member-marks { display: grid; gap: var(--space-8); }
+.member-marks-head { display: flex; align-items: baseline; gap: var(--space-8); margin: 0; }
 .member-marks-head span { color: var(--muted); font-size: var(--t4); }
 .member-marks-head .member-marks-count { margin-left: auto; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.member-mark-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
-.member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: 6px 4px; border-radius: 8px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+.member-mark-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
+.member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: var(--space-8) var(--space-4); border-radius: 8px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
 .member-mark small { color: var(--court); font-size: var(--t4); font-weight: 600; word-break: keep-all; }
 .member-mark-empty { background: var(--hint); box-shadow: none; }
 /* 내 기록 출석 by month (views.mjs attendanceMonths): a track per month, filled from the bottom in 응답 현황's green. */
-.member-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; align-items: end; }
-.member-month { display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.member-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: end; }
+.member-month { display: grid; justify-items: center; gap: var(--space-4); min-width: 0; }
 .member-month small { min-height: 1.1em; color: var(--ink); font-size: var(--t4); font-weight: 600; font-variant-numeric: tabular-nums; }
 .member-month svg { display: block; width: 100%; height: 56px; border-radius: 4px; background: var(--hint); overflow: hidden; }
 .member-month rect { fill: var(--court); }
 .member-month > span { color: var(--muted); font-size: var(--t4); font-variant-numeric: tabular-nums; }
 .member-month-now > span { color: var(--ink); font-weight: 600; }
-.member-pin { display: grid; gap: 8px; justify-items: start; padding: 6px 4px 0; }
+.member-pin { display: grid; gap: var(--space-8); justify-items: start; padding: var(--space-8) var(--space-4) 0; }
 .member-pin h2 { font-size: var(--t3); }
 .member-pin p { margin: 0; color: var(--muted); line-height: 1.55; word-break: keep-all; }
 
@@ -707,26 +710,25 @@
 /* 단순화 2 (docs/simplify, DESIGN.md 4 회원 화면): inside the club shell a member card is one flat white surface — no
    green or sand head, no grey box around the facts — and the lists (응답할 투표, 이후 일정, 공지, the 일정 and 공지 screens)
    are rows on the page, not cards. The 카톡 share preview outside the shell keeps its brand head. */
-.main-content .member-page { gap: 4px; }
+.main-content .member-page { gap: var(--space-8); }
 .main-content .public-share-card { border-radius: 15px; }
-.main-content .public-story-head, .main-content .public-story-head.share-art--notice { padding: 20px 18px 0; background: none; color: var(--ink); }
+.main-content .public-story-head, .main-content .public-story-head.share-art--notice { padding: var(--space-16) var(--space-16) 0; background: none; color: var(--ink); }
 .main-content .public-story-head .share-art-decoration { display: none; }
 .main-content .public-story-head > :not(.share-art-decoration) { max-width: none; }
-.main-content .public-share-type, .main-content .share-art--notice .public-share-type { display: flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 400; }
-.main-content .public-share-card h1, .main-content .public-story-head .public-title { margin-top: 2px; letter-spacing: -.01em; line-height: 1.3; }
-.main-content .public-story-head time { margin-top: 4px; color: var(--ink); font-size: var(--t3); }
+.main-content .public-share-type, .main-content .share-art--notice .public-share-type { display: flex; align-items: center; gap: var(--space-4); color: var(--muted); font-weight: 400; }
+.main-content .public-share-card h1, .main-content .public-story-head .public-title { margin-top: var(--space-2); letter-spacing: -.01em; line-height: 1.3; }
+.main-content .public-story-head time { margin-top: var(--space-4); color: var(--ink); font-size: var(--t3); }
 /* A date in a sentence reads with its own digit widths: tabular figures (.member-record-meta) spread 11월 into "1 1월". */
 .main-content .member-record-meta { font-variant-numeric: normal; }
-.main-content .member-record-meta time { margin-top: 2px; }
-.main-content .public-share-content { padding: 14px 18px 20px; }
-.main-content .public-event-facts { gap: 4px; padding: 0; border-radius: 0; background: none; }
+.main-content .public-share-content { padding: var(--space-16) var(--space-16) var(--space-16); }
+.main-content .public-event-facts { gap: var(--space-4); padding: 0; border-radius: 0; background: none; }
 .main-content .public-event-facts dd { font-weight: 400; }
 .main-content .public-receipt { padding: 0; border-radius: 0; background: none; }
 .main-content .public-choice span { min-height: 56px; transition: background-color var(--dur-quick), border-color var(--dur-quick); }
 .main-content .member-count-bar { height: 6px; }
 .main-content .member-list:not(.member-record-card) { overflow: visible; border: 0; border-radius: 0; background: none; }
 .main-content .member-list:not(.member-record-card) > .public-share-content { padding: 0; }
-.main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: 14px 0 0; color: var(--muted); font-size: var(--t4); font-weight: 400; }
+.main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: var(--space-16) 0 0; color: var(--muted); font-size: var(--t4); font-weight: 400; }
 /* The top bar already names the screen (썬콕19 / 일정): the list's own h1 stays for reading programs and focus only. */
 .main-content .member-list h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .main-content .member-records { border-top: 1px solid var(--line); }
@@ -738,10 +740,17 @@
 .main-content .member-record-open { background: none; color: var(--court); font-weight: 600; }
 .main-content .member-record-arrow { transition: translate var(--dur-quick) var(--ease-settle), color var(--dur-quick); }
 /* 내 번호 정하기 comes first, 내 로그인 last: the rows start at the page edge now, so the note does too. */
-.main-content .member-pin { padding: 0 0 12px; }
-.main-content .public-share-card ~ .member-pin { margin-top: 14px; padding-bottom: 0; }
+.main-content .member-pin { padding: 0 0 var(--space-12); }
+.main-content .public-share-card ~ .member-pin { margin-top: var(--space-16); padding-bottom: 0; }
 @media (hover: hover) {
   .main-content .member-record-link:hover strong { color: var(--court); text-decoration: none; }
   .main-content .member-record-link:hover .member-record-arrow { color: var(--court); translate: 3px 0; }
   .main-content .public-choice:hover span { border-color: var(--court); }
+}
+/* 간격 (DESIGN.md 간격 단계): the share pages' wider room from 701px, in place of the old fluid clamp() values. */
+@media (min-width: 701px) {
+  .public-share-page { padding-block: var(--space-48); }
+  .public-share-content { padding: var(--space-32); }
+  .public-story-head { padding: var(--space-32); }
+  .member-page { padding-top: var(--space-32); }
 }

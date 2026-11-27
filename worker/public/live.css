@@ -6,98 +6,98 @@ body { min-height: 100vh; min-height: 100dvh; }
 [hidden] { display: none !important; }
 html:has(dialog[open]) { overflow: hidden; overscroll-behavior: none; }
 body.dialog-scroll-lock { position: fixed; inset-inline: 0; width: 100%; }
-.noscript { padding: 1rem; }
+.noscript { padding: var(--space-16); }
 
 /* Fallback header for pages that could not load the club shell. */
 .site-header { padding-top: var(--safe-top); background: var(--paper); border-bottom: 1px solid var(--line); }
 .site-header:has(#account:not(:empty)) { position: sticky; top: 0; z-index: 5; }
 body:has(.admin-app) .site-header { display: none; }
-.header-inner { width: min(100% - 32px, 640px); min-height: var(--site-header-row); margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.club-navigation { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.header-inner { width: min(100% - 32px, 640px); min-height: var(--site-header-row); margin: auto; display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); }
+.club-navigation { display: flex; min-width: 0; align-items: center; gap: var(--space-12); }
 .site-header .brand { margin: 0; min-width: var(--touch-target); min-height: var(--touch-target); }
 .site-header .brand-mark { width: 38px; height: 38px; }
 .current-club { min-width: 0; min-height: var(--touch-target); display: grid; align-content: center; line-height: 1.2; }
 .current-club strong { font-size: var(--t2); letter-spacing: -.04em; }
-.current-club small { color: var(--muted); font-size: var(--t4); margin-top: 2px; }
+.current-club small { color: var(--muted); font-size: var(--t4); margin-top: var(--space-2); }
 .current-club small:empty { display: none; }
 .current-club :is(strong, small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#account { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px 4px; }
+#account { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-4); }
 #account:empty { display: none; }
 
 /* Loading (DESIGN.md 6): a still skeleton of the coming screen; only the shuttlecock in the middle of the viewport moves. */
-.loading-center { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+.loading-center { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: var(--space-24); pointer-events: none; }
 .loading-center .shuttle-spin { width: 72px; height: 67px; }
-.loading-center .shuttle-loader { padding: 18px 22px 14px; border-radius: 16px; background: #fffffff2; box-shadow: 0 10px 30px #1b2a2124, 0 2px 8px #1b2a2114; }
+.loading-center .shuttle-loader { padding: var(--space-16) var(--space-24) var(--space-16); border-radius: 16px; background: #fffffff2; box-shadow: 0 10px 30px #1b2a2124, 0 2px 8px #1b2a2114; }
 .sk { display: block; border-radius: 6px; background: var(--line); }
 .sk-h1 { width: 150px; height: 30px; }
 .sk-text { width: min(320px, 80%); height: 14px; }
-.sk-panel { display: grid; align-content: start; gap: 12px; padding: 18px 19px; }
+.sk-panel { display: grid; align-content: start; gap: var(--space-12); padding: var(--space-16) var(--space-16); }
 .sk-h2 { width: 110px; height: 18px; }
 .sk-meter { height: 10px; border-radius: 99px; }
 .sk-line { height: 14px; }
 
-.sk-tabs { display: flex; gap: 19px; padding: 10px 6px 11px; border-bottom: 1px solid #dce5db; }
+.sk-tabs { display: flex; gap: var(--space-16); padding: var(--space-12) var(--space-8) var(--space-12); border-bottom: 1px solid #dce5db; }
 .sk-tab { width: 64px; height: 18px; }
 .sk-rows { display: grid; }
-.sk-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; align-items: center; gap: 10px; min-height: 76px; border-top: 1px solid var(--line); }
+.sk-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; align-items: center; gap: var(--space-12); min-height: 76px; border-top: 1px solid var(--line); }
 .sk-row:first-child { border-top: 0; }
 .sk-chip { height: 22px; }
 /* Member cards (skeleton.mjs, as worker/public/views.mjs memberCard): the label, title and date on the card's own white. */
-.sk-card-head { display: grid; gap: 8px; padding: 20px 18px 0; }
+.sk-card-head { display: grid; gap: var(--space-8); padding: var(--space-16) var(--space-16) 0; }
 .sk-kicker { width: 64px; height: 14px; }
 .sk-card-title { width: 62%; height: 26px; }
 .sk-card-date { width: 150px; height: 16px; }
-.sk-card .public-share-content { display: grid; gap: 12px; }
-.sk-card + .sk-card { margin-top: 16px; }
+.sk-card .public-share-content { display: grid; gap: var(--space-12); }
+.sk-card + .sk-card { margin-top: var(--space-16); }
 .sk-fact { width: 70%; height: 18px; }
 .sk-cta { height: 46px; border-radius: 11px; }
-.sk-back { width: 72px; height: 18px; margin-block: 13px 25px; }
-.sk-stack { display: grid; gap: 10px; }
+.sk-back { width: 72px; height: 18px; margin-block: var(--space-12) var(--space-24); }
+.sk-stack { display: grid; gap: var(--space-12); }
 .sk-meta { width: 60%; height: 12px; }
-.sk-facts { display: grid; gap: 10px; }
-.sk-counts { display: grid; gap: 12px; padding-block: 6px; }
-.sk-count { display: grid; gap: 8px; }
-.sk-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sk-facts { display: grid; gap: var(--space-12); }
+.sk-counts { display: grid; gap: var(--space-12); padding-block: var(--space-8); }
+.sk-count { display: grid; gap: var(--space-8); }
+.sk-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); }
 .sk-choice { height: 56px; border-radius: 11px; }
 /* Member lists (skeleton.mjs list): rows on the page under a muted label or the 일정 count and 달력으로 보기. */
 .sk-list { display: grid; }
 .sk-list .sk-rows { border-block: 1px solid var(--line); }
-.sk-label { width: 96px; margin-block: 30px 16px; }
+.sk-label { width: 96px; margin-block: var(--space-32) var(--space-16); }
 .sk-tools { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
 .sk-tools .sk-meta { width: 56px; }
 .sk-tools .sk-chip { width: 84px; }
-.sk-calendar { padding-block: 14px; }
+.sk-calendar { padding-block: var(--space-16); }
 .sk-calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 44px; place-items: center; }
 .sk-day { width: 16px; height: 12px; }
-.sk-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; }
+.sk-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); }
 .sk-month { height: 100px; border-radius: 4px; }
-.sk-slots { display: flex; gap: 8px; }
+.sk-slots { display: flex; gap: var(--space-8); }
 .sk-slot { width: 44px; height: 44px; border-radius: 8px; }
 /* 일정 하나 (skeleton.mjs event): the title and its two lines, then the tab's numbers, bar and button. */
-.sk-event-head { display: grid; gap: 8px; margin-bottom: 10px; }
-.sk-event-body { display: grid; gap: 10px; margin-top: 18px; }
+.sk-event-head { display: grid; gap: var(--space-8); margin-bottom: var(--space-12); }
+.sk-event-body { display: grid; gap: var(--space-12); margin-top: var(--space-16); }
 .sk-event-body .sk-meter { height: 6px; }
 /* 운영 홈 지금 할 일 card (skeleton.mjs home): the four step bars over the numbers, as views.mjs homeNow. */
-.sk-now { gap: 10px; padding: 20px 18px; }
-.sk-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-block: 10px 6px; }
+.sk-now { gap: var(--space-12); padding: var(--space-16) var(--space-16); }
+.sk-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-8); margin-block: var(--space-12) var(--space-8); }
 .sk-step { height: 4px; border-radius: 99px; }
 .sk-now .sk-meter { height: 6px; }
-.sk-now .sk-cta { margin-top: 6px; }
+.sk-now .sk-cta { margin-top: var(--space-8); }
 .admin-skeleton :is(.sidebar, .tab-bar) .sk { background: var(--menu-hover); }
 .sk-brand { width: 92px; height: 18px; }
-.sk-nav { display: grid; gap: 10px; margin-top: 37px; }
+.sk-nav { display: grid; gap: var(--space-12); margin-top: var(--space-32); }
 .sk-nav-item { height: 36px; border-radius: 8px; }
 .sk-crumb { width: 120px; height: 16px; }
 .admin-skeleton .topbar-inner { justify-content: space-between; }
 .sk-icon { width: 24px; height: 24px; border-radius: 7px; }
-.shuttle-loader { display: grid; justify-items: center; gap: 12px; color: var(--muted); font-size: var(--t3); font-weight: 600; text-align: center; }
+.shuttle-loader { display: grid; justify-items: center; gap: var(--space-12); color: var(--muted); font-size: var(--t3); font-weight: 600; text-align: center; }
 .shuttle-loader .shuttle-spin { width: 64px; height: 60px; color: var(--court); }
 .shuttle-inline { width: 1.2em; height: 1.12em; margin-right: .35em; vertical-align: -.22em; flex: none; }
 .admin-content { position: relative; }
 .admin-content[aria-busy="true"] > :not(.section-loader) { opacity: .38; pointer-events: none; transition: opacity var(--dur-arrive) var(--ease-settle); }
 .section-loader { position: fixed; z-index: 3; inset: 0 0 0 var(--sidebar-width); display: grid; place-content: center; pointer-events: none; }
 .section-loader .shuttle-spin { width: 72px; height: 67px; }
-.section-loader span { padding: 5px 12px; border-radius: 99px; background: #ffffffeb; box-shadow: 0 2px 10px #233b2912; }
+.section-loader span { padding: var(--space-4) var(--space-12); border-radius: 99px; background: #ffffffeb; box-shadow: 0 2px 10px #233b2912; }
 @media (max-width: 700px) {
   .section-loader { inset: 0; }
   :root:has(.tab-bar) .message { bottom: calc(86px + var(--safe-bottom)); }
@@ -106,7 +106,7 @@ body:has(.admin-app) .site-header { display: none; }
 /* Buttons that carry demo link styles. */
 button.nav-link { width: 100%; border: 0; background: transparent; text-align: left; }
 
-.mobile-nav-account { margin: 18px 6px 0; padding-top: 14px; border-top: 1px solid var(--menu-line); }
+.mobile-nav-account { margin: var(--space-16) var(--space-8) 0; padding-top: var(--space-16); border-top: 1px solid var(--menu-line); }
 .topbar .btn-text { color: var(--muted); }
 :is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden]) { position: relative; }
 button[data-pending]:not([hidden])::after { content: ''; position: absolute; inset: auto .75rem 4px; height: 2px; border-radius: 1px; background: currentColor; opacity: .6; pointer-events: none; }
@@ -114,8 +114,8 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 /* Live-only admin glue. */
 /* 반기 집계 (views.mjs progressScreen): a box per 구간 in one cell, green once that 구간's goal is met (모임 규칙).
    On a phone the boxes take their own line and 콕 수령 shares the last line with its button. */
-.period-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.period-counts li { display: grid; min-width: 44px; padding: 4px 7px; border-radius: 6px; background: var(--hint); line-height: 1.25; }
+.period-counts { display: flex; flex-wrap: wrap; gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
+.period-counts li { display: grid; min-width: 44px; padding: var(--space-4) var(--space-8); border-radius: 6px; background: var(--hint); line-height: 1.25; }
 .period-counts li span { color: var(--muted); font-size: var(--t4); white-space: nowrap; }
 .period-counts strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: var(--t4); font-weight: 600; }
@@ -126,13 +126,13 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 }
 /* The live CSP blocks style attributes, so the response bar is SVG; colours match styles.css .vote-yes/.vote-no. */
 
-.panel-body > * + * { margin-top: 12px; }
+.panel-body > * + * { margin-top: var(--space-12); }
 
 .share-preview { padding-left: 0; }
 .data-table tr[data-selected="true"] td { background: var(--accent-soft); }
 .data-table tr[hidden] { display: none; }
-.form { display: grid; gap: 14px; }
-.form .form-grid + .form-check, .form .form-note + .form-grid { margin-top: 2px; }
+.form { display: grid; gap: var(--space-16); }
+.form .form-grid + .form-check, .form .form-note + .form-grid { margin-top: var(--space-2); }
 .form-check { min-height: var(--touch-target); }
 .form-note { line-height: 1.55; }
 .progress-form .form-grid { max-width: 26rem; }
@@ -149,24 +149,24 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
    same components. */
 /* 내 응답 in the organisers' 일정 상세 (views.mjs eventScreen): the vote form is the panel's body, no divider above it. */
 #my-vote .public-form { margin-top: 0; padding-top: 0; border-top: 0; }
-.message-actions { margin-top: 16px; }
+.message-actions { margin-top: var(--space-16); }
 .member-back, .member-record-link, .public-choice, .public-lunch, .public-form button { touch-action: manipulation; }
 
 /* Club sign-in uses the dialog over the current schedule, notice or home. */
-.club-login-dialog { width: min(400px, calc(100% - 26px)); --focus: var(--neutral-ink); }
+.club-login-dialog { width: min(400px, calc(100% - 2 * var(--space-16))); --focus: var(--neutral-ink); }
 .club-login-dialog .dialog-close { width: var(--touch-target); height: var(--touch-target); }
 .club-login-dialog :is(.login-browse .btn, .dialog-close, .login-back) { color: var(--neutral-muted); }
 .club-login-dialog :is(.login-browse .btn, .dialog-close, .login-back):hover { background: var(--neutral-soft); }
 .login-browse { margin: 0; text-align: center; }
 .login-browse .btn { min-height: var(--touch-target); }
-.login-form { gap: 12px; }
+.login-form { gap: var(--space-12); }
 .club-login-dialog .login-form { margin-top: 0; }
-.login-field > label { display: block; margin-bottom: 6px; color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
-.login-label-row { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.login-field > label { display: block; margin-bottom: var(--space-8); color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
+.login-label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .login-label-row label { color: var(--muted); font-size: var(--t4); font-weight: 600; }
-.login-help summary { cursor: pointer; min-height: var(--touch-target); padding-block: 10px; color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
-.login-guide { display: grid; gap: .5rem; padding: 8px 10px; border-radius: 8px; background: var(--neutral-soft); font-size: var(--t4); word-break: keep-all; }
-.login-greeting { display: flex; align-items: center; gap: .45rem; padding-top: .25rem; }
+.login-help summary { cursor: pointer; min-height: var(--touch-target); padding-block: var(--space-12); color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
+.login-guide { display: grid; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-radius: 8px; background: var(--neutral-soft); font-size: var(--t4); word-break: keep-all; }
+.login-greeting { display: flex; align-items: center; gap: var(--space-8); padding-top: var(--space-4); }
 .login-greeting p { font-weight: 600; overflow-wrap: anywhere; }
 .login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
 .login-form input[name="name"] { width: 100%; min-height: 46px; }
@@ -177,36 +177,36 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .club-login-dialog .login-submit:not(:disabled, [aria-pressed="true"]):hover { background: var(--neutral-muted); }
 .login-code { position: relative; display: block; max-width: 20rem; }
 .login-code input[data-login-code] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: text; }
-.login-code-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(.28rem, 1.8vw, .55rem); }
+.login-code-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-8); }
 .login-code-cells > span { display: grid; place-items: center; inline-size: 100%; min-height: var(--touch-target); aspect-ratio: 1; }
 .login-code:focus-within .login-code-cells > [data-position] { border-color: var(--neutral-ink); background: var(--neutral-soft); }
 .login-code-cells > [data-filled]::after { content: ''; width: .56rem; height: .56rem; border-radius: 50%; background: var(--ink); }
 .login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
 .login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) { border-color: #b13f39; background: #fff1ef; }
-.login-field :is(.inline-error, .login-pending) { margin-top: .5rem; }
+.login-field :is(.inline-error, .login-pending) { margin-top: var(--space-8); }
 .login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t4); font-weight: 600; }
 .login-pending .shuttle-inline { color: var(--neutral-ink); }
 
 /* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
-.login-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(12px, 2vw, 22px) 0 calc(48px + var(--safe-bottom)); }
-.login-stack { display: grid; gap: 12px; }
+.login-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: var(--space-16) 0 calc(var(--space-48) + var(--safe-bottom)); }
+.login-stack { display: grid; gap: var(--space-12); }
 .hero {
-  display: grid; gap: .7rem; align-content: center; min-height: 184px; padding: clamp(1.35rem, 4vw, 2.5rem);
+  display: grid; gap: var(--space-12); align-content: center; min-height: 184px; padding: var(--space-24);
   color: #f5f7ed; border-radius: 16px; overflow-wrap: anywhere;
   background-color: var(--court);
   background-image: linear-gradient(90deg, var(--court) 12%, #10483aed 54%, #10483a75 100%), url("/assets/court.webp");
   background-position: center, right center; background-size: cover;
 }
 .hero h1 { font-size: clamp(2rem, 6vw, 3.1rem); font-weight: 600; letter-spacing: -.055em; }
-.hero .tagline { display: flex; align-items: center; gap: .5rem; color: var(--lime); font-size: .9rem; font-weight: 600; }
+.hero .tagline { display: flex; align-items: center; gap: var(--space-8); color: var(--lime); font-size: .9rem; font-weight: 600; }
 .hero .tagline::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
-.hero-meta { display: flex; flex-wrap: wrap; gap: .25rem .9rem; color: #f4f6eb; }
-.login-card { padding: 6px clamp(14px, 3vw, 20px) 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.hero-meta { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-16); color: #f4f6eb; }
+.login-card { padding: var(--space-8) var(--space-16) var(--space-16); border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
 .console-login input[name] { width: 100%; min-height: 46px; }
 .console-login .login-label-row { min-height: 38px; }
 @media (pointer: coarse) { .console-login .login-label-row { min-height: var(--touch-target); } }
-.console-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: clamp(18px, 3vw, 30px) 0 calc(48px + var(--safe-bottom)); display: grid; gap: 12px; }
-.console-page .page-head { margin-bottom: 4px; }
+.console-page { width: min(100% - 32px, 640px); margin: 0 auto; padding: var(--space-16) 0 calc(var(--space-48) + var(--safe-bottom)); display: grid; gap: var(--space-12); }
+.console-page .page-head { margin-bottom: var(--space-4); }
 .console-page .page-description { word-break: keep-all; }
 .console-page .summary-grid.console-issued { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .console-page .console-issued dd { font-size: var(--t2); }
@@ -214,14 +214,14 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .console-page :is(h1, h2) { font-weight: 600; }
 .console-address { display: inline-flex; align-items: center; min-height: var(--touch-target); }
 /* 운영진 추가: the name and its button share a line where they fit. 해지·정지 open a confirm step without script. */
-.console-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.console-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-8); }
 .console-inline-form .form-field { flex: 1 1 12rem; }
 .table-actions form { display: inline-block; vertical-align: top; }
-.table-actions form + .btn { margin-left: 5px; }
+.table-actions form + .btn { margin-left: var(--space-4); }
 .console-confirm { display: inline-grid; justify-items: end; vertical-align: top; }
 .console-confirm > summary { list-style: none; cursor: pointer; }
 .console-confirm > summary::-webkit-details-marker { display: none; }
-.console-confirm-body { display: grid; justify-items: end; gap: 8px; max-width: 16rem; margin-top: 6px; white-space: normal; text-align: left; }
+.console-confirm-body { display: grid; justify-items: end; gap: var(--space-8); max-width: 16rem; margin-top: var(--space-8); white-space: normal; text-align: left; }
 .console-club-status { display: flex; justify-content: flex-end; }
 /* 변경 기록: the time stays on one line on a phone; the other cells wrap under it. */
 .console-log td { vertical-align: top; }
@@ -232,7 +232,7 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 
 .message {
   position: fixed; z-index: 20; left: 50%; bottom: calc(18px + var(--safe-bottom)); transform: translateX(-50%);
-  width: max-content; max-width: min(520px, calc(100% - 32px)); padding: 12px 15px; border-radius: 10px;
+  width: max-content; max-width: min(520px, calc(100% - 32px)); padding: var(--space-12) var(--space-16); border-radius: 10px;
   background: var(--ink); color: #fff; font-size: var(--t4); font-weight: 600; box-shadow: 0 8px 25px #15362630; pointer-events: none;
 }
 .message.error { background: var(--ink); }
@@ -272,4 +272,11 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
   45% { transform: translateX(5px); }
   70% { transform: translateX(-3px); }
   88% { transform: translateX(1px); }
+}
+/* 간격 (DESIGN.md 간격 단계): the sign-in page's and the console's wider room from 701px, in place of clamp(). */
+@media (min-width: 701px) {
+  .login-page { padding-top: var(--space-24); }
+  .hero { padding: var(--space-48); }
+  .login-card { padding-inline: var(--space-24); }
+  .console-page { padding-top: var(--space-32); }
 }

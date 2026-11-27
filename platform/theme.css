@@ -76,6 +76,18 @@
   --page-gutter: max(1rem, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   --mark-radius: 9px;
   --touch-target: 44px;
+  /* 간격 단계 (DESIGN.md 간격): every margin, padding and gap of the club screens, the share pages, the sign-in page,
+     the 총괄 콘솔 and the intro is one of these. worker/spacing.test.mjs refuses any other value. */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+  --space-64: 64px;
+  --space-96: 96px;
 }
 
 h1, h2, .site-brand, .brand strong, .current-club strong, .public-brand strong {
