@@ -632,11 +632,12 @@ export function adminShell(section, contents, club, user, hasEvent = false) {
   const title = sections.find(([name]) => name === section)?.[1] ?? sections[0][1];
   const schedule = section === 'event' && operating(user);
   const eventDetail = schedule && hasEvent;
+  const calendarList = section === 'event' && !hasEvent;
   return `<div class="admin-app">
     <aside class="sidebar">${brand(club)}${adminMenu(section, user)}
       <div class="sidebar-footer">${sidebarAccount(user)}</div>
     </aside>
-    <div class="main-shell${schedule ? ' schedule-shell' : ''}">
+    <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
       <header class="topbar"><div class="topbar-inner">
         ${eventDetail ? button(`${icon('arrow-left', 20)} 뒤로`, 'event-list', { css: 'text schedule-back' }) : ''}
         <div class="breadcrumb">
