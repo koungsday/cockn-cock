@@ -88,7 +88,7 @@ assert.equal(privateApi.status, 401);
 assert.equal(privateApi.headers.get('cache-control'), 'private, no-store');
 
 // Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
-const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs'].map(file => page.script.replace('app.mjs', file));
+const modules = ['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs', 'calendar.mjs'].map(file => page.script.replace('app.mjs', file));
 await Promise.all([page.style, page.script, ...modules].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);

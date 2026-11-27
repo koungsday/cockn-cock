@@ -1,5 +1,5 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
-import { adminSkeleton, loadingCenter } from './skeleton.mjs';
+import { loadingCenter, shellSkeleton } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
 import { calendarBlock } from './calendar.mjs';
 
@@ -112,9 +112,9 @@ export function loader(text, css = '') {
   return `<div class="shuttle-loader${css ? ` ${css}` : ''}" role="status">${shuttlecockMark()}<span>${esc(text)}</span></div>`;
 }
 
-// section: 'home' | 'event' | any list section (skeleton.mjs). Everyone has the one shell (ROLES.md 2단계).
-export function loadingPage(section = 'home', text = undefined) {
-  return adminSkeleton(section) + loadingCenter(shuttlecockMark(), text);
+// kind: the screen's skeleton (skeleton.mjs loadingKind) in the one shell everyone has (ROLES.md 2단계).
+export function loadingPage(kind, operating = false, text = undefined) {
+  return shellSkeleton(kind, operating) + loadingCenter(shuttlecockMark(), text);
 }
 
 const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
