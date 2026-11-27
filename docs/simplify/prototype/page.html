@@ -1,0 +1,690 @@
+<title>콕콕콕 단순화 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 짜임: 휴대폰은 한 줄 화면과 아래 글자 탭, 넓은 화면은 왼쪽 메뉴와 가운데 한 줄(최대 720px). 시안 설정은 앱 밖 맨 위 띠.
+   색은 중립 바탕 + 짙은 초록 하나(주요 버튼·켜짐). 메뉴는 지금 실사용과 같은 어두운 바탕에 연두 알약. 글자는 네 단계(22·18·16·14)와 굵기 둘(400·600). 한 가지 밝은 모습만 쓴다(제품이 밝은 화면 하나). */
+@font-face { font-family: "Wanted Sans UI"; src: url("fonts/WantedSansUI-v1.0.3.woff2") format("woff2"); font-weight: 400 1000; font-display: swap; }
+@font-face { font-family: "Nexen Tire"; src: url("fonts/NexenTire-Regular-2014.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+:root {
+  color-scheme: light;
+  --bg: #f5f5f2; --surface: #ffffff; --ink: #1d2421; --sub: #5a635e; --line: #e3e4df; --edge: #b4bbb5;
+  --accent: #10483a; --accent-hover: #0a372c; --accent-soft: #e8f0eb; --on: #ffffff; --danger: #a3312f; --lab: #e9e9e4; --hover: #eeefeb;
+  --menu: #252c29; --menu-ink: #d3d9d4; --menu-on: #eef1ee; --menu-hover: #2f3733; --menu-line: #3a433e; --lime: #d0f988;
+  --font: "Wanted Sans UI", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-name: "Nexen Tire", var(--font);
+  --t1: 22px; --t2: 18px; --t3: 16px; --t4: 14px;
+  --ease: cubic-bezier(.22, 1, .36, 1); --quick: 160ms; --arrive: 220ms;
+  --side-l: max(16px, env(safe-area-inset-left, 0px)); --side-r: max(16px, env(safe-area-inset-right, 0px));
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--t3)/1.55 var(--font); -webkit-text-size-adjust: 100%; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+p, h1, h2, h3 { margin: 0; }
+strong, b { font-weight: 600; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.t1 { font-size: var(--t1); line-height: 1.3; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; }
+.t2 { font-size: var(--t2); line-height: 1.4; font-weight: 600; }
+.sub { color: var(--sub); font-size: var(--t4); line-height: 1.45; }
+.gap { margin-top: 20px; }
+
+/* 시안 설정: 앱 밖 */
+.lab { background: var(--lab); border-bottom: 1px solid var(--line); font-size: var(--t4); color: var(--sub); }
+.lab summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px var(--side-r) 6px var(--side-l); cursor: pointer; list-style: none; }
+.lab summary::-webkit-details-marker { display: none; }
+.lab summary b { color: var(--ink); font-weight: 600; }
+.lab-body { display: grid; gap: 10px; padding: 4px var(--side-r) 14px var(--side-l); }
+.lab-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lab-row > span { min-width: 76px; }
+.seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; min-height: 44px; padding: 0 14px; font-size: var(--t4); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--on); }
+
+/* 틀: 지금 실사용과 같은 모습 (어두운 왼쪽 메뉴, 휴대폰은 떠 있는 어두운 아이콘 바와 연두 알약, 오른쪽 위 메뉴 버튼) */
+.side { display: none; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.bar-in { display: flex; align-items: center; gap: 8px; min-height: 56px; max-width: 760px; margin: 0 auto; padding: 0 var(--side-r) 0 var(--side-l); }
+.crumb { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; font-size: var(--t3); white-space: nowrap; }
+.crumb span { overflow: hidden; color: var(--sub); text-overflow: ellipsis; }
+.crumb h1 { font-size: var(--t3); font-weight: 600; }
+.icon-btn { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; margin-right: -10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); transition: background-color var(--quick); }
+.icon-btn + .icon-btn { margin-left: 6px; }
+.back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-left: -6px; padding: 0 10px 0 6px; border: 0; border-radius: 10px; background: transparent; font-size: var(--t3); transition: background-color var(--quick); }
+.main { max-width: 760px; margin: 0 auto; padding: 20px var(--side-r) calc(112px + env(safe-area-inset-bottom, 0px)) var(--side-l); outline: none; }
+.tabs { position: fixed; z-index: 6; inset: auto max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; max-width: 420px; margin-inline: auto; padding: 6px; border-radius: 16px; background: var(--menu); box-shadow: 0 12px 30px #1b2a2138, 0 2px 8px #1b2a211f; }
+.tab { position: relative; z-index: 1; display: grid; place-items: center; min-height: 48px; border: 0; border-radius: 11px; background: transparent; color: var(--menu-ink); transition: background-color var(--quick), color var(--quick); }
+.tabs .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tabs .tab[aria-current="page"] { color: var(--ink); }
+.tab-mark { position: absolute; inset-block: 6px; left: 6px; width: calc((100% - 24px) / 4); border-radius: 11px; background: var(--lime); translate: calc(var(--at, 0) * (100% + 4px)) 0; }
+.side .brand, .drawer .brand { display: flex; align-items: center; gap: 8px; padding: 4px 12px 16px; color: var(--menu-on); font-family: var(--font-name); font-size: var(--t2); }
+.brand img { width: 26px; height: 26px; }
+.side .tab, .drawer .tab { grid-auto-flow: column; justify-content: start; gap: 10px; width: 100%; min-height: 48px; padding: 0 12px; font-size: var(--t3); }
+.side .tab[aria-current="page"], .drawer .tab[aria-current="page"] { background: var(--menu-line); color: var(--menu-on); font-weight: 600; }
+.drawer { width: min(86vw, 360px); height: 100%; max-height: none; margin: 0 0 0 auto; padding: calc(14px + env(safe-area-inset-top, 0px)) 12px 20px; border: 0; background: var(--menu); color: var(--menu-ink); }
+.drawer::backdrop { background: #19352772; }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.drawer .icon-btn { margin: -4px 0 0; color: var(--menu-on); }
+.drawer-list { display: grid; gap: 4px; }
+@media (min-width: 900px) {
+  .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 92vh; }
+  .side { display: block; background: var(--menu); }
+  .side-in { position: sticky; top: env(safe-area-inset-top, 0px); display: grid; gap: 4px; padding: 18px 12px; }
+  .tabs, .m-only { display: none; }
+  .main { padding-bottom: 64px; }
+}
+@media (hover: hover) {
+  .side .tab:not([aria-current]):hover, .drawer .tab:not([aria-current]):hover, .tabs .tab:not([aria-current]):hover { background: var(--menu-hover); color: var(--menu-on); }
+  .icon-btn:hover, .back:hover { background: var(--hover); }
+  .drawer .icon-btn:hover { background: var(--menu-hover); }
+}
+
+/* 부품 */
+.now { display: grid; gap: 4px; }
+.now .when { color: var(--sub); font-size: var(--t4); }
+.mine { margin-top: 8px; font-weight: 600; }
+.card { padding: 20px 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; color: var(--sub); font-size: var(--t4); }
+.steps span { display: grid; gap: 6px; }
+.steps i { height: 4px; border-radius: 99px; background: var(--line); }
+.steps .done i { background: var(--edge); }
+.steps .at { color: var(--ink); font-weight: 600; }
+.steps .at i { background: var(--accent); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; }
+.stats div { display: flex; align-items: baseline; gap: 6px; }
+.stats dt { color: var(--sub); font-size: var(--t4); }
+.stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter { height: 6px; margin-top: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.tally { display: grid; gap: 10px; margin-top: 14px; }
+.tally div { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; font-size: var(--t4); }
+.tally span { color: var(--sub); }
+.tally strong { font-variant-numeric: tabular-nums; }
+.tally .meter { grid-column: 1 / -1; margin-top: 4px; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; padding: 0 16px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); font-size: var(--t3); font-weight: 600; transition: background-color var(--quick), border-color var(--quick); }
+.btn.primary { border-color: var(--accent); background: var(--accent); color: var(--on); }
+.btn:active { scale: .985; }
+@media (hover: hover) {
+  .btn:hover { background: var(--hover); }
+  .btn.primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+  .row:hover strong { color: var(--accent); }
+  button.row:hover > svg { color: var(--accent); translate: 3px 0; }
+  .choice:hover { border-color: var(--accent); }
+  .link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .subtab:hover { color: var(--ink); }
+  .cal-grid button:hover b { background: var(--accent); color: var(--on); }
+}
+.btn-row { display: grid; gap: 8px; margin-top: 16px; }
+.link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); font-size: var(--t4); font-weight: 600; }
+.label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-top: 28px; color: var(--sub); font-size: var(--t4); font-weight: 400; }
+.rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.rows > li { border-bottom: 1px solid var(--line); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 64px; padding: 10px 0; border: 0; background: transparent; text-align: left; }
+.row > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.row strong { font-size: var(--t3); font-weight: 600; }
+.row small { color: var(--sub); font-size: var(--t4); }
+.row > svg { flex: none; color: var(--edge); transition: translate var(--quick) var(--ease), color var(--quick); }
+.row strong { transition: color var(--quick); }
+.row.plain { min-height: 56px; }
+.row em { flex: none; font-style: normal; font-size: var(--t4); color: var(--sub); }
+.facts { display: grid; gap: 2px; margin-top: 6px; }
+.notes { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.subtabs { display: flex; margin: 20px 0 18px; border-bottom: 1px solid var(--line); }
+.subtab { flex: 1; min-height: 48px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--sub); font-size: var(--t3); }
+.subtab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); font-weight: 600; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
+.choice { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 68px; padding: 8px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); font-size: var(--t2); font-weight: 600; transition: background-color var(--quick), border-color var(--quick); }
+.choice small { color: var(--sub); font-size: var(--t4); font-weight: 400; }
+.choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.check { display: flex; align-items: center; gap: 10px; min-height: 48px; margin-top: 6px; cursor: pointer; }
+.check input { appearance: none; display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0; border: 2px solid var(--edge); border-radius: 50%; background: var(--surface); cursor: pointer; transition: background-color var(--arrive) var(--ease), border-color var(--quick); }
+.check input::after { content: ""; width: 6px; height: 11px; margin-top: -2px; border: solid var(--on); border-width: 0 2.5px 2.5px 0; rotate: 45deg; opacity: 0; transition: opacity var(--quick); }
+.check input[type="radio"]::after { width: 8px; height: 8px; margin: 0; border: 0; border-radius: 50%; background: var(--on); rotate: none; }
+.check input:checked { border-color: var(--accent); background: var(--accent); }
+.check input:checked::after { opacity: 1; }
+.status { min-height: 22px; margin-top: 10px; color: var(--accent); font-size: var(--t4); font-weight: 600; }
+.status.err { color: var(--danger); }
+.field { display: grid; gap: 6px; margin-top: 16px; }
+.field label, .field > span { color: var(--sub); font-size: var(--t4); }
+.field input, .field select, .field textarea { width: 100%; min-height: 52px; padding: 10px 12px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); font-size: var(--t3); }
+.field textarea { min-height: 140px; resize: vertical; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.kinds .choice { min-height: 48px; font-size: var(--t3); }
+.inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 12px; }
+.inline input { min-height: 52px; padding: 10px 12px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); }
+.inline .btn { width: auto; }
+.att .ck { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 2px solid var(--edge); border-radius: 50%; color: transparent; transition: background-color var(--quick), border-color var(--quick), scale var(--quick) var(--ease); }
+.att[aria-pressed="true"] .ck { border-color: var(--accent); background: var(--accent); color: var(--on); }
+.att:active .ck { scale: .9; }
+.only-missing li:has(.att[aria-pressed="true"]) { display: none; }
+.foot { position: sticky; bottom: calc(61px + env(safe-area-inset-bottom, 0px)); z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px calc(var(--side-r) * -1) 0 calc(var(--side-l) * -1); padding: 8px var(--side-r) 8px var(--side-l); border-top: 1px solid var(--line); background: var(--surface); }
+.fold > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; color: var(--sub); font-size: var(--t4); cursor: pointer; list-style: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary svg { transition: rotate var(--quick); }
+.fold[open] > summary svg { rotate: 90deg; }
+.report { margin: 12px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; font-size: var(--t4); white-space: pre-wrap; }
+.dots { display: flex; gap: 8px; margin-top: 8px; }
+.dots i { width: 22px; height: 22px; border: 2px solid var(--edge); border-radius: 50%; }
+.dots i.on { border-color: var(--accent); background: var(--accent); }
+.cal { margin-top: 4px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.cal-head strong { font-weight: 600; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; text-align: center; font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.cal-grid span, .cal-grid button { display: grid; place-items: center; min-height: 44px; border: 0; background: transparent; color: var(--ink); }
+.cal-grid .dow, .cal-grid .out { color: var(--sub); }
+.cal-grid .out { opacity: .5; }
+.cal-grid button b { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 600; transition: background-color var(--quick), color var(--quick); }
+.cal-grid .today { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
+.toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 8; width: max-content; max-width: min(92vw, 440px); padding: 12px 16px; border-radius: 10px; background: var(--ink); color: var(--on); font-size: var(--t4); translate: -50% 0; }
+@media (min-width: 900px) {
+  .foot { bottom: 0; margin-inline: 0; padding-inline: 16px; border: 1px solid var(--line); border-radius: 10px; }
+  .btn-row { grid-template-columns: repeat(auto-fit, minmax(0, 240px)); }
+  .toast { bottom: 32px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .main.push > * { animation: come var(--arrive) var(--ease) backwards; --from: 16px 0; }
+  .main.pop > * { animation: come var(--arrive) var(--ease) backwards; --from: -16px 0; }
+  .toast { animation: come var(--arrive) var(--ease) backwards; --from: -50% 8px; }
+  .main.enter > * { animation: come var(--arrive) var(--ease) backwards; --from: 0 12px; }
+  .main.enter > :nth-child(2) { animation-delay: 40ms; }
+  .main.enter > :nth-child(n+3) { animation-delay: 80ms; }
+  .tabs[data-slide] .tab-mark { animation: slide var(--arrive) var(--ease); }
+  .drawer[open] { animation: come var(--arrive) var(--ease); --from: 100% 0; }
+  .drawer[open]::backdrop { animation: dim var(--arrive) var(--ease); }
+  .meter i { animation: grow var(--arrive) var(--ease) backwards; transform-origin: left; }
+  .att[aria-pressed="true"] .ck svg { animation: pop var(--quick) var(--ease); }
+}
+@keyframes come { from { opacity: .4; translate: var(--from); } }
+@keyframes slide { from { translate: calc(var(--was, 0) * (100% + 4px)) 0; } }
+@keyframes dim { from { opacity: 0; } }
+@keyframes grow { from { scale: 0 1; } }
+@keyframes pop { from { scale: .4; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<details class="lab" id="lab">
+  <summary><span>시안 설정</span><b id="lab-now"></b><span>· 눌러서 바꾸기</span></summary>
+  <div class="lab-body">
+    <div class="lab-row"><span>보기</span><span class="seg" role="group" aria-label="보기"><button type="button" data-lab="role" data-v="organizer">운영진</button><button type="button" data-lab="role" data-v="member">회원</button></span></div>
+    <div class="lab-row"><span>시점</span><span class="seg" role="group" aria-label="시점"><button type="button" data-lab="moment" data-v="before">전날</button><button type="button" data-lab="moment" data-v="today">당일</button><button type="button" data-lab="moment" data-v="after">끝난 뒤</button></span></div>
+    <div class="lab-row"><span>회원 로그인</span><span class="seg" role="group" aria-label="회원 로그인"><button type="button" data-lab="signedIn" data-v="true">한 뒤</button><button type="button" data-lab="signedIn" data-v="false">하기 전</button></span></div>
+    <p>가상 자료로만 움직이는 시안입니다. 저장한 것은 새로 고치면 처음으로 돌아갑니다.</p>
+  </div>
+</details>
+<div class="app" id="app"></div>
+<dialog class="drawer" id="drawer" aria-label="메뉴"></dialog>
+
+<script>
+(() => {
+  const app = document.getElementById('app');
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const I = {
+    home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m20 0v-2a4 4 0 0 0-3-3.9M16 3.2a4 4 0 0 1 0 7.6"/><circle cx="9" cy="7" r="4"/>',
+    more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+    user: '<circle cx="12" cy="7" r="3.5"/><path d="M4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2"/>',
+    back: '<path d="m12 19-7-7 7-7m-7 7h15"/>', chev: '<path d="m9 6 6 6-6 6"/>', left: '<path d="m15 6-6 6 6 6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="m5 12 4 4L19 6"/>', x: '<path d="m6 6 12 12M18 6 6 18"/>', menu: '<path d="M4 9h16M4 15h16"/>',
+    chart: '<path d="M3 3v18h18M8 16v-4m5 4V8m5 8V5"/>', sliders: '<path d="M4 6h10m4 0h2M4 12h4m4 0h8M4 18h12m4 0h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  };
+  const icon = (name, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name]}</svg>`;
+
+  // 가상 자료
+  const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+  const NOW = { before: '2026-11-28T14:00', today: '2026-11-29T08:30', after: '2026-11-30T09:00' };
+  const CLUB = '썬콕19';
+  const members = ['김서연', '이도윤', '박지호', '최하은', '정우진', '강수아', '조민재', '윤지유', '장현우', '임서윤', '한지민', '오준서', '서예린', '신동현', '권나은', '황태윤', '안소희', '송재원', '류다인', '전승민', '홍유진', '고은채', '문성호', '양미래']
+    .map((name, i) => ({ id: 'm' + i, name, organizer: i < 3, active: true, marks: [6, 4, 6, 3, 5, 6, 2, 6, 4, 1, 6, 5, 3, 6, 0, 4, 6, 2, 5, 6, 3, 1, 4, 6][i], rewarded: [0, 2, 7, 10].includes(i) }));
+  const ME = { organizer: 'm0', member: 'm3' };
+  const events = [
+    { id: 'e1', title: '일요 정기 운동', kind: '정기', date: '2026-11-29', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-11-28T21:00', early: '9:30', late: '9:50', published: true, notes: '실내 운동화와 라켓을 챙겨 주세요.' },
+    { id: 'e2', title: '수요 번개', kind: '번개', date: '2026-12-02', time: '19:00', end: '21:00', place: '구민체육센터', deadline: '2026-12-01T21:00', early: '18:50', late: '19:30', published: true, notes: '' },
+    { id: 'e3', title: '일요 정기 운동', kind: '정기', date: '2026-12-06', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-12-05T21:00', early: '9:30', late: '9:50', published: false, notes: '' },
+    { id: 'e4', title: '연말 친선 대회', kind: '대회', date: '2026-12-12', time: '13:00', end: '17:00', place: '시민체육관 1층', deadline: '2026-12-10T21:00', early: '12:30', late: '13:00', published: false, notes: '' },
+    { id: 'p1', title: '일요 정기 운동', kind: '정기', date: '2026-11-22', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-11-21T21:00', early: '9:30', late: '9:50', published: true, settled: true, present: 15, notes: '' },
+    { id: 'p2', title: '일요 정기 운동', kind: '정기', date: '2026-11-15', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-11-14T21:00', early: '9:30', late: '9:50', published: true, settled: true, present: 13, notes: '' },
+    { id: 'p3', title: '일요 정기 운동', kind: '정기', date: '2026-11-08', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-11-07T21:00', early: '9:30', late: '9:50', published: true, settled: true, present: 16, notes: '' },
+  ];
+  const votes = { e1: {}, e2: {} };
+  [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].forEach((i, n) => { votes.e1['m' + i] = { slot: n < 9 ? 'early' : 'late', lunch: [0, 2, 4, 6, 9, 11].includes(n) }; });
+  [1, 4, 5, 8, 9, 12].forEach((i, n) => { votes.e2['m' + i] = { slot: n < 4 ? 'early' : 'late', lunch: false }; });
+  votes.e1.m16 = { slot: 'no', lunch: false };
+  const attendance = {};
+  const guests = { e1: [{ id: 'g0', name: '박하늘' }, { id: 'g1', name: '정다온' }] };
+  const notices = [
+    { id: 'n1', title: '12월 회비 안내', date: '2026-11-24', pinned: true, body: '12월 회비는 12월 6일 정기 운동 때 걷습니다.\n계좌 이체를 원하시면 총무에게 말씀해 주세요.' },
+    { id: 'n2', title: '체육관 주차 변경', date: '2026-11-18', pinned: false, body: '이번 달부터 지하 주차장은 2시간까지 무료입니다.\n넘는 시간은 안내 데스크에서 확인을 받아 주세요.' },
+    { id: 'n3', title: '연말 친선 대회 참가 신청', date: '2026-11-10', pinned: false, body: '12월 12일 연말 친선 대회 참가 신청을 받습니다.\n투표가 열리면 일정에서 응답해 주세요.' },
+  ];
+  const rules = { periods: '2', goal: 6, kinds: ['정기', '번개', '대회'], reward: 'mark' };
+  const state = { role: 'organizer', moment: 'before', signedIn: true, menu: 'light', tab: { organizer: 'home', member: 'home' }, stack: [], calendar: false, calMonth: '', eventTab: '', draft: {}, form: {}, login: { step: 1, name: '' }, msg: '', err: false, flash: '', onlyMissing: false, guestOpen: false, confirm: '', report: '', temp: '', vals: {} };
+  // 지금 실사용과 같은 메뉴: 앞 네 개가 휴대폰 하단 바, 전부는 왼쪽 메뉴(PC)와 오른쪽 위 메뉴(휴대폰).
+  const TABS = {
+    organizer: [['home', '홈', 'home'], ['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'], ['rules', '모임 규칙', 'sliders'], ['record', '내 기록', 'user']],
+    member: [['home', '홈', 'home'], ['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['record', '내 기록', 'user']],
+  };
+
+  const now = () => NOW[state.moment];
+  const today = () => now().slice(0, 10);
+  const day = s => new Date(s + 'T00:00:00');
+  const fmtDate = s => { const x = day(s); return `${x.getMonth() + 1}월 ${x.getDate()}일 (${DAYS[x.getDay()]})`; };
+  const rel = s => ({ 0: '오늘', 1: '내일', '-1': '어제' })[Math.round((day(s) - day(today())) / 864e5)] ?? '';
+  const when = e => `${rel(e.date) ? rel(e.date) + ' · ' : ''}${fmtDate(e.date)} ${e.time}`;
+  const me = () => ME[state.role];
+  const byId = id => events.find(e => e.id === id);
+  const active = () => members.filter(m => m.active);
+  const counts = e => { const v = Object.values(votes[e.id] ?? {}), n = slot => v.filter(x => x.slot === slot).length; return { all: v.length, early: n('early'), late: n('late'), no: n('no'), going: n('early') + n('late'), lunch: v.filter(x => x.lunch).length }; };
+  const going = (id, m) => ['early', 'late'].includes(votes[id]?.[m.id]?.slot);
+  const canVote = e => e.published && !e.cancelled && !e.closed && now() < e.deadline;
+  const deadlineText = e => { const [d, t] = e.deadline.split('T'); return `${rel(d) || fmtDate(d)} ${t}`; };
+  const slotText = (e, v) => v.slot === 'no' ? '불참' : `${v.slot === 'early' ? '선발' : '후발'} ${e[v.slot]}${v.lunch ? ' · 점심' : ''}`;
+  const signed = () => state.role === 'organizer' || state.signedIn;
+  const presentCount = id => { const a = attendance[id] ?? {}; return { members: members.filter(m => a[m.id]).length, guests: (guests[id] ?? []).filter(g => a[g.id]).length }; };
+  const status = e => e.cancelled ? '취소한 일정' : e.settled ? '마무리 완료' : e.date < today() ? '마무리 전' : e.date === today() ? '오늘' : !e.published ? '공개 전' : `응답 ${counts(e).all} / ${active().length}명`;
+  const sorted = list => [...list].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const memberEvents = () => sorted(events.filter(e => e.published && !e.settled && e.date >= today()));
+  const openEvents = () => sorted(events.filter(e => !e.settled));
+  const doneEvents = () => sorted(events.filter(e => e.settled)).reverse();
+
+  // 부품
+  const rowsOf = items => items.length ? `<ul class="rows">${items.map(item => `<li>${item}</li>`).join('')}</ul>` : '';
+  const row = (act, arg, title, sub, right = icon('chev', 20)) => `<button type="button" class="row" data-act="${act}" data-arg="${arg}" data-key="${act}-${arg}"><span><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span>${right}</button>`;
+  const plain = (title, sub, right = '') => `<div class="row plain"><span><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span>${right ? `<em>${right}</em>` : ''}</div>`;
+  const label = (text, right = '') => `<h3 class="label"><span>${text}</span>${right}</h3>`;
+  // What was typed stays through a redraw (state.vals), so an error or a tab press never wipes a field.
+  const kept = (id, value = '') => state.vals[id] ?? value;
+  const field = (id, text, attrs, value = '') => `<div class="field"><label for="${id}">${text}</label><input id="${id}" name="${id}" value="${esc(kept(id, value))}" ${attrs}></div>`;
+  const statusLine = () => `<p class="status${state.err ? ' err' : ''}" role="status">${esc(state.msg)}</p>`;
+  const eventRow = e => row('open', `${state.role === 'organizer' ? 'event' : 'vote'}:${e.id}`, esc(e.title), `${when(e)} · ${state.role === 'organizer' ? status(e) : voteState(e)}`);
+  function voteState(e) {
+    const mine = signed() && votes[e.id]?.[me()];
+    return e.cancelled ? '취소된 일정' : mine ? `내 응답 ${slotText(e, mine)}` : canVote(e) ? '투표 중' : '투표 마감';
+  }
+  function calendar(list, target) {
+    const month = state.calMonth || today().slice(0, 7);
+    const [y, m] = month.split('-').map(Number);
+    const lead = new Date(y, m - 1, 1).getDay(), length = new Date(y, m, 0).getDate();
+    const cells = DAYS.map(d => `<span class="dow">${d}</span>`);
+    for (let i = 0; i < Math.ceil((lead + length) / 7) * 7; i++) {
+      const x = new Date(y, m - 1, 1 - lead + i);
+      const iso = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+      const e = x.getMonth() === m - 1 && list.find(item => item.date === iso);
+      cells.push(e ? `<button type="button" data-act="open" data-arg="${target}:${e.id}" aria-label="${fmtDate(iso)} ${esc(e.title)}"><b>${x.getDate()}</b></button>`
+        : `<span class="${x.getMonth() !== m - 1 ? 'out' : iso === today() ? 'today' : ''}">${x.getDate()}</span>`);
+    }
+    return `<div class="cal"><div class="cal-head"><button type="button" class="icon-btn" data-act="cal" data-arg="-1" data-key="cal-prev" aria-label="이전 달">${icon('left', 20)}</button><strong>${y}년 ${m}월</strong><button type="button" class="icon-btn" data-act="cal" data-arg="1" data-key="cal-next" aria-label="다음 달">${icon('chev', 20)}</button></div><div class="cal-grid">${cells.join('')}</div></div>`;
+  }
+  const calToggle = () => `<button type="button" class="link" data-act="cal-toggle" data-key="cal-toggle" aria-pressed="${state.calendar}">${state.calendar ? '달력 접기' : '달력으로 보기'}</button>`;
+
+  // 회원 화면
+  const roots = { member: {}, organizer: {} };
+  const meter = (value, total) => `<div class="meter" aria-hidden="true"><i style="width:${total ? Math.round(value / total * 100) : 0}%"></i></div>`;
+  const stats = items => `<dl class="stats">${items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+  const sortedNotices = () => [...notices].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
+  const noticeRow = n => row('open', `notice:${n.id}`, esc(n.title), `${fmtDate(n.date)}${n.pinned ? ' · 맨 위 고정' : ''}`);
+  const more = (text, tab) => `<button type="button" class="link" data-act="tab" data-arg="${tab}" data-key="more-${tab}">${text}</button>`;
+  roots.member.home = () => {
+    const [next, ...rest] = memberEvents();
+    let top = `<section class="card now"><p class="when">다음 일정</p><h2 class="t1">예정된 일정이 없어요</h2><p>운영진이 일정을 올리면 여기에 보여요.</p></section>`;
+    if (next) {
+      const mine = signed() && votes[next.id]?.[me()], c = counts(next);
+      const action = mine ? `<p class="mine">내 응답 · ${slotText(next, mine)}</p><div class="btn-row"><button type="button" class="btn" data-act="open" data-arg="vote:${next.id}" data-key="next">${canVote(next) ? '응답 바꾸기' : '일정 보기'}</button></div>`
+        : `<div class="btn-row"><button type="button" class="btn${canVote(next) ? ' primary' : ''}" data-act="open" data-arg="vote:${next.id}" data-key="next">${canVote(next) ? '참석 투표하기' : '일정 보기'}</button></div>`;
+      top = `<section class="card now"><p class="when">${when(next)}</p><h2 class="t1">${esc(next.title)}</h2><p>${signed() ? esc(next.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">${canVote(next) ? `투표 마감 ${deadlineText(next)}` : '투표가 마감됐어요'}</p>
+        <div class="tally">${[['선발', c.early], ['후발', c.late], ['점심 함께', c.lunch]].map(([k, v]) => `<div><span>${k}</span><strong>${v}명</strong>${meter(v, c.going)}</div>`).join('')}</div>${action}</section>`;
+    }
+    const waiting = rest.filter(e => canVote(e) && !(signed() && votes[e.id]?.[me()])), later = rest.filter(e => !waiting.includes(e));
+    return { title: '홈', body: `${top}${waiting.length ? label(`응답할 투표 ${waiting.length}개`) + rowsOf(waiting.map(eventRow)) : ''}${later.length ? label('이후 일정', more('전체 보기', 'schedule')) + rowsOf(later.slice(0, 3).map(eventRow)) : ''}
+      ${label('공지', more('전체 보기', 'notices'))}${rowsOf(sortedNotices().slice(0, 2).map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>'}` };
+  };
+  roots.member.schedule = () => {
+    const list = memberEvents();
+    return { title: '일정', body: `${label(`예정 ${list.length}개`, calToggle())}${state.calendar ? calendar(list, 'vote') : ''}${rowsOf(list.map(eventRow)) || '<p class="sub">예정된 일정이 없어요.</p>'}` };
+  };
+  roots.member.notices = roots.organizer.notices = () => ({
+    title: '공지', action: state.role === 'organizer' ? `<button type="button" class="icon-btn" data-act="open" data-arg="notice-form:" aria-label="새 공지">${icon('plus')}</button>` : '',
+    body: rowsOf(sortedNotices().map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>',
+  });
+  const recordBody = () => {
+    const m = members.find(x => x.id === me()), done = Math.min(m.marks, rules.goal);
+    return `<section class="card now"><p class="when">올해 출석</p><h2 class="t1">23회</h2>
+      <p class="gap"><strong>이번 반기 줄서기 인정 ${done} / ${rules.goal}회</strong></p><div class="dots" aria-hidden="true">${Array.from({ length: rules.goal }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>
+      <p class="sub" style="margin-top:12px">콕 수령: ${m.rewarded ? '받았어요' : done >= rules.goal ? '받을 수 있어요. 운영진에게 말씀해 주세요.' : '아직이에요'}</p></section>
+      ${label('내 계정')}${rowsOf([row('toast', '번호 바꾸기는 시안에서 열리지 않아요.', '번호 바꾸기', ''), row('logout', '', '로그아웃', '')])}`;
+  };
+  roots.member.record = roots.organizer.record = () => signed() ? { title: '내 기록', body: recordBody() }
+    : { title: '내 기록', body: `<section class="card now"><h2 class="t1">로그인하면 내 기록이 보여요</h2><p>출석 횟수와 줄서기 인정, 콕 수령을 볼 수 있어요.</p><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="login:">로그인</button></div></section>` };
+
+  // 운영진 화면
+  const stepNames = ['일정 준비', '참석 투표', '당일 출석', '마무리'];
+  const steps = at => `<div class="steps" role="img" aria-label="진행 ${at + 1}/4 단계: ${stepNames[at]}">${stepNames.map((name, i) => `<span class="${i < at ? 'done' : i === at ? 'at' : ''}"><i></i>${name}</span>`).join('')}</div>`;
+  roots.organizer.home = () => {
+    const list = openEvents();
+    const focus = list.find(e => e.date < today() && !e.cancelled) ?? list.find(e => e.date === today() && !e.cancelled) ?? list.find(e => e.published && !e.cancelled) ?? list[0];
+    let top = `<section class="card now"><p class="when">지금 할 일</p><h2 class="t1">예정된 일정이 없어요</h2><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="event-form:">새 일정 만들기</button></div></section>`;
+    if (focus) {
+      const c = counts(focus), p = presentCount(focus.id), total = active().length, waiting = total - c.all, mine = votes[focus.id]?.[me()];
+      let at, fact, detail, buttons;
+      if (focus.date < today()) {
+        at = 3; fact = '운동이 끝났어요. 마무리만 남았어요.';
+        detail = stats([['출석', `${p.members}명`], ['게스트', `${p.guests}명`], ['참석 예정', `${c.going}명`]]) + meter(p.members, c.going);
+        buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:wrap" data-key="now-1">마무리하기</button>`;
+      } else if (focus.date === today()) {
+        at = 2; fact = esc(focus.place);
+        detail = stats([['참석 예정', `${c.going}명`], ['출석 체크', `${p.members}명`], ['게스트', `${(guests[focus.id] ?? []).length}명`]]) + meter(p.members, c.going);
+        buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:att" data-key="now-1">출석 체크 시작</button>`;
+      } else if (!focus.published) {
+        at = 0; fact = '아직 회원에게 보이지 않아요.'; detail = '';
+        buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:poll" data-key="now-1">일정 열어 공개하기</button>`;
+      } else {
+        at = 1; fact = `응답 ${c.all} / ${total}명 · 투표 마감 ${deadlineText(focus)}`;
+        detail = stats([['선발', c.early], ['후발', c.late], ['점심', c.lunch], ['불참', c.no], ['미응답', waiting]]) + meter(c.all, total);
+        buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:poll" data-key="now-1">미응답 ${waiting}명 보기</button><button type="button" class="btn" data-act="copy" data-arg="${focus.id}" data-key="now-2">투표 링크 복사</button>`;
+      }
+      const own = focus.published && canVote(focus) && !mine ? `<button type="button" class="link" data-act="open" data-arg="vote:${focus.id}" data-key="own">내 응답은 아직이에요 · 지금 하기</button>` : '';
+      top = `<section class="card now"><p class="when">${focus.date < today() ? `${rel(focus.date) || fmtDate(focus.date)} 끝남 · ${fmtDate(focus.date)}` : when(focus)}</p><h2 class="t1">${esc(focus.title)}</h2><p>${fact}</p>${steps(at)}${detail}<div class="btn-row">${buttons}</div>${own}</section>`;
+    }
+    const rest = list.filter(e => e !== focus), last = doneEvents()[0];
+    return { title: '홈', action: `<button type="button" class="icon-btn" data-act="open" data-arg="event-form:" aria-label="새 일정">${icon('plus')}</button>`,
+      body: `${top}${label('다른 일정', more('전체 보기', 'schedule'))}${rowsOf(rest.map(eventRow)) || '<p class="sub">다른 일정이 없어요.</p>'}
+        ${label('최근 공지', more('전체 보기', 'notices'))}${rowsOf(sortedNotices().slice(0, 2).map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>'}
+        ${last ? label('지난 일정') + rowsOf([row('open', `event:${last.id}:wrap`, esc(last.title), `${fmtDate(last.date)} · 출석 ${last.present ?? presentCount(last.id).members}명 · 마무리 완료`)]) : ''}` };
+  };
+  roots.organizer.schedule = () => {
+    const list = openEvents(), done = doneEvents();
+    return { title: '일정', action: `<button type="button" class="icon-btn" data-act="open" data-arg="event-form:" aria-label="새 일정">${icon('plus')}</button>`,
+      body: `${label(`진행 중 ${list.length}개`, calToggle())}${state.calendar ? calendar(events, 'event') : ''}${rowsOf(list.map(eventRow))}
+        <details class="fold"><summary><span>끝난 일정 ${done.length}개</span>${icon('chev', 18)}</summary>${rowsOf(done.map(e => row('open', `event:${e.id}:wrap`, esc(e.title), `${fmtDate(e.date)} · 출석 ${e.present ?? presentCount(e.id).members}명`)))}</details>` };
+  };
+  roots.organizer.members = () => ({
+    title: '회원 관리', action: `<button type="button" class="icon-btn" data-act="open" data-arg="member-form:" aria-label="회원 추가">${icon('plus')}</button>`,
+    body: `<div class="field" style="margin-top:0"><label for="member-q">이름으로 찾기</label><input id="member-q" type="search" autocomplete="off" data-filter="member-rows"></div>
+      ${label(`회원 ${members.length}명`)}<ul class="rows" id="member-rows">${members.map(m => `<li data-name="${esc(m.name)}">${row('open', `member:${m.id}`, esc(m.name), [m.organizer ? '운영진' : '', m.active ? '' : '쉬는 중'].filter(Boolean).join(' · '))}</li>`).join('')}</ul>`,
+  });
+  roots.organizer.progress = () => ({ ...screens.progress(), back: false });
+  roots.organizer.rules = () => ({ ...screens.rules(), back: false });
+
+  const screens = {};
+  screens.vote = ({ id }) => {
+    const e = byId(id), mine = signed() && votes[id]?.[me()];
+    const draft = state.draft[id] ?? (state.draft[id] = { slot: mine?.slot ?? '', lunch: Boolean(mine?.lunch) });
+    const c = counts(e);
+    let form;
+    if (e.cancelled) form = '<p class="gap"><strong>이 일정은 취소됐어요.</strong></p>';
+    else if (!canVote(e)) form = `${mine ? `<p class="mine gap">내 응답 · ${slotText(e, mine)}</p>` : ''}<p class="sub gap">투표가 마감됐어요.</p>`;
+    else if (!signed()) form = `<div class="btn-row gap"><button type="button" class="btn primary" data-act="open" data-arg="login:">로그인하고 투표하기</button></div><p class="sub" style="margin-top:8px">성함과 번호 6자리로 한 번만 로그인하면 돼요.</p>`;
+    else form = `<div class="choices" role="group" aria-label="참석 여부">${[['early', '선발', `${e.early}부터`], ['late', '후발', `${e.late}부터`], ['no', '불참', '못 가요']].map(([slot, text, sub]) => `<button type="button" class="choice" data-act="slot" data-arg="${id}:${slot}" data-key="slot-${slot}" aria-pressed="${draft.slot === slot}">${text}<small>${sub}</small></button>`).join('')}</div>
+      <label class="check" id="lunch-row"${draft.slot === 'no' ? ' hidden' : ''}><input type="checkbox" id="lunch" data-act="lunch" data-arg="${id}"${draft.lunch ? ' checked' : ''}>점심 함께해요</label>
+      <div class="btn-row"><button type="button" class="btn primary" data-act="save-vote" data-arg="${id}" data-key="save">${mine ? '응답 바꾸기' : '응답 저장'}</button></div>${statusLine()}
+      ${mine ? `<button type="button" class="link" data-act="cancel-vote" data-arg="${id}" data-key="cancel-vote">응답 취소</button>` : ''}`;
+    return { title: '일정', back: true, body: `<h2 class="t1">${esc(e.title)}</h2><div class="facts"><p>${fmtDate(e.date)} ${e.time}–${e.end}</p><p>${signed() ? esc(e.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">투표 마감 ${deadlineText(e)}</p></div>${e.notes && signed() ? `<p class="notes">${esc(e.notes)}</p>` : ''}${form}<p class="sub gap" id="vote-count">지금 참석 ${c.going}명 (선발 ${c.early} · 후발 ${c.late})</p>` };
+  };
+  screens.login = () => ({ title: '로그인', back: true, body: state.login.step === 1
+    ? `<h2 class="t1">성함을 알려 주세요</h2><form data-form="login-name" novalidate>${field('login-name', '성함', 'autocomplete="off" maxlength="20"', state.login.name)}<div class="btn-row"><button class="btn primary">다음</button></div>${statusLine()}</form>`
+    : `<h2 class="t1">번호 6자리를 눌러 주세요</h2><p class="sub" style="margin-top:6px">처음이면 생년월일 6자리예요. 시안에서는 아무 숫자나 됩니다.</p><form data-form="login-code" novalidate>${field('login-code', '번호 6자리', 'inputmode="numeric" maxlength="6" autocomplete="off"')}<div class="btn-row"><button class="btn primary">로그인</button></div>${statusLine()}</form>` });
+  screens.notice = ({ id }) => {
+    const n = notices.find(x => x.id === id);
+    const manage = state.role !== 'organizer' ? '' : `<div class="btn-row gap"><button type="button" class="btn" data-act="copy" data-arg="${n.id}" data-key="copy">공지 링크 복사</button></div>${label('공지 관리')}${rowsOf([
+      row('open', `notice-form:${n.id}`, '공지 고치기', ''), row('pin-notice', n.id, n.pinned ? '맨 위 고정 풀기' : '맨 위에 고정', ''),
+      state.confirm === `del-${n.id}` ? `<div class="row plain"><span><strong>이 공지를 지울까요?</strong><small>지우면 되돌릴 수 없어요.</small></span></div><div class="grid2" style="padding-bottom:12px"><button type="button" class="btn" data-act="confirm" data-arg="" data-key="keep">그만두기</button><button type="button" class="btn primary" data-act="del-notice" data-arg="${n.id}" data-key="del">지우기</button></div>` : row('confirm', `del-${n.id}`, '공지 지우기', ''),
+    ])}`;
+    return { title: '공지', back: true, body: `<h2 class="t1">${esc(n.title)}</h2><p class="sub" style="margin-top:4px">${fmtDate(n.date)}${n.pinned ? ' · 맨 위 고정' : ''}</p><p class="notes" style="white-space:pre-line">${esc(n.body)}</p>${manage}` };
+  };
+  screens['notice-form'] = ({ id }) => {
+    const n = notices.find(x => x.id === id) ?? { title: '', body: '' };
+    return { title: id ? '공지 고치기' : '새 공지', back: true, body: `<form data-form="notice" data-id="${id ?? ''}" novalidate>${field('notice-title', '제목', 'maxlength="60"', n.title)}<div class="field"><label for="notice-body">내용</label><textarea id="notice-body" name="notice-body" maxlength="2000">${esc(kept('notice-body', n.body))}</textarea></div><div class="btn-row"><button class="btn primary">${id ? '고친 내용 저장' : '공지 올리기'}</button></div>${statusLine()}</form>` };
+  };
+  screens.event = ({ id }) => {
+    const e = byId(id), tab = state.eventTab || (e.date < today() ? 'wrap' : e.date === today() ? 'att' : 'poll');
+    const c = counts(e), att = attendance[id] ?? (attendance[id] = {});
+    const responders = active().filter(m => votes[id]?.[m.id]), silent = active().filter(m => !votes[id]?.[m.id]);
+    const goers = active().filter(m => going(id, m)), others = active().filter(m => !going(id, m));
+    let panel;
+    if (tab === 'poll') {
+      const mine = votes[id]?.[me()];
+      const closed = !canVote(e);
+      panel = `<p class="t2">응답 ${c.all} / ${active().length}명</p><p class="sub">선발 ${c.early} · 후발 ${c.late} · 불참 ${c.no} · 점심 ${c.lunch}${e.published ? '' : ' · 아직 공개 전'}</p>${meter(c.all, active().length)}
+        ${e.published ? `<div class="btn-row"><button type="button" class="btn${closed ? '' : ' primary'}" data-act="copy" data-arg="${id}" data-key="copy">투표 링크 복사</button></div>` : `<div class="btn-row"><button type="button" class="btn primary" data-act="publish" data-arg="${id}" data-key="publish">회원에게 공개하기</button></div>`}
+        ${rowsOf([row('open', `vote:${id}`, '내 응답', mine ? slotText(e, mine) : closed ? '응답하지 않았어요' : '아직 안 했어요')]).replace('class="rows"', 'class="rows gap"')}
+        ${label(`미응답 ${silent.length}명`)}${rowsOf(silent.map(m => plain(esc(m.name), '')))}
+        <details class="fold"><summary><span>응답한 ${responders.length}명</span>${icon('chev', 18)}</summary>${rowsOf(responders.map(m => plain(esc(m.name), '', slotText(e, votes[id][m.id]))))}</details>
+        ${label('일정 관리')}${rowsOf([
+          row('open', `event-form:${id}`, '일정 고치기', '날짜, 시간, 장소, 마감'),
+          e.published ? row('publish', id, '공개 내리기', '회원 화면에서 숨겨요') : '',
+          e.published ? row('close', id, e.closed ? '투표 다시 열기' : '투표 닫기', e.closed ? '' : '마감 전에 미리 닫아요') : '',
+          state.confirm === `cancel-${id}` ? `<div class="row plain"><span><strong>이 일정을 취소할까요?</strong><small>회원에게 취소됐다고 보여요. 받은 응답은 남아요.</small></span></div><div class="grid2" style="padding-bottom:12px"><button type="button" class="btn" data-act="confirm" data-arg="" data-key="keep">그만두기</button><button type="button" class="btn primary" data-act="cancel-event" data-arg="${id}" data-key="do-cancel">일정 취소하기</button></div>`
+            : row(e.cancelled ? 'cancel-event' : 'confirm', e.cancelled ? id : `cancel-${id}`, e.cancelled ? '취소 풀기' : '일정 취소', ''),
+        ].filter(Boolean))}`;
+    } else if (tab === 'att') {
+      if (e.date > today()) panel = `<p class="sub">출석은 당일부터 체크할 수 있어요.</p>${label(`참석 예정 ${goers.length}명`)}${rowsOf(goers.map(m => plain(esc(m.name), '', slotText(e, votes[id][m.id]))))}`;
+      else {
+        const p = presentCount(id);
+        const item = (who, sub) => `<button type="button" class="row att" data-act="att" data-arg="${id}:${who.id}" data-key="att-${who.id}" aria-pressed="${Boolean(att[who.id])}"><span><strong>${esc(who.name)}</strong><small>${sub}</small></span><span class="ck">${icon('check', 20)}</span></button>`;
+        panel = `<div class="${state.onlyMissing ? 'only-missing' : ''}" id="att-list">${rowsOf([...goers.map(m => item(m, slotText(e, votes[id][m.id]))), ...(guests[id] ?? []).map(g => item(g, '게스트'))])}
+          <details class="fold"><summary><span>참석 예정이 아닌 회원 ${others.length}명</span>${icon('chev', 18)}</summary>${rowsOf(others.map(m => item(m, votes[id]?.[m.id] ? '불참' : '응답 없음')))}</details></div>
+          ${state.guestOpen ? `<form class="inline" data-form="guest" data-id="${id}" novalidate><input id="guest-name" name="guest-name" aria-label="게스트 이름" maxlength="20" autocomplete="off"><button class="btn">게스트 추가</button></form>${statusLine()}` : `<button type="button" class="link" data-act="guest-open" data-key="guest-open">게스트 추가</button>`}
+          <div class="foot"><strong id="att-count">출석 ${p.members + p.guests}명</strong><button type="button" class="link" data-act="att-filter" data-key="att-filter" aria-pressed="${state.onlyMissing}">${state.onlyMissing ? '모두 보기' : '안 온 사람만 보기'}</button></div>`;
+      }
+    } else if (e.date > today()) panel = '<p class="sub">마무리는 운동이 끝난 뒤에 할 수 있어요.</p>';
+    else if (e.settled) panel = `<p class="t2">마무리 완료</p><p class="sub">출석 ${e.present ?? presentCount(id).members}명</p>${state.report ? `<pre class="report">${esc(state.report)}</pre><div class="btn-row"><button type="button" class="btn" data-act="copy-report" data-key="copy-report">마무리 글 복사</button></div>` : ''}`;
+    else {
+      const p = presentCount(id), unchecked = goers.filter(m => !att[m.id]).length;
+      panel = `<p class="t2">출석 ${p.members}명 · 게스트 ${p.guests}명</p>${unchecked ? `<p class="sub">참석한다고 한 ${unchecked}명은 출석 체크가 없어 집계에서 빠져요.</p>` : ''}
+        <form data-form="wrap" data-id="${id}" novalidate><div class="grid2">${field('wrap-box', '콕 이월 (타)', 'inputmode="numeric"', '2')}${field('wrap-carry', '콕 이월 (낱개)', 'inputmode="numeric"', '5')}</div>
+        <div class="grid2">${field('wrap-left', '오늘 남은 콕 (낱개)', 'inputmode="numeric"', '18')}${field('wrap-fee', '코트 찬조금 (원)', 'inputmode="numeric"', '30000')}</div>
+        <div class="btn-row"><button type="button" class="btn" data-act="report" data-arg="${id}" data-key="report">마무리 글 만들기</button></div>
+        ${state.report ? `<pre class="report">${esc(state.report)}</pre><button type="button" class="link" data-act="copy-report" data-key="copy-report">글 복사</button>` : ''}
+        <label class="check gap"><input type="checkbox" id="wrap-ok">집계를 확인했어요</label>
+        <div class="btn-row"><button class="btn primary">마무리 확정</button></div>${statusLine()}</form>`;
+    }
+    return { title: '일정', back: true, body: `<h2 class="t1">${esc(e.title)}</h2><div class="facts"><p>${fmtDate(e.date)} ${e.time}–${e.end} · ${esc(e.place)}</p><p class="sub">${status(e)}</p></div>
+      <div class="subtabs" role="tablist">${[['poll', '참석 투표'], ['att', '당일 출석'], ['wrap', '마무리']].map(([key, text]) => `<button type="button" role="tab" class="subtab" data-act="event-tab" data-arg="${key}" data-key="tab-${key}" aria-selected="${tab === key}">${text}</button>`).join('')}</div>${panel}` };
+  };
+  screens['event-form'] = ({ id }) => {
+    const e = byId(id) ?? { title: '일요 정기 운동', kind: '정기', date: '2026-12-13', time: '10:00', end: '13:00', place: '시민체육관 2층', deadline: '2026-12-12T21:00', early: '9:30', late: '9:50', notes: '' };
+    const kind = state.form.kind ?? e.kind;
+    return { title: id ? '일정 고치기' : '새 일정', back: true, body: `<form data-form="event" data-id="${id ?? ''}" novalidate>
+      <div class="field"><span id="kind-label">종류</span><div class="kinds" role="group" aria-labelledby="kind-label">${['정기', '번개', '대회', '모임'].map(k => `<button type="button" class="choice" data-act="kind" data-arg="${k}" data-key="kind-${k}" aria-pressed="${kind === k}">${k}</button>`).join('')}</div></div>
+      ${field('ev-title', '이름', 'maxlength="40"', e.title)}${field('ev-date', '날짜', 'type="date"', e.date)}
+      <div class="grid2">${field('ev-time', '시작', 'type="time"', e.time)}${field('ev-end', '끝', 'type="time"', e.end)}</div>
+      ${field('ev-place', '장소', 'maxlength="40"', e.place)}${field('ev-deadline', '투표 마감', 'type="datetime-local"', e.deadline)}
+      <details class="fold gap"><summary><span>선발·후발 시간과 안내 더 적기</span>${icon('chev', 18)}</summary><div class="grid2">${field('ev-early', '선발', '', e.early)}${field('ev-late', '후발', '', e.late)}</div><div class="field"><label for="ev-notes">회원에게 보일 안내</label><textarea id="ev-notes" name="ev-notes" maxlength="500">${esc(kept('ev-notes', e.notes))}</textarea></div></details>
+      <div class="btn-row"><button class="btn primary">${id ? '고친 내용 저장' : '일정 만들기'}</button></div>${statusLine()}${id ? '' : '<p class="sub">만든 일정은 공개하기 전까지 회원에게 보이지 않아요.</p>'}</form>` };
+  };
+  screens.member = ({ id }) => {
+    const m = members.find(x => x.id === id);
+    return { title: '회원', back: true, body: `<form data-form="member" data-id="${id}" novalidate>${field('mb-name', '이름', 'maxlength="20"', m.name)}
+      <label class="check gap"><input type="checkbox" id="mb-active"${m.active ? ' checked' : ''}>활동 중 (끄면 쉬는 회원)</label>
+      <label class="check"><input type="checkbox" id="mb-org"${m.organizer ? ' checked' : ''}>운영진 권한</label>
+      <div class="btn-row"><button class="btn primary">저장</button></div>${statusLine()}</form>
+      ${label('로그인이 안 될 때')}${state.temp ? `<p><strong>임시 번호 ${state.temp}</strong></p><p class="sub">${esc(m.name)} 님에게 전해 주세요. 로그인하면 새 번호를 정하게 돼요.</p>` : rowsOf([row('temp', id, '비밀번호 재설정', '임시 번호를 만들어 전해요')])}` };
+  };
+  screens['member-form'] = () => ({ title: '회원 추가', back: true, body: `<form data-form="member-new" novalidate>${field('nm-name', '이름', 'maxlength="20" autocomplete="off"')}${field('nm-birth', '생년월일 6자리', 'inputmode="numeric" maxlength="6" autocomplete="off"')}<p class="sub" style="margin-top:6px">첫 로그인 번호로 쓰여요.</p><div class="btn-row"><button class="btn primary">회원 추가</button></div>${statusLine()}</form>` });
+  screens.progress = () => {
+    const met = members.filter(m => m.marks >= rules.goal).length;
+    return { title: '반기 집계', back: true, body: `<section class="now"><p class="when">2026년 하반기 · 목표 ${rules.goal}회</p><h2 class="t1">목표를 채운 회원 ${met} / ${members.length}명</h2></section>
+      <div class="field"><label for="progress-q">이름으로 찾기</label><input id="progress-q" type="search" autocomplete="off" data-filter="progress-rows"></div>
+      <ul class="rows gap" id="progress-rows">${members.map(m => `<li data-name="${esc(m.name)}">${plain(esc(m.name), m.rewarded ? '콕 받음' : m.marks >= rules.goal ? '콕 받을 수 있음' : '', `${Math.min(m.marks, rules.goal)} / ${rules.goal}회`)}</li>`).join('')}</ul>` };
+  };
+  screens.rules = () => ({ title: '모임 규칙', back: true, body: `<form data-form="rules" novalidate>
+    <div class="field"><label for="rl-periods">집계 구간</label><select id="rl-periods">${[['1', '반기 통째로'], ['2', '둘로 나눠서'], ['3', '셋으로 나눠서'], ['6', '매달']].map(([v, t]) => `<option value="${v}"${kept('rl-periods', rules.periods) === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+    ${field('rl-goal', '구간 목표 (회)', 'inputmode="numeric" maxlength="2"', rules.goal)}
+    ${label('세는 일정 종류')}${['정기', '번개', '대회', '모임'].map(k => `<label class="check"><input type="checkbox" name="rl-kind" value="${k}"${rules.kinds.includes(k) ? ' checked' : ''}>${k}</label>`).join('')}
+    ${label('콕 수령')}<label class="check"><input type="radio" name="rl-reward" value="manual"${rules.reward === 'manual' ? ' checked' : ''}>운영진이 직접 표시</label><label class="check"><input type="radio" name="rl-reward" value="mark"${rules.reward === 'mark' ? ' checked' : ''}>목표를 채우면 받을 수 있다고 표시</label>
+    <div class="btn-row"><button class="btn primary">규칙 저장</button></div>${statusLine()}</form>` });
+
+  // 그리기
+  function view() {
+    const top = state.stack.at(-1);
+    return top ? screens[top.name](top) : roots[state.role][state.tab[state.role]]();
+  }
+  let toastTimer, lastMark = -1;
+  const tabButton = current => ([id, text, glyph]) => `<button type="button" class="tab" data-act="tab" data-arg="${id}" data-key="tab-${id}" title="${text}"${current === id ? ' aria-current="page"' : ''}>${icon(glyph, 22)}<span>${text}</span></button>`;
+  const brand = () => `<div class="brand"><img src="shuttlecock-icon-96.png" alt="" width="26" height="26">${CLUB}</div>`;
+  function render(dir = '') {
+    const v = view(), tabs = TABS[state.role], current = state.tab[state.role];
+    const key = dir ? null : document.activeElement?.dataset?.key;
+    const mark = tabs.slice(0, 4).findIndex(([id]) => id === current);
+    app.innerHTML = `<nav class="side" aria-label="메뉴"><div class="side-in">${brand()}${tabs.map(tabButton(current)).join('')}</div></nav>
+      <div class="col"><header class="bar"><div class="bar-in">${v.back ? `<button type="button" class="back" data-act="back" data-key="back">${icon('back', 20)}<span>뒤로</span></button>` : ''}<div class="crumb">${v.back ? '' : `<span>${CLUB}</span><span>/</span>`}<h1>${v.title}</h1></div>${v.action ?? ''}<button type="button" class="icon-btn m-only" data-act="menu" data-key="menu" aria-label="메뉴 열기">${icon('menu')}</button></div></header>
+      <main class="main ${dir}" id="main" tabindex="-1">${v.body}</main></div>
+      <nav class="tabs" aria-label="바로가기"${mark >= 0 && lastMark >= 0 && lastMark !== mark ? ' data-slide' : ''} style="--at:${Math.max(mark, 0)};--was:${Math.max(lastMark, 0)}">${mark >= 0 ? '<span class="tab-mark"></span>' : ''}${tabs.slice(0, 4).map(tabButton(current)).join('')}</nav>${state.flash ? `<div class="toast" role="status">${esc(state.flash)}</div>` : ''}`;
+    lastMark = mark;
+    if (dir && dir !== 'enter') { window.scrollTo(0, 0); document.getElementById('main').focus({ preventScroll: true }); }
+    else if (key) [...app.querySelectorAll('[data-key]')].find(el => el.dataset.key === key && el.offsetParent)?.focus({ preventScroll: true });
+    for (const b of document.querySelectorAll('[data-lab]')) b.setAttribute('aria-pressed', String(String(state[b.dataset.lab]) === b.dataset.v));
+    document.getElementById('lab-now').textContent = `${state.role === 'organizer' ? '운영진' : '회원'} · ${{ before: '전날', today: '당일', after: '끝난 뒤' }[state.moment]}`;
+  }
+  // 휴대폰의 전체 메뉴: 오른쪽에서 들어오는 서랍. ×, 바깥, Esc로 닫힌다.
+  const drawer = document.getElementById('drawer');
+  function openMenu() {
+    const account = state.role === 'member' && !state.signedIn ? `<button type="button" class="tab" data-act="open" data-arg="login:">${icon('user', 22)}<span>로그인</span></button>` : `<button type="button" class="tab" data-act="logout">${icon('back', 22)}<span>로그아웃</span></button>`;
+    drawer.innerHTML = `<div class="drawer-head">${brand()}<button type="button" class="icon-btn" data-act="menu-close" aria-label="메뉴 닫기">${icon('x')}</button></div><div class="drawer-list">${TABS[state.role].map(tabButton(state.tab[state.role])).join('')}${account}</div>`;
+    drawer.showModal();
+  }
+  drawer.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-act]');
+    if (ev.target === drawer || el) drawer.close();
+    if (el && el.dataset.act !== 'menu-close') acts[el.dataset.act]?.(el.dataset.arg ?? '', el);
+  });
+  function toast(text) {
+    state.flash = text; clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { state.flash = ''; app.querySelector('.toast')?.remove(); }, 3500);
+  }
+  const say = (text, err = false) => { state.msg = text; state.err = err; };
+  const clear = () => { state.msg = ''; state.err = false; state.confirm = ''; state.report = ''; state.temp = ''; state.guestOpen = false; state.form = {}; state.vals = {}; };
+  // A form error is said in place: nothing is redrawn, and the first empty field takes the focus.
+  function fail(form, text) {
+    const line = form.querySelector('.status') ?? form.parentElement.querySelector('.status');
+    if (line) { line.textContent = text; line.classList.add('err'); }
+    [...form.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), textarea')].find(el => !el.value.trim())?.focus();
+  }
+  function go(name, id, tab) { clear(); if (name === 'event') state.eventTab = tab || ''; if (name === 'login') state.login = { step: 1, name: '' }; state.stack.push({ name, id: id || '' }); render('push'); }
+  function back() { clear(); state.stack.pop(); render('pop'); }
+  function copy(text, done) {
+    const ok = () => { toast(done); render(); }, fail = () => { toast('복사하지 못했어요. 글을 길게 눌러 복사해 주세요.'); render(); };
+    try { navigator.clipboard.writeText(text).then(ok, fail); } catch { fail(); }
+  }
+  const val = (form, id) => form.querySelector('#' + id)?.value.trim() ?? '';
+
+  const acts = {
+    tab(arg) {
+      const order = TABS[state.role].map(([id]) => id), was = order.indexOf(state.tab[state.role]), deep = state.stack.length;
+      clear(); state.stack = []; state.tab[state.role] = arg;
+      render(order.indexOf(arg) > was ? 'push' : order.indexOf(arg) < was || deep ? 'pop' : '');
+    },
+    menu: () => openMenu(),
+    open(arg) { const [name, id, tab] = arg.split(':'); go(name, id, tab); },
+    back,
+    toast(arg) { toast(arg); render(); },
+    logout() { clear(); state.stack = []; state.role = 'member'; state.signedIn = false; toast('로그아웃했어요. 로그인 전 회원 화면이에요.'); render(); window.scrollTo(0, 0); },
+    'cal-toggle'() { state.calendar = !state.calendar; state.calMonth = ''; render(); },
+    cal(arg) { const [y, m] = (state.calMonth || today().slice(0, 7)).split('-').map(Number); const x = new Date(y, m - 1 + Number(arg), 1); state.calMonth = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`; render(); },
+    slot(arg, el) {
+      const [id, slot] = arg.split(':'), lunch = document.getElementById('lunch');
+      state.draft[id].slot = slot; for (const b of app.querySelectorAll('[data-act="slot"]')) b.setAttribute('aria-pressed', String(b === el));
+      // 불참이면 점심을 묻지 않는다.
+      document.getElementById('lunch-row').hidden = slot === 'no'; if (slot === 'no') { state.draft[id].lunch = false; lunch.checked = false; }
+      const line = app.querySelector('.status'); if (line) line.textContent = ''; say('');
+    },
+    lunch(arg, el) { state.draft[arg].lunch = el.checked; },
+    'save-vote'(id) {
+      const draft = state.draft[id];
+      if (!draft.slot) { say('선발, 후발, 불참 중 하나를 골라 주세요.', true); return render(); }
+      (votes[id] ??= {})[me()] = { slot: draft.slot, lunch: draft.lunch };
+      say(`저장됐어요 · ${slotText(byId(id), votes[id][me()])}`); render();
+    },
+    'cancel-vote'(id) { delete votes[id][me()]; state.draft[id] = { slot: '', lunch: false }; say('응답을 취소했어요.'); render(); },
+    copy(arg) { copy(`https://cockcockcock.pages.dev/clubs/suncok19/${arg.startsWith('n') ? 'notice' : 'vote'}/${arg}`, '링크를 복사했어요. 단체방에 붙여 넣으세요.'); },
+    'event-tab'(arg) { clear(); state.eventTab = arg; render(); },
+    publish(id) { const e = byId(id); e.published = !e.published; toast(e.published ? '회원에게 공개했어요.' : '공개를 내렸어요.'); render(); },
+    close(id) { const e = byId(id); e.closed = !e.closed; toast(e.closed ? '투표를 닫았어요.' : '투표를 다시 열었어요.'); render(); },
+    confirm(arg) { state.confirm = arg; render(); },
+    'cancel-event'(id) { const e = byId(id); e.cancelled = !e.cancelled; state.confirm = ''; toast(e.cancelled ? '일정을 취소했어요.' : '취소를 풀었어요.'); render(); },
+    att(arg, el) {
+      const [id, who] = arg.split(':'); const a = attendance[id] ??= {}; a[who] = !a[who];
+      el.setAttribute('aria-pressed', String(a[who])); const p = presentCount(id);
+      document.getElementById('att-count').textContent = `출석 ${p.members + p.guests}명`;
+    },
+    'att-filter'() { state.onlyMissing = !state.onlyMissing; render(); },
+    'guest-open'() { state.guestOpen = true; render(); document.getElementById('guest-name')?.focus(); },
+    report(id) {
+      const e = byId(id), p = presentCount(id), f = app.querySelector('form[data-form="wrap"]');
+      state.report = `[${CLUB}] ${fmtDate(e.date)} ${e.title}\n출석 ${p.members + p.guests}명 (회원 ${p.members} · 게스트 ${p.guests})\n남은 콕 ${val(f, 'wrap-left') || 0}개 · 코트 찬조금 ${Number(val(f, 'wrap-fee') || 0).toLocaleString('ko-KR')}원\n오늘도 수고하셨습니다.`;
+      render();
+    },
+    'copy-report'() { copy(state.report, '마무리 글을 복사했어요. 단체방에 붙여 넣으세요.'); },
+    kind(arg, el) { state.form.kind = arg; for (const b of app.querySelectorAll('[data-act="kind"]')) b.setAttribute('aria-pressed', String(b === el)); },
+    'pin-notice'(id) { const n = notices.find(x => x.id === id); n.pinned = !n.pinned; toast(n.pinned ? '맨 위에 고정했어요.' : '고정을 풀었어요.'); render(); },
+    'del-notice'(id) { notices.splice(notices.findIndex(x => x.id === id), 1); clear(); state.stack.pop(); toast('공지를 지웠어요.'); render('pop'); },
+    temp() { state.temp = '482913'; render(); },
+  };
+  const submits = {
+    'login-name'(f) { const name = val(f, 'login-name'); if (!name) return fail(f, '성함을 적어 주세요.'); state.login = { step: 2, name }; say(''); render('push'); document.getElementById('login-code')?.focus(); },
+    'login-code'(f) {
+      if (!/^\d{6}$/.test(val(f, 'login-code'))) return fail(f, '숫자 6자리를 눌러 주세요.');
+      state.signedIn = true; clear(); state.stack.pop(); toast('로그인했어요. 이 휴대폰에서는 6개월 동안 유지돼요.'); render('pop');
+    },
+    notice(f) {
+      const title = val(f, 'notice-title'), body = val(f, 'notice-body');
+      if (!title || !body) return fail(f, '제목과 내용을 모두 적어 주세요.');
+      const n = notices.find(x => x.id === f.dataset.id);
+      if (n) Object.assign(n, { title, body }); else notices.push({ id: 'n' + (notices.length + 4), title, body, date: today(), pinned: false });
+      clear(); state.stack.pop(); toast(n ? '공지를 고쳤어요.' : '공지를 올렸어요.'); render('pop');
+    },
+    event(f) {
+      const data = { title: val(f, 'ev-title'), kind: state.form.kind, date: val(f, 'ev-date'), time: val(f, 'ev-time'), end: val(f, 'ev-end'), place: val(f, 'ev-place'), deadline: val(f, 'ev-deadline'), early: val(f, 'ev-early'), late: val(f, 'ev-late'), notes: val(f, 'ev-notes') };
+      if (!data.title || !data.date || !data.time || !data.place || !data.deadline) return fail(f, '이름, 날짜, 시작, 장소, 투표 마감을 채워 주세요.');
+      const e = byId(f.dataset.id);
+      if (!data.kind) delete data.kind;
+      if (e) Object.assign(e, data); else { const id = 'e' + (events.length + 4); events.push({ id, kind: '정기', published: false, ...data }); votes[id] = {}; }
+      clear(); state.stack.pop(); toast(e ? '일정을 고쳤어요.' : '일정을 만들었어요. 공개하면 회원에게 보여요.'); render('pop');
+    },
+    guest(f) { const name = val(f, 'guest-name'); if (!name) return fail(f, '게스트 이름을 적어 주세요.'); (guests[f.dataset.id] ??= []).push({ id: 'g' + Date.now(), name }); say(''); state.guestOpen = false; toast(`${name} 님을 게스트로 넣었어요.`); render(); },
+    wrap(f) {
+      if (!f.querySelector('#wrap-ok').checked) return fail(f, '집계를 확인했다는 표시를 먼저 눌러 주세요.');
+      const e = byId(f.dataset.id); e.settled = true; e.present = presentCount(e.id).members;
+      say(''); toast('마무리를 확정했어요.'); render();
+    },
+    member(f) {
+      const m = members.find(x => x.id === f.dataset.id), name = val(f, 'mb-name');
+      if (!name) return fail(f, '이름을 적어 주세요.');
+      Object.assign(m, { name, active: f.querySelector('#mb-active').checked, organizer: f.querySelector('#mb-org').checked }); say('저장했어요.'); render();
+    },
+    'member-new'(f) {
+      const name = val(f, 'nm-name');
+      if (!name || !/^\d{6}$/.test(val(f, 'nm-birth'))) return fail(f, '이름과 생년월일 숫자 6자리를 적어 주세요.');
+      members.push({ id: 'm' + members.length, name, organizer: false, active: true, marks: 0, rewarded: false });
+      clear(); state.stack.pop(); toast(`${name} 님을 추가했어요.`); render('pop');
+    },
+    rules(f) {
+      const goal = Number(val(f, 'rl-goal'));
+      if (!(goal >= 1 && goal <= 20)) return fail(f, '구간 목표는 1회부터 20회까지예요.');
+      Object.assign(rules, { periods: f.querySelector('#rl-periods').value, goal, kinds: [...f.querySelectorAll('[name="rl-kind"]:checked')].map(x => x.value), reward: f.querySelector('[name="rl-reward"]:checked').value });
+      say('규칙을 저장했어요.'); render();
+    },
+  };
+  app.addEventListener('click', ev => { const el = ev.target.closest('[data-act]'); if (el && acts[el.dataset.act]) acts[el.dataset.act](el.dataset.arg ?? '', el); });
+  app.addEventListener('submit', ev => { ev.preventDefault(); submits[ev.target.dataset.form]?.(ev.target); });
+  app.addEventListener('input', ev => {
+    const list = ev.target.dataset.filter && document.getElementById(ev.target.dataset.filter);
+    if (list) for (const li of list.children) li.hidden = !li.dataset.name.includes(ev.target.value.trim());
+    else if (ev.target.id && !['checkbox', 'radio'].includes(ev.target.type)) state.vals[ev.target.id] = ev.target.value;
+  });
+  document.getElementById('lab').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-lab]'); if (!b) return;
+    const key = b.dataset.lab, v = b.dataset.v;
+    state[key] = key === 'signedIn' ? v === 'true' : v;
+    if (key === 'signedIn') state.role = 'member';
+    if (key !== 'menu') { clear(); state.stack = []; state.eventTab = ''; state.calMonth = ''; }
+    if (key === 'moment' && v === 'after' && !Object.keys(attendance.e1 ?? {}).length) {
+      attendance.e1 = {}; Object.keys(votes.e1).slice(0, 13).forEach(id => { attendance.e1[id] = true; }); attendance.e1.g0 = attendance.e1.g1 = true;
+    }
+    render();
+  });
+  render('enter');
+})();
+</script>
