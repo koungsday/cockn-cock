@@ -625,7 +625,10 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 /* Shared form pickers keep the original control in the form for submission. */
 .picker-native { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; pointer-events: none; clip-path: inset(50%); }
 .form-picker { display: block; min-width: 0; }
-.picker-trigger, .picker-option, .picker-days button, .picker-month > button {
+.picker-trigger, .picker-option, .picker-days button, .picker-heading { margin-bottom: 8px; }
+.picker-close { width: var(--touch-target); height: var(--touch-target); font-size: var(--t2); }
+.picker-popup > [role=status]:empty { display: none; }
+.picker-month > button {
   min-height: var(--touch-target); font: inherit; color: var(--ink); cursor: pointer;
 }
 .picker-trigger {
@@ -644,7 +647,10 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
   max-height: min(70dvh, 460px); overflow: auto;
   padding: 12px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); color: var(--ink);
 }
-.picker-month { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.picker-heading, .picker-month { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.picker-heading { margin-bottom: 8px; }
+.picker-close { width: var(--touch-target); height: var(--touch-target); font-size: var(--t2); }
+.picker-popup > [role=status]:empty { display: none; }
 .picker-month > button { min-width: var(--touch-target); }
 .picker-month > button:not(.btn), .picker-option, .picker-days button {
   border: 0; border-radius: 8px; background: var(--hint);
