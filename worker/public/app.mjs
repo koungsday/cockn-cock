@@ -874,8 +874,8 @@ async function doAction(action, itemId, tab) {
       await copy(shareLink('vote', itemId || state.selectedEvent), '투표 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
     case 'copy-vote-closed': {
-      const event = state.detail?.event.id === itemId ? state.detail.event : state.admin?.events.find(entry => entry.id === itemId);
-      if (!event?.published || event.canVote || event.cancelled) throw new Error('일정 상태가 바뀌었어요. 새로고침한 뒤 확인해 주세요.');
+      const event = state.section === 'home' ? state.upcoming?.event : state.detail?.event;
+      if (event?.id !== itemId || !event.published || event.canVote || event.cancelled) throw new Error('일정 상태가 바뀌었어요. 새로고침한 뒤 확인해 주세요.');
       await copy(`${event.title} 투표가 마감됐어요. 일정과 내 응답은 아래 링크에서 확인해 주세요.\n${shareLink('vote', event.id)}`,
         '마감 안내를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
@@ -1137,7 +1137,8 @@ async function doSubmit(kind, itemId, data) {
         receivedShuttles: read(data, 'receivedShuttles') === '' ? null : Number(read(data, 'receivedShuttles')),
       };
       if (itemId) guest.id = itemId;
-      await update(`${adminEventPath()}/guests`, 'POST', guest, '게스트 정보를 저장했어요.');
+      // A stale new tab must get a 404 on the old Worker, whose guest route ignores the payment fields.
+      await update(`${adminEventPath()}/guest-records`, 'POST', guest, '게스트 정보를 저장했어요.');
       break;
     }
     case 'settlement': {

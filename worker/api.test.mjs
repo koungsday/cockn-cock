@@ -995,7 +995,7 @@ test('guest payments and shuttle stock carry from the preceding confirmed sessio
   assert.deepEqual(initial.carryStock, {shuttles:17, date:old.date, time:old.time});
   const fields = {name:'가상 게스트', status:'arrived', paid:true};
   const guestPath = path(current) + '/guests';
-  const stored = await admin.request(guestPath, {method:'POST', body:{...fields, transferWon:5000, receivedShuttles:2}, expect:201});
+  const stored = await admin.request(path(current) + '/guest-records', {method:'POST', body:{...fields, transferWon:5000, receivedShuttles:2}, expect:201});
   const {id} = stored.guest;
   const olderEdit = await admin.request(guestPath, {method:'POST', body:{...fields, id, status:'confirmed'}});
   assert.deepEqual([olderEdit.guest.transferWon, olderEdit.guest.receivedShuttles], [5000, 2]);
