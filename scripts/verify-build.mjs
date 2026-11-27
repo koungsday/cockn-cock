@@ -130,8 +130,8 @@ for (const marker of ['public-share-card member-next', 'member-next-action', 'me
 // checked in worker/calendar.test.mjs.
 for (const hash of ['#events', '#member-events']) {
   const page = openDemo(() => hash).html;
-  assert.match(page, /data-action="calendar-toggle">달력 접기</, `${hash} offers to fold the calendar`);
-  assert.match(page, /<div class="calendar" data-month=/, `${hash} opens with the calendar`);
+  assert.match(page, /data-action="calendar-toggle" aria-expanded="true" aria-controls="calendar-panel" aria-label="달력 접기"[^>]*><svg/, `${hash} offers to fold the calendar with an icon`);
+  assert.match(page, /id="calendar-panel"><div class="calendar" data-month=/, `${hash} opens with the calendar`);
 }
 assert(home.includes(`href="${basePath}share.css"`));
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);

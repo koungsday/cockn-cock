@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calendarBlock, calendarDayPanel, calendarTarget, shiftMonth } from './public/calendar.mjs';
+import { calendarBlock, calendarDayPanel, calendarPanel, calendarTarget, calendarToggle, shiftMonth } from './public/calendar.mjs';
 
 const icon = name => `<svg data-icon="${name}"></svg>`;
 const cells = html => [...html.matchAll(/<li class="(calendar-day[^"]*)"[^>]*>([\s\S]*?)<\/li>/g)].map(([, css, body]) => ({ css, body }));
+
+test('the icon toggle names the action and points at the same panel when folded', () => {
+  for (const [open, label] of [[true, '달력 접기'], [false, '달력으로 보기']]) {
+    const html = calendarToggle(open, icon);
+    assert.match(html, new RegExp(`aria-expanded="${open}" aria-controls="calendar-panel" aria-label="${label}"`));
+    assert.match(html, /><svg data-icon="calendar"><\/svg><\/button>$/);
+  }
+  assert.equal(calendarPanel(''), '<div class="calendar-fold" id="calendar-panel"></div>');
+});
 
 test('months move across the year', () => {
   assert.equal(shiftMonth('2026-12', 1), '2027-01');

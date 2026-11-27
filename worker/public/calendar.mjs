@@ -7,6 +7,49 @@ const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
 const dayLabel = date => `${date.getUTCMonth() + 1}월 ${date.getUTCDate()}일 ${weekdays[date.getUTCDay()]}요일`;
 
+export function calendarToggle(open, icon) {
+  const label = open ? '달력 접기' : '달력으로 보기';
+  return `<button type="button" class="icon-button calendar-toggle" data-action="calendar-toggle" aria-expanded="${open}" aria-controls="calendar-panel" aria-label="${label}" title="${label}">${icon('calendar', 20)}</button>`;
+}
+
+export function calendarPanel(content) {
+  return `<div class="calendar-fold" id="calendar-panel">${content}</div>`;
+}
+
+export function redrawCalendar(root, redraw) {
+  const focused = document.activeElement;
+  const inside = root.contains(focused);
+  redraw();
+  if (focused !== document.body && (!inside || focused.isConnected)) return;
+  const replacement = [...root.querySelectorAll('a[href], button[data-action], .event-past > summary')].find(control =>
+    control.getClientRects().length && control.tagName === focused.tagName &&
+    (control.href ? control.href === focused.href :
+      control.dataset.action ? control.dataset.action === focused.dataset.action && control.dataset.id === focused.dataset.id :
+        focused.matches('.event-past > summary')));
+  (replacement ?? root.querySelector('.calendar-toggle'))?.focus({ preventScroll: true });
+}
+
+export function animateCalendarFold(panel, opening) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const height = panel.getBoundingClientRect().height;
+  const style = getComputedStyle(panel);
+  panel.inert = true;
+  panel.dataset.folding = '';
+  const animation = panel.animate(opening ? [{ height: '0px' }, { height: `${height}px` }] :
+    [{ height: `${height}px` }, { height: '0px' }], {
+    duration: parseFloat(style.getPropertyValue('--dur-arrive')),
+    easing: style.getPropertyValue('--ease-settle').trim(),
+    fill: 'both',
+  });
+  return animation.finished.catch(error => {
+    if (error.name !== 'AbortError') throw error;
+  }).finally(() => {
+    animation.cancel();
+    delete panel.dataset.folding;
+    panel.inert = false;
+  });
+}
+
 // month 'YYYY-MM' moved by step months.
 export function shiftMonth(month, step) {
   const [year, index] = month.split('-').map(Number);

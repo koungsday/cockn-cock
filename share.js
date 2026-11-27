@@ -285,7 +285,8 @@
       const dayRows = selected ? memberEvents(state, helpers, selected).map(eventRow) : [];
       return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
         <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${helpers.calendarToggle()}</div>
-        ${helpers.calendarOpen() ? helpers.calendar(state.events) : ''}${window.clubCalendar.calendarDayPanel(selected, dayRows, {listClass:'member-records'})}
+        ${window.clubCalendar.calendarPanel(helpers.calendarOpen() ? helpers.calendar(state.events)
+          + window.clubCalendar.calendarDayPanel(selected, dayRows, {listClass:'member-records'}) : '')}
         <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div></div></section>`, helpers);
     }
     if (route.page === 'member-notices') {

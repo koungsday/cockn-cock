@@ -729,7 +729,6 @@
 .main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: 14px 0 0; color: var(--muted); font-size: var(--t4); font-weight: 400; }
 /* The top bar already names the screen (썬콕19 / 일정): the list's own h1 stays for reading programs and focus only. */
 .main-content .member-list h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.main-content .member-list .calendar { margin: 4px 0 12px; }
 .main-content .member-records { border-top: 1px solid var(--line); }
 .main-content .member-record { border-bottom: 1px solid var(--line); }
 .main-content .member-record + .member-record { border-top: 0; }

@@ -219,7 +219,6 @@
     const member = memberView(currentRoute);
     const schedule = !member && menuPage() === 'events';
     const eventDetail = schedule && currentRoute.page === 'event';
-    const calendarList = currentRoute.page === 'events' || currentRoute.page === 'member-events';
     app.innerHTML = `
       <aside class="sidebar">
         ${brand()}
@@ -233,7 +232,7 @@
           ${viewSwitch(member)}
         </div>
       </aside>
-      <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
+      <div class="main-shell${schedule ? ' schedule-shell' : ''}">
         <header class="topbar"><div class="topbar-inner">
           ${eventDetail ? `<a class="btn btn-text schedule-back" href="#events" data-route="events">${icon('arrow-left',20)} 뒤로</a>` : ''}
           <div class="breadcrumb">
@@ -344,7 +343,7 @@
   // 당일 출석 (screens.js attendance): 미확인만 보기, and the member just checked, whose check is drawn once.
   function onlyUnmarked() { return Boolean(ui.onlyUnmarked); }
   function justChecked() { return ui.justChecked; }
-  function calendarToggle() { return `<button class="btn btn-text btn-small calendar-toggle" type="button" data-action="calendar-toggle">${calendarOpen() ? '달력 접기' : '달력으로 보기'}</button>`; }
+  function calendarToggle() { return window.clubCalendar.calendarToggle(calendarOpen(), icon); }
   function pollIsOpen(event) {
     return event.pollOpen && !event.finalized && !event.cancelled && !deadlinePassed(event);
   }
@@ -549,7 +548,7 @@
       app.querySelector(`${visible} [data-route="${CSS.escape(roleSwitchFocus.dataset.route)}"]`)?.focus({preventScroll:true});
     }
   });
-  function handleClick(ev) {
+  async function handleClick(ev) {
     const control = ev.target.closest('[data-route], [data-action]');
     if (!control) return;
     if (control.dataset.route) {
@@ -583,10 +582,17 @@
       return;
     }
     if (action === 'calendar-toggle') {
-      ui.calendarOpen = !ui.calendarOpen;
+      const panel = app.querySelector('#calendar-panel');
+      const { animateCalendarFold, redrawCalendar } = window.clubCalendar;
+      if (panel.hasAttribute('data-folding')) return;
+      control.focus({ preventScroll: true });
+      const opening = !ui.calendarOpen;
+      if (!opening) await animateCalendarFold(panel, false);
+      if (!panel.isConnected) return;
+      ui.calendarOpen = opening;
       ui.calendarDate = '';
-      renderPage();
-      app.querySelector('.calendar-toggle')?.focus({preventScroll:true});
+      redrawCalendar(app, renderPage);
+      if (opening) await animateCalendarFold(app.querySelector('#calendar-panel'), true);
       return;
     }
     // 미확인만 보기 (the live att-filter): hides the checked rows in place, no redraw.
@@ -848,7 +854,7 @@
       const isNew = !id;
       const member = state.members.find(item => item.id === id) || {id:idFor('member'),joined:today};
       if (isNew) state.members.push(member);
-      Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),notes:value('notes')});
+      Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),gender:value('gender'),notes:value('notes')});
       if (member.status === 'inactive') {
         for (const event of state.events) {
           if (event.capacity && event.date >= today && !event.finalized && event.votes[member.id] && event.votes[member.id] !== 'no') {
