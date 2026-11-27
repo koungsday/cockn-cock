@@ -1113,17 +1113,18 @@ export function memberForm(member = null) {
     })}</div>`), member ? '회원 저장' : '회원 등록', member?.id);
 }
 
-// 비밀번호 재설정 under 회원 수정, apart from 회원 저장, in the words the user chose (2026-11-27). Each line holds for
-// worker/api.mjs resetMember: a new six-digit temporary number shown once, the old number replaced and every sign-in
-// ended, votes and attendance kept; the member signs in with it and sets a PIN (내 기록 PIN 만들기 / 번호 바꾸기). It still
-// asks once more (app.mjs reset-member). The demo's 회원 수정 (screens.js memberDialog) has the same section.
+// 비밀번호 재설정 under 회원 수정, apart from 회원 저장, read by 운영진: the user's layout (one line, three steps, a ※ note)
+// matched to what happens (2026-11-27). worker/api.mjs resetMember: a new six-digit temporary number shown once in the
+// 접속 안내 (접속 안내 복사), the old number replaced and every sign-in ended, votes and attendance kept, no undo. The member
+// signs in with it; a member sets a PIN under 내 기록 (PIN 만들기), one with the 운영 권한 must, from 홈 (내 번호 정하기),
+// before the 운영 메뉴 opens (views.mjs pinCard, operating). It still asks once more (app.mjs reset-member). The demo's 회원 수정 (screens.js memberDialog) has the same section.
 export function memberAccess(member) {
   return `<section class="member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">비밀번호 재설정</h3>
-    <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급받습니다.</p>
+    <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급합니다. 되돌릴 수 없습니다.</p>
     <ol class="member-access-steps">
       <li>기존 비밀번호는 즉시 삭제되고, 모든 기기에서 로그아웃됩니다.</li>
-      <li>화면에 뜨는 임시 번호 6자리를 꼭 기억해 주세요. (창을 닫으면 다시 안 보입니다.)</li>
-      <li>이름과 임시 번호로 로그인 후, 새 비밀번호로 변경해 주세요.</li>
+      <li>발급 후 뜨는 접속 안내(임시 번호 6자리 포함)를 '접속 안내 복사'로 복사해 회원에게 보내 주세요. (창을 닫으면 다시 볼 수 없습니다.)</li>
+      <li>회원은 이름과 임시 번호로 로그인한 뒤, 내 기록의 'PIN 만들기'에서 새 번호로 바꿀 수 있습니다. 운영 권한이 있는 회원은 홈의 '내 번호 정하기'로 새 번호를 정해야 운영 메뉴가 열립니다.</li>
     </ol>
     <p class="form-note">※ 기존 투표 및 출석 기록은 그대로 유지됩니다.</p>
     ${button('비밀번호 재설정', 'reset-member', { id: member.id, css: 'secondary', disabled: !member.active, label: `${member.name} 비밀번호 재설정` })}
