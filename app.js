@@ -325,7 +325,7 @@
   // cancelled quiet. ui.calendarMonth is the month picked, this month when none was.
   function calendar(events) {
     const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
-      regular:(event.kind ?? 'regular') === 'regular', done:`${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow)}));
+      done:`${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), selected:ui.calendarDate, today, icon});
   }
   function selectedCalendarDate() { return ui.calendarDate; }
@@ -759,7 +759,8 @@
   document.addEventListener('change', ev => {
     const input = ev.target;
     if (['event','repeat'].includes(input.form?.dataset.form)) {
-      for (const key of ['deadline','endTime','date','lateTime']) input.form.elements.namedItem(key)?.setCustomValidity('');
+      // A message about how two fields fit (종료 시간, 후발, 투표 마감) goes when either one or 투표 열기 changes.
+      for (const key of ['deadline','deadlineTime','time','endTime','earlyTime','lateTime','date']) input.form.elements.namedItem(key)?.setCustomValidity('');
     }
     const filter = {'member-status':'memberStatus', 'stats-month':'statsMonth', 'stats-gender':'statsGender'}[input.dataset.filter];
     if (filter) {
@@ -940,9 +941,10 @@
   modal.addEventListener('close', () => {
     // A save redraws the page: the opener's twin (same action and id, like the 연필 of the row just saved) takes the focus,
     // as the live matchingControl does.
-    const {action, id} = dialogTrigger?.dataset ?? {};
+    // data-kind names which row of the event it was (a guest, a member), so the twin is that row and not the first one.
+    const {action, id, kind} = dialogTrigger?.dataset ?? {};
     const twin = !dialogTrigger?.isConnected && action && id
-      ? app.querySelector(`[data-action="${CSS.escape(action)}"][data-id="${CSS.escape(id)}"]`) : null;
+      ? app.querySelector(`[data-action="${CSS.escape(action)}"][data-id="${CSS.escape(id)}"]${kind ? `[data-kind="${CSS.escape(kind)}"]` : ':not([data-kind])'}`) : null;
     (dialogTrigger?.isConnected ? dialogTrigger : twin)?.focus({preventScroll:true});
   });
   window.addEventListener('hashchange', () => {

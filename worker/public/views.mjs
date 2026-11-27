@@ -966,7 +966,7 @@ export function voteRoster(event, roster, foldOpen = false, locked = false) {
   const answered = roster.filter(person => person.slot && !person.waitingPosition).sort((a, b) => order[a.slot] - order[b.slot] || byName(a, b));
   return `<section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
     ${silent.length ? `<ul class="name-list">${silent.map(person => row(person, '')).join('')}</ul>` : `<p class="muted home-empty">${roster.some(person => person.active) ? '모두 응답했어요.' : '이 일정에 등록된 회원이 없습니다.'}</p>`}
-    ${waiting.length ? `<h2>대기 ${waiting.length}명</h2><ul class="name-list">${waiting.map(person => row(person,
+    ${waiting.length ? `<header class="list-tools"><h2>대기 ${waiting.length}명</h2></header><ul class="name-list">${waiting.map(person => row(person,
       `대기 ${person.waitingPosition}번 · ${voteLabel(person.slot, event)}`)).join('')}</ul>` : ''}
     ${answered.length ? `<details class="event-past"${foldOpen ? ' open' : ''}><summary>응답한 ${answered.length}명${icon('chevron-right', 16)}</summary><ul class="name-list">${answered.map(person =>
       row(person, `${voteLabel(person.slot, event)}${person.lunch ? ' · 점심' : ''}${person.active ? '' : ' · 비활성'}`)).join('')}</ul></details>` : ''}</section>`;

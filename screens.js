@@ -114,14 +114,14 @@
         const waiting = members.filter(position).sort((a, b) => position(a) - position(b));
         const answered = members.filter(member => event.votes[member.id] && !position(member)).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
         return `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts"><p class="vote-total">응답 ${responded} / ${report.total}명</p>
-            ${event.capacity ? `<p class="muted">정원 ${event.capacity}명 · 확정 ${report.yes}명 · 대기 ${report.waiting}명</p>` : ''}
+            ${event.capacity ? `<p class="muted">정원 ${event.capacity}명 · 확정 ${report.yes}명${report.waiting ? ` · 대기 ${report.waiting}명` : ''}</p>` : ''}
             <p class="muted">선발 ${report.early} · 후발 ${report.late} · 불참 ${report.no} · 점심 ${report.lunch}</p>
             <svg class="now-meter" viewBox="0 0 ${Math.max(report.total, 1)} 1" preserveAspectRatio="none" role="img" aria-label="응답 ${responded}/${report.total}명"><rect width="${responded}" height="1"/></svg></div>
             <div class="now-actions">${action(closed ? '마감 안내 복사' : '투표 링크 복사', closed ? 'copy-vote-closed' : 'copy-link', event.id, {tone: pollAvailable || closed ? 'primary' : 'secondary', extra: 'data-kind="vote"'})}</div>
             ${pollAvailable && members.length ? `<a class="btn btn-text now-own" href="#public-vote/${encodeURIComponent(event.id)}" data-route="public-vote/${encodeURIComponent(event.id)}">회원 화면 체험</a>` : ''}</section>
           <section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
             ${silent.length ? `<ul class="name-list">${silent.map(member => row(member, '')).join('')}</ul>` : `<p class="muted home-empty">${members.length ? '모두 응답했어요.' : '이 일정에 등록된 멤버가 없어요.'}</p>`}
-            ${waiting.length ? `<h2>대기 ${waiting.length}명</h2><ul class="name-list">${waiting.map(member => row(member, `대기 ${position(member)}번`)).join('')}</ul>` : ''}
+            ${waiting.length ? `<header class="list-tools"><h2>대기 ${waiting.length}명</h2></header><ul class="name-list">${waiting.map(member => row(member, `대기 ${position(member)}번 · ${slotLabel(event.votes[member.id])}`)).join('')}</ul>` : ''}
             ${answered.length ? `<details class="event-past"><summary>응답한 ${answered.length}명${icon('chevron-right', 16)}</summary><ul class="name-list">${answered.map(member =>
               row(member, `${slotLabel(event.votes[member.id])}${event.lunch[member.id] ? ' · 점심' : ''}`)).join('')}</ul></details>` : ''}</section>`;
       }
@@ -215,7 +215,7 @@
       // last (공지 초안, 투표 마감, 응답 조정, 카톡 미리보기, 일정 취소 in actionsDialog); a cancelled event says so with the
       // way back.
       const cancelled = event.cancelled && !event.finalized
-        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 이 브라우저에서 취소 상태를 확인할 수 있어요.</p>${action('취소 안내 복사', 'copy-event-update', event.id)}${action('취소 풀기', 'restore-event', event.id, { tone: 'text' })}</div>` : '';
+        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 이 브라우저에서 취소 상태를 확인할 수 있어요. 받은 응답은 그대로 있어요.</p>${action('취소 안내 복사', 'copy-event-update', event.id, { tone: 'secondary btn-small' })}${action('취소 풀기', 'restore-event', event.id, { tone: 'text btn-small' })}</div>` : '';
       // 상단 고정 and 일정 수정 as icons at the head's top-right, 더보기 last (the live 회차 박스); the pin shows the state.
       const open = !event.finalized && !event.cancelled;
       const tools = boxActions(
@@ -361,7 +361,7 @@
         group('기본 정보', field('일정 제목', input('title', event.title, 'required maxlength="80" placeholder="제목을 입력해 주세요"'), true)
           + field('장소', input('place', event.place, 'required maxlength="100" placeholder="장소를 입력해 주세요"'), true)
           + field('일정 종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
-          + field('신청 정원 (선택)', input('capacity', event.capacity, 'type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="신청 정원 (선택)"')))
+          + field('신청 정원 (선택)', input('capacity', event.capacity, 'type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="신청 정원 (선택)"') + '<small class="form-note">정원이 차면 대기로 등록돼요.</small>'))
         + group('날짜와 시간', field('날짜', input('date', event.date || today, 'type="date" required'), true)
           + field('시작 시간', input('time', event.time, 'type="time" required'))
           + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
@@ -503,8 +503,8 @@
     function cancelDialog(dialog, state) {
       const event = state.events.find(item => item.id === dialog.id);
       if (!event) return '';
-      return confirm('일정 취소', `<p>"${e(event.title)}" 일정을 취소할까요? 투표가 닫히고 회원 화면에는 "취소됐어요"로 보여요. 받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
-        <p>취소 사유는 일정 수정의 안내 메모에 적으면 회원에게 보여요.</p>`, action('일정 취소하기', 'confirm-cancel-event', event.id, { tone: 'primary' }));
+      return confirm('일정 취소', `<p>"${e(event.title)}" 일정을 취소할까요? 투표가 닫혀요. 회원은 기존 링크에서 취소 상태를 확인할 수 있어요. 받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
+        <p>취소 사유는 일정 수정의 공개 안내에 적으면 회원에게 보여요.</p>`, action('일정 취소하기', 'confirm-cancel-event', event.id, { tone: 'primary' }));
     }
 
     // 회차 메뉴 / 공지 메뉴 (더보기, the live eventMenu / noticeMenu): the rarely used buttons of one event or notice, with
