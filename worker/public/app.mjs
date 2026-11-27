@@ -7,6 +7,7 @@ import {
   rulesScreen, sharePreview, today, voteMetrics,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
+import { loadingKind } from './skeleton.mjs';
 import { flowOrder, koreanNow } from './flow.mjs';
 import { calendarTarget, pickCalendarDay } from './calendar.mjs';
 
@@ -20,11 +21,33 @@ const message = document.querySelector('#message');
 // Matches the width where styles.css shows the sidebar instead of the menu button.
 const desktopNavigation = window.matchMedia('(min-width: 701px)');
 
-// The skeleton of the screen being loaded (skeleton.mjs): the one shell, shaped for the section on the address.
-function showLoading() {
-  const { section } = readHash();
-  main.innerHTML = loadingPage(section === 'home' || section === 'event' ? section : 'list');
+// The skeleton of the screen being loaded (skeleton.mjs loadingKind): the one shell, shaped for the address and the role.
+// organiser: whether the screen will be an organiser's; before the session says, the role this phone had last time.
+function showLoading(organiser) {
+  main.innerHTML = loadingPage(loadingKind(location.hash, organiser), organiser);
   spinShuttlecocks(main);
+}
+
+// The role this phone last opened the club with (a member's when unknown: most come from a 카톡 link), so the first
+// skeleton already has the right shape. Only 'operating' or 'member' is kept, nothing about the person.
+const viewKey = () => `cock-view:${club.home}`;
+function lastOperating() {
+  try {
+    return localStorage.getItem(viewKey()) === 'operating';
+  } catch {
+    return false;
+  }
+}
+// Keeps the role on screen for the next visit; true when it differs from the one kept.
+function rememberView() {
+  const now = operating(state.user);
+  if (now === lastOperating()) return false;
+  try {
+    localStorage.setItem(viewKey(), now ? 'operating' : 'member');
+  } catch {
+    // Without storage every visit starts from a member's skeleton.
+  }
+  return true;
 }
 
 const meta = name => document.querySelector(`meta[name="${name}"]`)?.content.trim() ?? '';
@@ -313,6 +336,7 @@ function sectionScreen(voteSaved) {
 
 // arrive (DESIGN.md 6 섹션 도착): 'next' or 'back' slides the new section in from that side, 'enter' rises the first one.
 function render({ voteSaved = false, motion = '', arrive = '' } = {}) {
+  rememberView();
   main.dataset.motion = motion;
   const lastTab = main.querySelector('.tab-bar')?.dataset.current;
   const search = main.querySelector('input[data-filter]');
@@ -361,7 +385,7 @@ function clearProtectedView() {
   document.title = clubTitle;
   hideMessage();
   main.classList.add('narrow');
-  showLoading();
+  showLoading(false);
 }
 
 function loginExpired() {
@@ -374,6 +398,7 @@ function loginExpired() {
 async function initialize() {
   try {
     ({ user: state.user } = await request('/api/session'));
+    if (rememberView()) showLoading(operating(state.user));
     applyHash();
     await load();
     render({ arrive: 'enter' });
@@ -387,7 +412,8 @@ async function initialize() {
 }
 
 async function openSignedInPage() {
-  showLoading();
+  rememberView();
+  showLoading(operating(state.user));
   try {
     applyHash();
     await load();
@@ -1356,7 +1382,7 @@ desktopNavigation.addEventListener('change', event => {
 if (clubPage && club.name) {
   // A 카톡 link opens its event's vote (#event/<id>) or the notice in the shell, on the shell's own address.
   if (sharedPath) history.replaceState(null, '', `${club.home}#${sharedPath[1] === 'vote' ? 'event' : 'notices'}/${sharedPath[2]}`);
-  showLoading();
+  showLoading(lastOperating());
   document.title = clubTitle;
   clubLink.href = club.home;
   // The logo opens this club's first screen, as the sidebar logo does: never the intro home (DESIGN.md 로고).

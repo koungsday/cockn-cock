@@ -35,13 +35,15 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-head > div { display: grid; gap: 10px; flex: 1; min-width: 0; }
 .sk-h1 { width: 150px; height: 30px; }
 .sk-text { width: min(320px, 80%); height: 14px; }
+.sk-wrap { display: none; width: 45%; }
+@media (max-width: 520px) { .sk-wrap { display: block; } }
 .sk-button { flex: none; width: 96px; height: 41px; border-radius: 8px; }
 .sk-panel { display: grid; align-content: start; gap: 12px; padding: 18px 19px; }
 .sk-h2 { width: 110px; height: 18px; }
 .sk-number { width: 72px; height: 30px; }
 .sk-meter { height: 10px; border-radius: 99px; }
 .sk-line { height: 14px; }
-.sk-featured { min-height: 279px; border-radius: 16px; background: #173c2c; }
+.sk-featured { min-height: 342px; border-radius: 16px; background: #173c2c; }
 .sk-field { height: 44px; border-radius: 8px; }
 .sk-tabs { display: flex; gap: 19px; padding: 10px 6px 11px; border-bottom: 1px solid #dce5db; }
 .sk-tab { width: 64px; height: 18px; }
@@ -50,6 +52,45 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-row:first-child { border-top: 0; }
 .sk-dot { width: 28px; height: 28px; border-radius: 50%; }
 .sk-chip { height: 22px; }
+/* Member cards (skeleton.mjs, as worker/public/views.mjs memberCard): the green head, a sand one for a notice. */
+.sk-card-head { display: grid; gap: 12px; padding: clamp(21px, 6vw, 38px); background: #174331; }
+.sk-card-head .sk { background: #ffffff24; }
+.sk-card-head--notice { background: #f4e5b8; }
+.sk-card-head--notice .sk { background: #362d1b14; }
+.sk-kicker { width: 64px; height: 14px; }
+.sk-card-title { width: 62%; height: 30px; }
+.sk-card-date { width: 150px; height: 16px; }
+.sk-card .public-share-content { display: grid; gap: 12px; }
+.sk-card + .sk-card { margin-top: 16px; }
+.sk-fact { width: 70%; height: 18px; }
+.sk-cta { height: 46px; border-radius: 11px; }
+.sk-back { width: 72px; height: 18px; margin-block: 13px 25px; }
+.sk-row--plain { grid-template-columns: minmax(0, 1fr) 72px; min-height: 88px; }
+.sk-stack { display: grid; gap: 10px; }
+.sk-meta { width: 60%; height: 12px; }
+.sk-facts { display: grid; gap: 10px; padding: 16px; border-radius: 12px; background: #f3f2ec; }
+.sk-counts { display: grid; gap: 12px; padding-block: 6px; }
+.sk-count { display: grid; gap: 8px; }
+.sk-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sk-choice { height: 46px; border-radius: 11px; }
+.sk-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; }
+.sk-month { height: 100px; border-radius: 4px; }
+.sk-slots { display: flex; gap: 8px; }
+.sk-slot { width: 44px; height: 44px; border-radius: 8px; }
+/* 일정 달력 (calendar.mjs): the title and three steps, then five weeks; only the date numbers show, as on the calendar. */
+.sk-calendar { display: grid; gap: 14px; }
+.sk-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sk-calendar-head > span { display: flex; gap: 4px; }
+.sk-step { width: 38px; height: 38px; border-radius: 8px; }
+.sk-weekdays { height: 12px; }
+@media (pointer: coarse) { .sk-step { width: var(--touch-target); height: var(--touch-target); } }
+.sk-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 40px; justify-items: center; padding-block: 8px 20px; }
+.sk-day { width: 18px; height: 12px; }
+@media (min-width: 701px) {
+  .sk-days { row-gap: 65px; justify-items: start; padding-inline: 8px; }
+}
+/* On a phone the 운영 홈 big card stacks above the vote panel and is taller (measured 395px at 375px, 342px at 1280px). */
+@media (max-width: 700px) { .sk-featured { min-height: 395px; } }
 .admin-skeleton :is(.sidebar, .tab-bar) .sk { background: var(--menu-hover); }
 .sk-brand { width: 92px; height: 18px; }
 .sk-nav { display: grid; gap: 10px; margin-top: 37px; }
