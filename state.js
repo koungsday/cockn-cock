@@ -241,10 +241,24 @@
     return summary;
   }
 
+  const participates = slot => ['early', 'late', 'yes'].includes(slot);
+  const signupOrder = event => event.signupOrder ?? Object.keys(event.votes).filter(id => participates(event.votes[id]));
+  function waitingPosition(event, id) {
+    return event.capacity ? Math.max(0, signupOrder(event).indexOf(id) + 1 - event.capacity) : 0;
+  }
+  function saveResponse(event, id, slot) {
+    const order = signupOrder(event);
+    if (participates(slot) && !participates(event.votes[id])) order.push(id);
+    event.signupOrder = participates(slot) ? order : order.filter(member => member !== id);
+    if (slot) event.votes[id] = slot;
+    else delete event.votes[id];
+  }
+
   function counts(event) {
-    const report = {early: 0, late: 0, yes: 0, no: 0, pending: 0, total: event.roster.length, lunch: 0};
+    const report = {early: 0, late: 0, yes: 0, no: 0, pending: 0, total: event.roster.length, lunch: 0, waiting: 0};
     for (const id of event.roster) {
       const response = event.votes[id];
+      if (waitingPosition(event, id)) { report.waiting++; continue; }
       if (response === 'early' || response === 'late') report[response]++;
       if (response === 'early' || response === 'late' || response === 'yes') report.yes++;
       else if (response === 'no') report.no++;
@@ -326,6 +340,6 @@
     return { sessions: events.length, present, total, rate: rate(present, total), byEvent, byMember };
   }
 
-  window.clubModel = {load, save, counts, attendanceCounts, stats, settlement, qualification, deadlinePassed,
+  window.clubModel = {load, save, counts, waitingPosition, saveResponse, attendanceCounts, stats, settlement, qualification, deadlinePassed,
     dateLabel, addDays, today, demoNow, storageKey};
 })();

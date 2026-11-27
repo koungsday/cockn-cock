@@ -13,7 +13,7 @@ export function shiftMonth(month, step) {
   return date.toISOString().slice(0, 7);
 }
 
-// events: [{ date 'YYYY-MM-DD', title, kind (its label), regular, done }]. done (지난 일정, 마무리 확정, 취소) is drawn quiet.
+// events: [{ date 'YYYY-MM-DD', title, kind (its label), done }]. done (지난 일정, 마무리 확정, 취소) is drawn quiet.
 // A date with events is a button (calendar-day): it marks that date's rows in the list below (pickCalendarDay).
 export function calendarBlock(events, { month, today, selected = '', icon }) {
   const [year, index] = month.split('-').map(Number);
@@ -33,28 +33,24 @@ export function calendarBlock(events, { month, today, selected = '', icon }) {
       cells.push(`<li class="${css}" aria-hidden="true"><span class="calendar-slot"><span class="calendar-number">${day}</span></span></li>`);
       continue;
     }
-    const [first] = list;
     const label = `${index}월 ${day}일 ${weekdays[date.getUTCDay()]}요일${iso === today ? ' 오늘' : ''} · ${list.map(event => `${event.kind} ${event.title}`).join(', ')}`;
-    cells.push(`<li class="${css}"><button type="button" class="calendar-date" data-action="calendar-day" data-id="${iso}" aria-pressed="${iso === selected}" aria-label="${escapeText(label)}">
-      <span class="calendar-number">${day}</span><span class="calendar-kind${first.done ? ' is-done' : first.regular ? '' : ' is-special'}">${escapeText(first.kind)}${list.length > 1 ? `<small>+${list.length - 1}</small>` : ''}</span><span class="calendar-name">${escapeText(first.title)}</span></button></li>`);
+    cells.push(`<li class="${css}${list.every(event => event.done) ? ' is-done' : ''}"><button type="button" class="calendar-date" data-action="calendar-day" data-id="${iso}" aria-pressed="${iso === selected}" aria-label="${escapeText(label)}">
+      <span class="calendar-number">${day}</span></button></li>`);
   }
   return `<div class="calendar" data-month="${month}">
     <div class="calendar-head">
+      <button type="button" class="icon-button calendar-step" data-action="calendar-month" data-id="prev" aria-label="이전 달">${icon('chevron-left', 18)}</button>
       <h2 class="calendar-title" id="calendar-title">${year}년 ${index}월</h2>
-      <div class="calendar-steps">
-        <button type="button" class="icon-button calendar-step" data-action="calendar-month" data-id="prev" aria-label="이전 달">${icon('chevron-left', 18)}</button>
-        <button type="button" class="btn btn-small btn-secondary calendar-today" data-action="calendar-month" data-id="today">오늘</button>
-        <button type="button" class="icon-button calendar-step" data-action="calendar-month" data-id="next" aria-label="다음 달">${icon('chevron-right', 18)}</button>
-      </div>
+      <button type="button" class="icon-button calendar-step" data-action="calendar-month" data-id="next" aria-label="다음 달">${icon('chevron-right', 18)}</button>
     </div>
     <div class="calendar-weekdays" aria-hidden="true">${weekdays.map(name => `<span>${name}</span>`).join('')}</div>
     <ol class="calendar-days" aria-labelledby="calendar-title">${cells.join('')}</ol>
   </div>`;
 }
 
-// The month a calendar-month button opens from the month on screen: prev, next, or today's.
-export function calendarTarget(month, step, today) {
-  return step === 'today' ? today.slice(0, 7) : shiftMonth(month, step === 'next' ? 1 : -1);
+// The month a calendar-month button opens from the month on screen: prev or next.
+export function calendarTarget(month, step) {
+  return shiftMonth(month, step === 'next' ? 1 : -1);
 }
 
 // A date picked on the calendar: its button pressed, its rows in the list below marked and brought into view (a

@@ -150,9 +150,7 @@ p { line-height: 1.58; }
 .now-own { justify-self: start; margin-top: 4px; padding-inline: 0; }
 /* 일정 화면 (DESIGN.md 4·5, 단순화 4): one column. The list is rows under a count line; an event names its own screen
    (title, when and where, where it stands), then the three tabs. */
-.list-actions { display: flex; align-items: center; gap: 4px; }
-.event-page > .calendar-panel { margin-bottom: 8px; }
-:is(.event-page, .plain-page) > :is(.panel, .event-cancelled, .summary-grid):not(.calendar-panel) { margin-top: 14px; }
+:is(.event-page, .plain-page) > :is(.panel, .event-cancelled, .summary-grid) { margin-top: 14px; }
 /* 공지·회원 관리·반기 집계·모임 규칙 (단순화 5): the same single column; lists are rows on the page, forms and tables keep
    their panel. */
 .list-search { margin-block: 2px 8px; }
@@ -216,40 +214,28 @@ p { line-height: 1.58; }
 .event-past summary { display: flex; align-items: center; gap: 4px; min-height: var(--touch-target); color: var(--muted); font-size: var(--t4); font-weight: 600; cursor: pointer; }
 .event-past summary::-webkit-details-marker { display: none; }
 .event-past[open] summary svg { transform: rotate(90deg); }
-/* 일정 달력 (DESIGN.md 5): one quiet month above the 일정 list, Sunday first (calendar.mjs). A date with events is a button
-   with its 종류 under the number; picking it marks that date's rows below. */
-.calendar { display: grid; gap: 8px; }
+/* 일정 달력 (DESIGN.md 5): dates form a quiet grid directly on the page. */
+.calendar { margin-block: 4px 12px; }
 .calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.calendar-title { margin: 0; font-size: var(--t3); font-variant-numeric: tabular-nums; }
-.calendar-steps { display: flex; align-items: center; gap: 4px; }
-.calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
-/* Phones: the date rows reach 4px from the card's edge so a date stays 44px wide down to a 360px screen (7 × 44 + 6 × 2). */
-@media (max-width: 520px) {
-  .calendar-weekdays, .calendar-days { gap: 2px; margin-inline: calc(4px - var(--calendar-pad, 13px)); }
-  .member-list .calendar { --calendar-pad: clamp(20px, 5vw, 34px); }
+.calendar-head .calendar-title, .main-content .member-list .calendar-head .calendar-title {
+  margin: 0; color: var(--ink); font-size: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.calendar-weekdays span { color: var(--muted); font-size: var(--t4); font-weight: 600; text-align: center; }
-.calendar-days { margin-block: 0; padding: 0; list-style: none; }
-.calendar-day { display: grid; min-width: 0; min-height: 52px; }
-.calendar-slot, .calendar-date { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 6px 0 4px; border-radius: 8px; font-size: var(--t4); font-variant-numeric: tabular-nums; }
-.calendar-day.is-other { color: #aeb4ad; }
-.calendar-date { width: 100%; border: 0; background: var(--hint); color: var(--ink); cursor: pointer; transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
-.calendar-date:hover { background: var(--hint); }
-.calendar-date[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--court); }
-.calendar-number { min-width: 24px; border-radius: 999px; font-weight: 600; line-height: 1.5; text-align: center; }
-.calendar-day.is-today .calendar-number { box-shadow: 0 0 0 1.5px var(--ink); }
-.calendar-kind { max-width: 100%; padding: 1px 5px; overflow: hidden; border-radius: 5px; background: var(--accent-soft); color: var(--court); font-size: var(--t4); font-weight: 600; line-height: 1.35; white-space: nowrap; }
-.calendar-kind.is-special { background: var(--leaf); color: var(--ink); }
-.calendar-kind.is-done { background: transparent; color: var(--muted); }
-.calendar-kind small { font-size: inherit; }
-.calendar-name { display: none; }
-/* With the sidebar the cells are wide: a little taller, the number at the top left, the 종류 and the title under it. */
-@media (min-width: 701px) {
-  .calendar-day { min-height: 74px; }
-  .calendar-slot, .calendar-date { align-items: flex-start; padding: 7px 8px; text-align: left; }
-  .calendar-name { display: block; max-width: 100%; overflow: hidden; color: var(--muted); font-size: var(--t4); line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-step { width: var(--touch-target); height: var(--touch-target); }
+.calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; }
+.calendar-weekdays span { display: grid; place-items: center; min-height: 44px; color: var(--muted); font-size: var(--t4); }
+.calendar-days { margin: 0; padding: 0; list-style: none; }
+.calendar-day { display: grid; min-width: 0; min-height: 44px; }
+.calendar-slot, .calendar-date { display: grid; place-items: center; width: 100%; min-width: 0; }
+.calendar-date { border: 0; background: none; color: inherit; border-radius: 8px; cursor: pointer; }
+.calendar-number { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.calendar-day.is-other { color: var(--muted); }
+.calendar-day.is-today .calendar-number { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
+.calendar-date .calendar-number { background: var(--accent-soft); color: var(--court); font-weight: 600; }
+.calendar-day.is-done .calendar-number { background: var(--hint); color: var(--muted); }
+.calendar-date[aria-pressed="true"] .calendar-number { background: var(--court); color: var(--surface); }
+@media (hover: hover) {
+  .calendar-date:hover .calendar-number { background: var(--court); color: var(--surface); }
 }
-.member-list .calendar { margin: 12px 0 10px; }
 :is(.event-list li, .member-record)[data-date] { transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
 :is(.event-list li, .member-record).is-picked { border-radius: 4px; background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
 /* A cancelled event says so on the 회차 화면 with the way back; 일정 취소 itself is in the 회차 메뉴. */
