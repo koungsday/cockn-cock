@@ -307,7 +307,8 @@ input:not([type=checkbox]):not([type=radio]), select, textarea { border: 1px sol
 select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23526359' stroke-width='1.5'%3E%3Cpath d='m3 5 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
 input[type=radio] { accent-color: #346d4e; width: 18px; height: 18px; flex: none; }
 /* Checkbox (DESIGN.md 5·6), vw-k.com's round check: on, the circle fills with --court from the bottom, then a white
-   check is drawn left to right; off, the check fades as it is and the fill drops back. It never rewinds the drawing. */
+   check is drawn left to right, done by 280ms (UX 법칙 9: 300ms 이하); off, the check fades as it is and the fill drops
+   back. It never rewinds the drawing. */
 input[type=checkbox] {
   appearance: none; position: relative; display: inline-grid; place-items: center; flex: none; box-sizing: border-box;
   width: 22px; height: 22px; margin: 0; border: 2px solid var(--field-line); border-radius: 50%; background: #fff;
@@ -322,7 +323,7 @@ input[type=checkbox]::after {
 }
 input[type=checkbox]:checked { border-color: var(--court); }
 input[type=checkbox]:checked::before { translate: 0 0; transition: translate var(--dur-arrive) var(--ease-settle); }
-input[type=checkbox]:checked::after { opacity: 1; clip-path: inset(0); transition: opacity 0s, clip-path var(--dur-quick) ease-out var(--dur-quick); }
+input[type=checkbox]:checked::after { opacity: 1; clip-path: inset(0); transition: opacity 0s, clip-path var(--dur-quick) ease-out calc(var(--dur-quick) * .75); }
 input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 textarea { min-height: 100px; resize: vertical; }
 .dialog { width: min(536px,calc(100% - 26px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 85px #142e2043; padding: 0; }
