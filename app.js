@@ -462,7 +462,7 @@
     return `<a class="panel metric" href="#${route}" data-route="${route}"><span class="metric-icon ${tone}">${icon(glyph,21)}</span><div><span class="metric-label">${label}</span><div class="metric-value">${value}<small>${unit}</small></div></div>${icon('chevron-right',16)}</a>`;
   }
 
-  // A step inside an open dialog (접속 재설정 → 확인 → 접속 안내, or a 더보기 menu → 일정 수정) took the pressed button
+  // A step inside an open dialog (비밀번호 재설정 → 확인 → 접속 안내, or a 더보기 menu → 일정 수정) took the pressed button
   // away: focus starts again at ×.
   function showModal() {
     if (!modal.open) return modal.showModal();
@@ -596,7 +596,7 @@
       return;
     }
     if (action === 'close-dialog') modal.close();
-    // 접속 재설정 (the live reset-member): asked once more, then a made-up temporary number. The 연필 that opened 회원 수정
+    // 비밀번호 재설정 (the live reset-member): asked once more, then a made-up temporary number. The 연필 that opened 회원 수정
     // gets the focus back however the dialog closes.
     if (action === 'reset-member') return openDialog('reset', id, dialogTrigger);
     if (action === 'confirm-reset-member') {

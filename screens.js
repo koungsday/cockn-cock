@@ -334,18 +334,19 @@
           + check('pollOpen', '참석 투표 열기', event.cancelled ? false : event.pollOpen ?? true)));
     }
 
-    // 접속 재설정 (the live memberAccess, worker/public/views.mjs): the same section and words under 회원 수정. Here it is a
-    // .dialog-body of its own below the form's 취소 · 저장 footer, so its line runs the dialog's width like the footer's.
+    // 비밀번호 재설정 (the live memberAccess, worker/public/views.mjs): the same section and words under 회원 수정. Here it is
+    // a .dialog-body of its own below the form's 취소 · 저장 footer, so its line runs the dialog's width like the footer's.
     function memberAccess(member) {
       const active = member.status === 'active';
-      return `<section class="dialog-body member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">접속 재설정</h3>
-        <dl class="member-access-facts">
-          <div><dt>언제 쓰나요</dt><dd>번호를 잊었거나 휴대폰을 잃어버렸을 때, 같은 이름·번호가 겹쳐 로그인이 안 될 때</dd></div>
-          <div><dt>누르면</dt><dd>새 임시 번호 6자리가 한 번만 보여요. 쓰던 번호(생년월일이나 PIN)는 바로 막히고, 모든 휴대폰의 로그인이 끊겨요. 투표·출석 기록은 그대로예요.</dd></div>
-          <div><dt>그 뒤 회원은</dt><dd>성함과 임시 번호로 다시 로그인해요. 원하면 내 기록에서 나만 아는 PIN으로 바꾸고, 운영 권한이 있으면 자기 번호를 정해야 운영 메뉴가 열려요.</dd></div>
-          <div><dt>되돌리기</dt><dd>할 수 없어요. 예전 번호는 다시 살릴 수 없고, 임시 번호를 놓치면 다시 재설정해요.</dd></div>
-        </dl>
-        <button class="btn btn-secondary" type="button" data-action="reset-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 접속 재설정"${active ? '' : ' disabled'}>접속 재설정</button>
+      return `<section class="dialog-body member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">비밀번호 재설정</h3>
+        <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급받습니다.</p>
+        <ol class="member-access-steps">
+          <li>기존 비밀번호는 즉시 삭제되고, 모든 기기에서 로그아웃됩니다.</li>
+          <li>화면에 뜨는 임시 번호 6자리를 꼭 기억해 주세요. (창을 닫으면 다시 안 보입니다.)</li>
+          <li>이름과 임시 번호로 로그인 후, 새 비밀번호로 변경해 주세요.</li>
+        </ol>
+        <p class="form-note">※ 기존 투표 및 출석 기록은 그대로 유지됩니다.</p>
+        <button class="btn btn-secondary" type="button" data-action="reset-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 비밀번호 재설정"${active ? '' : ' disabled'}>비밀번호 재설정</button>
         ${active ? '' : '<p class="form-note">활동 중지한 회원은 재설정할 수 없어요. 활동 회원으로 저장한 뒤에 할 수 있어요.</p>'}</section>`;
     }
 
@@ -409,12 +410,12 @@
         action('바꿔서 고정하기', 'confirm-pin', dialog.id, { tone: 'primary', extra: `data-kind="${notice ? 'notice' : 'event'}"` }));
     }
 
-    // 접속 재설정's second ask and its 접속 안내 (the live reset-member, credentialDialog). dialog.kind carries the made-up
+    // 비밀번호 재설정's second ask and its 접속 안내 (the live reset-member, credentialDialog). dialog.kind carries the made-up
     // temporary number; the 가상 체험 saves nothing and nobody's number changes.
     function resetDialog(dialog, state) {
       const member = state.members.find(item => item.id === dialog.id);
       if (!member || member.status !== 'active') return '';
-      return confirm('회원 접속 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>',
+      return confirm('회원 비밀번호 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>',
         action('새 임시 번호 만들기', 'confirm-reset-member', member.id, { tone: 'primary' }));
     }
 
