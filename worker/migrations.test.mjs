@@ -118,3 +118,28 @@ test('0010 moves each active organiser into members with the organiser permissio
     db.close();
   }
 });
+
+test('0011 adds nullable payment and stock fields without rewriting saved guest or settlement rows', () => {
+  const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: true });
+  try {
+    db.exec(sources[files[0]]);
+    db.exec(sources[files[1]]);
+    seedSingleClub(db);
+    const migration = '0011_guest_cost_and_shuttle_stock.sql';
+    for (const file of files.slice(2, files.indexOf(migration))) db.exec(sources[file]);
+    const saved = snapshot(db);
+    db.exec(sources[migration]);
+    const current = snapshot(db);
+    assert.deepEqual(current.guests.map(({ transfer_won, received_shuttles, ...row }) => {
+      assert.deepEqual([transfer_won, received_shuttles], [null, null]);
+      return row;
+    }), saved.guests);
+    assert.deepEqual(current.settlements.map(({ opening_shuttles, added_shuttles, used_shuttles, ...row }) => {
+      assert.deepEqual([opening_shuttles, added_shuttles, used_shuttles], [null, null, null]);
+      return row;
+    }), saved.settlements);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  } finally {
+    db.close();
+  }
+});

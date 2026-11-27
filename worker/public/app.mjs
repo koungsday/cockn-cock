@@ -866,6 +866,13 @@ async function doAction(action, itemId, tab) {
     case 'copy-vote-link':
       await copy(shareLink('vote', itemId || state.selectedEvent), '투표 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
+    case 'copy-vote-closed': {
+      const event = state.detail?.event.id === itemId ? state.detail.event : state.admin?.events.find(entry => entry.id === itemId);
+      if (!event?.published || event.canVote || event.cancelled) throw new Error('일정 상태가 바뀌었어요. 새로고침한 뒤 확인해 주세요.');
+      await copy(`${event.title} 투표가 마감됐어요. 일정과 내 응답은 아래 링크에서 확인해 주세요.\n${shareLink('vote', event.id)}`,
+        '마감 안내를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
+      break;
+    }
     case 'copy-notice-link':
       await copy(shareLink('notice', itemId), '공지 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
@@ -1025,7 +1032,7 @@ function buildEvent(data) {
   const event = Object.fromEntries(fields.map(key => [key, read(data, key)]));
   event.open = data.has('open');
   event.published = data.has('published');
-  if (!event.published && event.open) throw new Error('웹 투표를 열려면 공유 링크도 공개해 주세요.');
+  if (!event.published && event.open) throw new Error('웹 투표를 열려면 회원에게 일정을 공개해 주세요.');
   return event;
 }
 
@@ -1119,13 +1126,16 @@ async function doSubmit(kind, itemId, data) {
       const guest = {
         name: read(data, 'name'), level: read(data, 'level'), invitedBy: read(data, 'invitedBy'),
         status: read(data, 'status'), paid: data.has('paid'),
+        transferWon: read(data, 'transferWon') === '' ? null : Number(read(data, 'transferWon')),
+        receivedShuttles: read(data, 'receivedShuttles') === '' ? null : Number(read(data, 'receivedShuttles')),
       };
       if (itemId) guest.id = itemId;
       await update(`${adminEventPath()}/guests`, 'POST', guest, '게스트 정보를 저장했어요.');
       break;
     }
     case 'settlement': {
-      const fields = ['priorSingles', 'priorTubes', 'remainingSingles', 'courtDonation'];
+      const fields = data.has('openingShuttles') ? ['openingShuttles', 'addedShuttles', 'usedShuttles', 'courtDonation']
+        : ['priorSingles', 'priorTubes', 'remainingSingles', 'courtDonation'];
       const settlement = Object.fromEntries(fields.map(key => [key, Number(read(data, key))]));
       settlement.confirmed = data.has('confirmed');
       await update(`${adminEventPath()}/settlement`, 'PUT', settlement, '마무리 기록을 저장했어요.');
@@ -1376,6 +1386,13 @@ main.addEventListener('input', event => {
     clearLoginRejection(input);
     submitCompleteCode(input);
   } else if (input.dataset.filter) applyFilter(input);
+  else if (input.form?.dataset.form === 'settlement') {
+    const target = input.form.querySelector('[data-stock-total]');
+    if (!target) return;
+    const fields = input.form.elements;
+    const total = Number(fields.openingShuttles.value) + Number(fields.addedShuttles.value) - Number(fields.usedShuttles.value);
+    target.textContent = total < 0 ? '사용 수량을 확인해 주세요' : `${total}개`;
+  }
 });
 
 for (const type of ['focusin', 'click', 'keyup', 'select']) {

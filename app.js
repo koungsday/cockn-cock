@@ -599,6 +599,12 @@
       copy(href).then(result => notifyCopy(result, published ? `${what} 공개 예시 링크를 복사했어요.` : `${what} 링크(이 브라우저 미리보기)를 복사했어요.`));
       return;
     }
+    if (action === 'copy-vote-closed' && event && !pollIsOpen(event) && !event.cancelled) {
+      const {href} = window.clubShare.linkFor('vote', event);
+      copy(`${event.title} 투표가 마감됐어요. 일정과 내 응답은 아래 링크에서 확인해 주세요.\n${href}`)
+        .then(result => notifyCopy(result, '가상 모임 마감 안내를 복사했어요.'));
+      return;
+    }
     if (action === 'copy-share') {
       const href = modal.querySelector('#share-link').value;
       const message = control.hasAttribute('data-published-link')
@@ -651,9 +657,10 @@
       if (!report.recorded) return showToast('콕과 찬조금 기록을 먼저 입력해 주세요.');
       const lines = [`썬콕19 모임 마무리 · ${fullDate(event.date)}`, `운동 ${event.time}–${event.endTime} · ${event.place}`,
         `총 ${report.total}명 (회원 ${report.members}명 · 게스트 ${report.arrivals}명)`,
-        `콕 이월 ${report.singles}개 + ${report.priorTubes}타 (당일 잔여 ${report.remainingSingles}개)`,
+        report.guestPaid ? `게스트 비용 확인 ${report.guestPaid}명 · 이체 ${report.transferWon.toLocaleString('ko-KR')}원 · 콕 ${report.receivedShuttles}개` : '',
+        `콕 최종 잔량 ${report.closingShuttles}개`,
         `코트 찬조금 ${report.courtDonation.toLocaleString('ko-KR')}원`];
-      copy(lines.join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
+      copy(lines.filter(Boolean).join('\n')).then(result => notifyCopy(result,'가상 모임 마무리 공지를 복사했어요.'));
       return;
     }
     if (action === 'toggle-poll' && !event.finalized && !event.cancelled && !deadlinePassed(event)) {
@@ -715,6 +722,12 @@
     const input = ev.target;
     if (input.form && input.setCustomValidity) input.setCustomValidity('');
     if (!ev.isComposing) filterMembers(input);
+    const target = input.form?.querySelector('[data-stock-total]');
+    if (target) {
+      const fields = input.form.elements;
+      const total = Number(fields.openingShuttles.value) + Number(fields.addedShuttles.value) - Number(fields.usedShuttles.value);
+      target.textContent = total < 0 ? '사용 수량을 확인해 주세요' : `${total}개`;
+    }
   });
   document.addEventListener('compositionend', ev => filterMembers(ev.target));
   document.addEventListener('change', ev => {
@@ -794,13 +807,21 @@
       const event = state.events.find(item => item.id === id);
       if (!event || event.finalized || (type === 'settlement' && event.date > today)) return showToast('현재는 이 기록을 수정할 수 없어요.');
       if (type === 'guest') {
-        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false});
+        event.guests.push({id:idFor('guest'),name:value('guestName'),arrived:false,paid:false,
+          transferWon:value('transferWon') === '' ? null : Number(value('transferWon')),
+          receivedShuttles:value('receivedShuttles') === '' ? null : Number(value('receivedShuttles'))});
         message = '게스트를 추가했어요.';
       } else {
-        const fields = ['priorSingles','priorTubes','remainingSingles','courtDonation'];
+        const modern = formData.has('openingShuttles');
+        const fields = modern ? ['openingShuttles','addedShuttles','usedShuttles','courtDonation']
+          : ['priorSingles','priorTubes','remainingSingles','courtDonation'];
         for (const key of fields) {
           const number = Number(value(key));
-          if (!Number.isSafeInteger(number) || number < 0 || number > 100000000) return fieldError(form,key,'0에서 1억 사이의 숫자를 입력해 주세요.');
+          if (!Number.isSafeInteger(number) || number < 0 || number > 10000000) return fieldError(form,key,'0에서 1천만 사이의 숫자를 입력해 주세요.');
+        }
+        if (modern) {
+          const total = Number(value('openingShuttles')) + Number(value('addedShuttles')) - Number(value('usedShuttles'));
+          if (total < 0 || total > 10000000) return fieldError(form,'usedShuttles','최종 콕 수량을 확인해 주세요.');
         }
         event.settlement = Object.fromEntries(fields.map(key => [key,Number(value(key))]));
         message = '마무리 기록을 저장했어요.';
