@@ -512,6 +512,7 @@ function closeDialog({ instant = false } = {}) {
 
 function matchingControl(control) {
   if (control?.isConnected) return control;
+  if (control?.id === 'profile-toggle') return document.getElementById(control.id);
   if (!control?.dataset.action) return null;
   return [...document.querySelectorAll('button[data-action]')].find(candidate =>
     candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id && !candidate.disabled);
@@ -1315,8 +1316,20 @@ async function markPresent(control, memberId) {
   }
 }
 
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || dialog.open) return;
+  const profile = main.querySelector('.profile-menu[open]');
+  if (!profile) return;
+  profile.open = false;
+  profile.querySelector('summary').focus({ preventScroll: true });
+});
+
 document.addEventListener('click', event => {
   const control = event.target.closest('button[data-action]');
+  const profile = main.querySelector('.profile-menu[open]');
+  const fromProfile = control && profile?.contains(control);
+  if (fromProfile || (profile && !profile.contains(event.target))) profile.open = false;
+  if (fromProfile) profile.querySelector('summary').focus({ preventScroll: true });
   if (!control) return;
   const { action, id: itemId, tab } = control.dataset;
   if (action === 'mark-present') {
@@ -1324,7 +1337,7 @@ document.addEventListener('click', event => {
     return;
   }
   void run(() => {
-    if (!dialog.open) dialogOpener = control;
+    if (!dialog.open) dialogOpener = fromProfile ? profile.querySelector('summary') : control;
     return doAction(action, itemId, tab);
   }, control);
 });
@@ -1445,6 +1458,7 @@ document.querySelector('.skip-link')?.addEventListener('click', event => {
 });
 
 desktopNavigation.addEventListener('change', event => {
+  if (!event.matches) main.querySelector('.profile-menu[open]')?.removeAttribute('open');
   if (!event.matches || !dialog.open || !dialog.classList.contains('admin-menu-dialog')) return;
   dialogOpener = main.querySelector('.sidebar [aria-current="page"]');
   closeDialog({ instant: true });

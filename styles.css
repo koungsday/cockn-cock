@@ -87,6 +87,13 @@ p { line-height: 1.58; }
 .btn.btn-icon, :is(.heading-actions, .page-actions, .table-actions) .btn.btn-icon { width: var(--touch-target); min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; }
 .btn-icon svg { flex: none; }
 .topbar-menu { display: none; }
+.profile-menu { position: relative; min-width: 0; }
+.profile-menu summary { list-style: none; min-height: var(--touch-target); }
+.profile-menu summary::-webkit-details-marker { display: none; }
+.profile-menu summary svg { flex: none; }
+.profile-menu summary span { max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-actions { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; min-width: max-content; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.profile-actions .btn { display: flex; width: 100%; justify-content: flex-start; min-height: var(--touch-target); }
 
 .panel { min-width: 0; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
 
@@ -447,7 +454,7 @@ textarea { min-height: 100px; resize: vertical; }
   .tab-bar-link[aria-current="page"] { background: transparent; color: var(--ink); }
   .tab-bar-link[aria-current="page"] svg { stroke-width: 2.1; }
   .topbar-menu { display: inline-grid; width: var(--touch-target); height: var(--touch-target); margin-right: -6px; color: var(--ink); }
-  .topbar-logout { display: none; }
+  .profile-menu { display: none; }
   :root:has(.tab-bar) .toast { bottom: calc(86px + env(safe-area-inset-bottom)); }
   /* 당일 출석: the toast (출석을 기록했어요) sits above the count that stays in sight, never on it. */
   :root:has(.att-foot) .toast { bottom: calc(144px + env(safe-area-inset-bottom)); }
