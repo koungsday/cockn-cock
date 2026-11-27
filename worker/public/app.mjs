@@ -936,7 +936,7 @@ async function doAction(action, itemId, tab) {
     }
     case 'new-organizer': {
       const organizerIds = new Set(state.admin.organizers.map(organizer => organizer.id));
-      openDialog('운영진 추가', organizerForm(state.admin.members.filter(member => member.active && !organizerIds.has(member.id))));
+      openDialog('새 운영진 추가', organizerForm(state.admin.members.filter(member => member.active && !organizerIds.has(member.id))));
       break;
     }
     case 'reset-organizer': {
