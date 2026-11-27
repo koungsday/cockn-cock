@@ -37,7 +37,7 @@
 
   function linkFor(kind, item) {
     const example = window.clubPublishedShares?.[kind];
-    if (!item.cancelled && example?.href.startsWith('https://') &&
+    if (!item.cancelled && !item.capacity && example?.href.startsWith('https://') &&
         Object.entries(example.fields).every(([field, value]) => item[field] === value)) {
       return { href: example.href, published: true };
     }
@@ -119,11 +119,12 @@
     const slots = [['early', `${event.earlyTime} 선발`], ['late', `${event.lateTime} 후발`], ['no', '불참']];
     const ownVote = receiptMember ? event.votes[receiptMember.id] : null;
     const ownLunch = Boolean(receiptMember && event.lunch[receiptMember.id]);
+    const waiting = receiptMember && window.clubModel.waitingPosition(event, receiptMember.id);
     const receiptVote = slots.find(([key]) => key === ownVote)?.[1] || '기존';
 
     return `
       <form class="public-form" data-form="public-vote" data-id="${helpers.escape(event.id)}">
-        ${receiptMember ? `<p class="public-receipt" role="status">${escape(receiptMember.name)}님의 ${escape(receiptVote)} 응답입니다. 마감 전까지 바꿀 수 있어요.</p>
+        ${receiptMember ? `<p class="public-receipt" role="status">${escape(receiptMember.name)}님의 ${escape(receiptVote)} 응답${waiting ? ` · 대기 ${waiting}번` : event.capacity && ownVote !== 'no' ? ' · 참석 확정' : ''}입니다. 마감 전까지 바꿀 수 있어요.</p>
           <input name="member" type="hidden" value="${escape(receiptMember.id)}">` : `
           <p class="public-form-note">가상 화면입니다. 실제 생년월일이나 개인 PIN을 넣지 마세요.</p>
           <label class="public-field">
@@ -138,6 +139,7 @@
             <input name="demoPin" inputmode="numeric" autocomplete="off" pattern="[0-9]{6}" maxlength="6" aria-describedby="demo-pin-help" required>
           </label>`}
         ${receiptMember ? '' : '<p class="public-form-note" id="demo-pin-help">예시 공용 번호는 190019입니다.</p>'}
+        ${event.capacity ? '<p class="public-form-note">정원이 차면 참석 응답은 대기로 등록돼요. 자리가 나면 순서대로 확정돼요.</p>' : ''}
         <fieldset class="public-choices">
           <legend>참석</legend>
           <div class="public-choice-row public-choice-slots">
@@ -155,12 +157,11 @@
 
   // 응답 현황, as the live countsBlock (worker/public/views.mjs) draws it: counts on the event's roster, never names.
   function countsBlock(event, escape) {
-    const count = slot => event.roster.filter(id => event.votes[id] === slot).length;
-    const counts = { early: count('early'), late: count('late'), no: count('no'), lunch: event.roster.filter(id => event.lunch?.[id]).length };
+    const counts = window.clubModel.counts(event);
     const coming = counts.early + counts.late;
-    if (!coming && !counts.lunch && !counts.no) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+    if (!coming && !counts.lunch && !counts.no && !counts.waiting) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
     const rows = [[`${event.earlyTime} 선발`, counts.early, 'slot'], [`${event.lateTime} 후발`, counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
-    return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명${counts.no ? ` · 불참 ${counts.no}명` : ''}</span></p>
+    return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명${counts.waiting ? ` · 대기 ${counts.waiting}명` : ''}${counts.no ? ` · 불참 ${counts.no}명` : ''}</span></p>
     <ul>${rows.map(([label, n, tone]) => `<li><span>${escape(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch, 1)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
     <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
   }
@@ -189,6 +190,7 @@
           <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))} ${escape(item.deadlineTime)}</dd></div>
         </dl>
         ${item.notes ? `<p class="public-share-body">${escape(item.notes)}</p>` : ''}
+        ${item.capacity ? `<p class="public-form-note">정원 ${item.capacity}명</p>` : ''}
         ${voteForm(item, state, helpers)}
         ${countsBlock(item, escape)}`
       : `<p class="public-share-body">${escape(item.body)}</p>`;
@@ -215,6 +217,7 @@
       ...event, canVote: event.pollOpen && !event.cancelled && `${event.deadline}T${event.deadlineTime}` > now.minute,
       deadlineDate: event.deadline, deadline: `${event.deadline}T${event.deadlineTime}`, eligible: true,
       mySlot: helpers.publicReceipts?.[event.id]?.vote ?? null,
+      myWaitingPosition: window.clubModel.waitingPosition(event, helpers.publicReceipts?.[event.id]?.member),
     }));
     return window.clubFlow.memberOrder(listed, now);
   }
@@ -223,6 +226,7 @@
   // 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it (the live memberEventState).
   function eventState(event) {
     if (event.cancelled) return { action: '일정 확인', primary: false, row: '취소됨', note: '이 일정은 취소됐어요.' };
+    if (event.myWaitingPosition) return { action: event.canVote ? '응답 변경' : '일정 확인', primary: false, row: `대기 ${event.myWaitingPosition}번`, note: `내 응답 <strong>대기 ${event.myWaitingPosition}번</strong>` };
     if (event.canVote && event.mySlot) return { action: '응답 변경', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong> · 마감 전까지 바꿀 수 있어요.` };
     if (event.canVote) return { action: '투표하기', primary: true, row: '투표하기', note: '예시 회원을 골라 응답해 볼 수 있어요.' };
     return { action: '일정 확인', primary: false, row: '일정 확인', note: event.pollOpen ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };

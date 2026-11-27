@@ -60,6 +60,7 @@ export function eventDefaults(previous = null, defaultPlace = '', { keepFuture =
       deadline: `${addDays(previous.deadline.slice(0, 10), daysToAdd)}${previous.deadline.slice(10)}`,
       open: false,
       published: false,
+      capacity: null,
     };
   }
   const base = today();
@@ -289,15 +290,21 @@ const signInCard = `<section class="member-pin" aria-labelledby="member-sign-in-
 function countsBlock(counts, event) {
   if (!counts) return '';
   const coming = counts.early + counts.late;
-  if (!coming && !counts.lunch && !counts.no) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
+  if (!coming && !counts.lunch && !counts.no && !counts.waiting) return '<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>아직 응답이 없어요</span></p></div>';
   const rows = [[voteLabel('early', event), counts.early, 'slot'], [voteLabel('late', event), counts.late, 'slot'], ['점심 함께', counts.lunch, 'lunch']];
-  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명${counts.no ? ` · 불참 ${counts.no}명` : ''}</span></p>
+  return `<div class="member-counts"><p class="member-counts-head"><strong>응답 현황</strong><span>참석 ${coming}명${counts.waiting ? ` · 대기 ${counts.waiting}명` : ''}${counts.no ? ` · 불참 ${counts.no}명` : ''}</span></p>
     <ul>${rows.map(([label, n, tone]) => `<li><span>${esc(label)}</span><strong>${n}명</strong><svg class="member-count-bar" viewBox="0 0 ${Math.max(coming, counts.lunch, 1)} 1" preserveAspectRatio="none" aria-hidden="true"><rect class="member-count-${tone}" width="${n}" height="1"/></svg></li>`).join('')}</ul>
     <p class="member-counts-note">누가 응답했는지는 보이지 않아요</p></div>`;
 }
 
 // 로그인 없이 보기 (사용자 결정, 2026-11-26): before sign-in (signedIn false) the place reads 로그인 후 보여요, there are no
 // notes, and answering offers sign-in instead of the form.
+function capacityInfo(event, counts = event.counts) {
+  if (!event.capacity) return '';
+  const confirmed = (counts?.early ?? 0) + (counts?.late ?? 0);
+  return `정원 ${event.capacity}명${counts ? ` · 확정 ${confirmed}명${counts.waiting ? ` · 대기 ${counts.waiting}명` : ''}` : ''}`;
+}
+
 export function memberVoteScreen(event, vote, eligible, voteSaved = false, signedIn = true) {
   const facts = `<dl class="public-event-facts">
     <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
@@ -307,13 +314,15 @@ export function memberVoteScreen(event, vote, eligible, voteSaved = false, signe
   // The answer comes before the 응답 현황 (DESIGN.md 6 UX 점검표 13 피츠): on a phone the choices and 응답 저장 sit in the
   // first screen above the tab bar instead of below it.
   return memberPage(memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes
+    + (capacityInfo(event) ? `<p class="public-form-note">${capacityInfo(event)}</p>` : '')
     + voteResponse(event, vote, eligible, voteSaved, signedIn) + countsBlock(event.counts, event)), { back: ['event', '일정'] });
 }
 
 // The answer part of a vote: the member's own form (or why there is none). The organisers' 일정 상세 shows the same
 // part as 내 응답, since organisers vote as members (ROLES.md 2단계).
 function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true) {
-  const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
+  const status = vote?.waitingPosition ? ` · 대기 ${vote.waitingPosition}번` : event.capacity && vote?.slot !== 'no' ? ' · 참석 확정' : '';
+  const current = vote ? `<p class="public-receipt" role="status">내 응답 <strong>${esc(voteLabel(vote.slot, event))}${vote.lunch ? ' · 점심 참여' : ''}${event.cancelled ? '' : status}</strong>${voteSaved ? ' <span class="member-confirmed">저장 완료</span>' : ''}</p>` : '';
   const closed = event.voteClosed || deadlinePassed(event);
   let response = `<div class="public-form">${current}<p class="public-status">${closed ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.'}</p>
     ${closed && !signedIn ? '<button class="share-button share-button--secondary" type="button" data-action="sign-in">로그인하고 내 응답 보기</button>' : ''}</div>`;
@@ -323,7 +332,9 @@ function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true)
     response = `<div class="public-form"><p class="public-status"><strong>투표하려면 로그인해 주세요.</strong>성함과 6자리로 한 번 로그인하면 이 휴대폰에서 계속 바로 투표할 수 있어요.</p>
       <button class="share-button share-button--primary" type="button" data-action="sign-in">로그인하고 투표하기</button></div>`;
   } else if (event.canVote && eligible) {
-    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}${choiceFields(event, vote, '점심 함께해요')}
+    response = `<form class="public-form" data-form="vote" data-id="${esc(event.id)}">${current}
+      ${event.capacity ? '<p class="public-form-note">정원이 차면 참석 응답은 대기로 등록돼요. 자리가 나면 순서대로 확정돼요.</p>' : ''}
+      ${choiceFields(event, vote, '점심 함께해요')}
       <p class="inline-error" role="alert" hidden></p>
       <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
       ${vote ? '<button class="share-button share-button--secondary" type="button" data-action="cancel-vote">응답 취소</button>' : ''}</form>`;
@@ -354,6 +365,8 @@ const slotWords = { early: '선발', late: '후발', no: '불참' };
 // What the member can do with one event: 투표하기 / 응답 변경 / 일정 확인 and the sentence that explains it.
 function memberEventState(event, signedIn = true) {
   if (event.cancelled) return { action: '일정 확인', primary: false, row: '취소됨', note: '이 일정은 취소됐어요.' };
+  if (event.myWaitingPosition) return { action: event.canVote ? '응답 변경' : '일정 확인', primary: false,
+    row: `대기 ${event.myWaitingPosition}번`, note: `내 응답 <strong>대기 ${event.myWaitingPosition}번</strong>` };
   if (event.canVote && !signedIn) return { action: '투표하기', primary: true, row: '투표하기', note: '로그인하면 투표할 수 있어요.' };
   if (event.canVote && event.eligible) {
     return event.mySlot
@@ -480,7 +493,7 @@ export function homeScreen({ events, notices }, club, user = null) {
 // 일정 달력 (calendar.mjs): every event on its date; the past, the finished and the cancelled ones quiet.
 function calendarEvents(events, now) {
   return events.map(event => ({ date: event.date, title: event.title, kind: eventKindLabels[event.kind] ?? eventKindLabels.regular,
-    regular: (event.kind ?? 'regular') === 'regular', done: event.date < now.day || finished(event, now) }));
+    done: event.date < now.day || finished(event, now) }));
 }
 
 // The month grid starts open. One button folds or opens it in the member's and the organisers' 일정 alike.
@@ -608,7 +621,7 @@ export function accountActions(user) {
     : button('로그인', 'sign-in', { css: 'text small' });
 }
 
-export function adminShell(section, contents, club, user) {
+export function adminShell(section, contents, club, user, canCreateEvent = false) {
   const sections = appSections(user);
   const title = sections.find(([name]) => name === section)?.[1] ?? sections[0][1];
   const role = operating(user) ? '운영진' : user ? '회원' : '보기만 할 수 있어요';
@@ -621,7 +634,7 @@ export function adminShell(section, contents, club, user) {
         <div class="breadcrumb">
           <span class="breadcrumb-parent">${esc(club.name)}</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
-        <div class="topbar-actions">${user ? `<details class="profile-menu">
+        <div class="topbar-actions">${canCreateEvent ? iconAction('plus', 'new-event', { label: '새 일정' }) : ''}${user ? `<details class="profile-menu">
           <summary class="btn btn-text" id="profile-toggle">${icon('user', 18)}<span>${esc(user.name)}</span></summary>
           <div class="profile-actions">${accountActions(user)}</div>
         </details>` : accountActions(user)}
@@ -677,7 +690,7 @@ export function homeNow(detail, listing = null, fresh = false) {
   const active = detail.roster.filter(member => member.active);
   const counts = countEvent(active, []);
   const going = counts.early + counts.late;
-  const responded = going + counts.no;
+  const responded = going + counts.no + counts.waiting;
   const waiting = active.length - responded;
   const present = detail.roster.filter(row => row.present === true).length;
   const arrived = (detail.guests ?? []).filter(guest => guest.status === 'arrived').length;
@@ -688,7 +701,7 @@ export function homeNow(detail, listing = null, fresh = false) {
   const [kicker, fact, numbers, actions] = [
     () => ['다음 일정', '아직 회원에게 보이지 않아요. 공개해야 투표할 수 있어요.', '', open('일정 열어 공개하기', 'poll')],
     () => ['다음 일정', `${esc(event.place)} · ${esc(vote)}`,
-      active.length ? nowStats([['선발', counts.early], ['후발', counts.late], ['점심', counts.lunch], ['불참', counts.no], ['미응답', waiting]],
+      active.length ? nowStats([['선발', counts.early], ['후발', counts.late], ['점심', counts.lunch], ['불참', counts.no], ...(event.capacity ? [['대기', counts.waiting]] : []), ['미응답', waiting]],
         responded, active.length, `응답 ${responded}/${active.length}명`)
         : '<p class="now-note">투표 대상 회원이 없어요. 회원 관리에서 활동 회원을 확인해 주세요.</p>',
       voteClosedForSharing(event, active)
@@ -770,7 +783,7 @@ function homeLast(last) {
   if (last.failed) return homeList('지난 일정', 'home-last-title', [], '마무리한 일정을 불러오지 못했어요. 잠시 뒤 홈을 다시 열어 주세요.');
   const { event, roster, guests } = last;
   const c = countEvent(roster, guests);
-  const skipped = roster.filter(row => (row.slot === 'early' || row.slot === 'late') && row.present === false).length;
+  const skipped = roster.filter(row => !row.waitingPosition && (row.slot === 'early' || row.slot === 'late') && row.present === false).length;
   return homeList('지난 일정', 'home-last-title', [homeRow('open-event', event.id, esc(event.title),
     esc(`${dateLabel(event.date)} · 출석 ${c.members}명 · 게스트 ${c.guests}명 · 응답 후 불참 ${skipped}명`), { tab: 'settlement' })], '',
   button('마무리 글 복사', 'copy-last-report', { css: 'text small' }));
@@ -812,10 +825,11 @@ export function voteShareAction(event, roster) {
 
 export function countEvent(roster, guests) {
   return {
-    early: roster.filter(row => row.slot === 'early').length,
-    late: roster.filter(row => row.slot === 'late').length,
+    early: roster.filter(row => row.slot === 'early' && !row.waitingPosition).length,
+    late: roster.filter(row => row.slot === 'late' && !row.waitingPosition).length,
     no: roster.filter(row => row.slot === 'no').length,
-    lunch: roster.filter(row => row.lunch).length,
+    lunch: roster.filter(row => row.lunch && !row.waitingPosition).length,
+    waiting: roster.filter(row => row.waitingPosition).length,
     members: roster.filter(row => row.present === true).length,
     unmarked: roster.filter(row => row.present == null).length,
     guests: guests.filter(row => row.status === 'arrived').length,
@@ -836,6 +850,8 @@ export function eventForm(event, id = '') {
       ${field('모임 이름', 'title', event.title, { attrs: 'required maxlength="120"' })}
       ${select('종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
       ${field('장소', 'place', event.place, { wide: true, attrs: 'required maxlength="120"' })}
+      ${field('신청 정원 (선택)', 'capacity', event.capacity ?? '', { type: 'number', wide: true,
+        attrs: 'min="1" max="10000" step="1" inputmode="numeric"', help: '회원 참석에 적용해요. 비워 두면 제한 없이 받고, 정원이 차면 대기로 등록돼요.' })}
     </div>`)
     + formGroup('언제', `<div class="form-grid">
       ${field('날짜', 'date', event.date, { type: 'date', wide: true, attrs: 'required' })}
@@ -865,8 +881,8 @@ function eventLink(event, title, detail) {
 // in the 운영 홈 order as rows on the page, then the finished ones (마무리 확정 or 취소) folded under 끝난 일정, latest first.
 function eventList(events, month, calendarOpen) {
   const now = koreanNow();
-  const calendar = !calendarOpen ? '' : `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendarBlock(calendarEvents(events, now),
-    { month: month ?? now.day.slice(0, 7), today: now.day, icon })}</div></section>`;
+  const calendar = calendarOpen ? calendarBlock(calendarEvents(events, now),
+    { month: month ?? now.day.slice(0, 7), today: now.day, icon }) : '';
   const flows = flowOrder(events, now);
   const past = events.filter(event => finished(event, now))
     .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
@@ -877,7 +893,7 @@ function eventList(events, month, calendarOpen) {
   const pastRows = past.map(event => eventLink(event, esc(event.title),
     esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`)));
   return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
-      <span class="list-actions">${calendarToggle(calendarOpen)}${button(`${icon('plus', 17)} 새 일정`, 'new-event', { css: 'secondary small' })}</span></header>
+      ${calendarToggle(calendarOpen)}</header>
     ${calendar}
     ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
     ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}`;
@@ -920,14 +936,14 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
   // 내 응답 (ROLES.md 2단계: organisers vote as members): one line under the numbers that says the answer and unfolds
   // the same form the members get, so the names to chase stay on the first screen. app.mjs keeps it open through a save.
   const mine = own && (own.eligible || own.vote)
-    ? `<details class="event-past my-vote" id="my-vote"${myVoteOpen ? ' open' : ''}><summary>내 응답 · ${own.vote ? esc(`${voteLabel(own.vote.slot, event)}${own.vote.lunch ? ' · 점심' : ''}`)
+    ? `<details class="event-past my-vote" id="my-vote"${myVoteOpen ? ' open' : ''}><summary>내 응답 · ${own.vote ? esc(`${voteLabel(own.vote.slot, event)}${own.vote.waitingPosition ? ` · 대기 ${own.vote.waitingPosition}번` : ''}${own.vote.lunch ? ' · 점심' : ''}`)
       : event.canVote ? '아직 안 했어요' : '응답하지 않았어요'}${icon('chevron-right', 16)}</summary>${voteResponse(event, own.vote, own.eligible, own.saved, true)}</details>` : '';
   const late = !event.canVote && deadlinePassed(event) && (event.open || event.date >= today())
     ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : '';
   // 카톡 공유 is copying the vote link (DESIGN.md 5 카톡 공유); the KakaoTalk preview waits in 더보기.
-  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster)}</div>${late}
+  const vote = `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts">${voteSummary(roster, event)}</div>${late}
     <div class="now-actions" id="vote-share">${voteShareAction(event, roster)}</div></section>`;
-  const poll = vote + mine + voteRoster(event, roster);
+  const poll = vote + mine + voteRoster(event, roster, false, Boolean(event.capacity && (event.cancelled || settlement?.confirmed)));
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed, onlyUnmarked) + guestList
     : current === 'settlement' ? settlementPanel(settlement, counts, detail.carryStock, guests) : poll + guestList;
   return `<div class="event-page">${back}${head}${nav}${content}</div>`;
@@ -935,25 +951,29 @@ export function eventScreen(events, detail, { tab = null, own = null, month = nu
 
 // 참석 투표 현황: how many of the active members answered, then each way, and the bar (the 운영 홈 card's numbers).
 // Redrawn every 15 seconds (app.mjs refreshVoteCounts).
-export function voteSummary(roster) {
+export function voteSummary(roster, event = {}) {
   const active = roster.filter(member => member.active);
   const counts = countEvent(active, []);
-  const responded = counts.early + counts.late + counts.no;
+  const responded = counts.early + counts.late + counts.no + counts.waiting;
   return `<p class="vote-total">응답 ${responded} / ${active.length}명</p>
+    ${event.capacity ? `<p class="muted">${capacityInfo(event, countEvent(roster, []))}</p>` : ''}
     <p class="muted">선발 ${counts.early} · 후발 ${counts.late} · 불참 ${counts.no} · 점심 ${counts.lunch}</p>
     <svg class="now-meter" viewBox="0 0 ${Math.max(active.length, 1)} 1" preserveAspectRatio="none" role="img" aria-label="응답 ${responded}/${active.length}명"><rect width="${responded}" height="1"/></svg>`;
 }
 
 // 응답 명단: who has not answered first (the active members the organiser will chase), then everyone who answered,
 // folded. 응답 변경 on each name opens the organisers' 회원 응답 변경. foldOpen keeps the fold as it was on a redraw.
-export function voteRoster(event, roster, foldOpen = false) {
+export function voteRoster(event, roster, foldOpen = false, locked = false) {
   const byName = (a, b) => a.name.localeCompare(b.name, 'ko');
-  const row = (person, detail) => `<li><span><strong>${esc(person.name)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span>${button('응답 변경', 'vote-override', { id: person.id, css: 'text small', label: `${person.name} 응답 변경` })}</li>`;
+  const row = (person, detail) => `<li><span><strong>${esc(person.name)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span>${button('응답 변경', 'vote-override', { id: person.id, css: 'text small', label: `${person.name} 응답 변경`, disabled: locked })}</li>`;
   const silent = roster.filter(person => person.active && !person.slot).sort(byName);
   const order = { early: 0, late: 1, no: 2 };
-  const answered = roster.filter(person => person.slot).sort((a, b) => order[a.slot] - order[b.slot] || byName(a, b));
+  const waiting = roster.filter(person => person.waitingPosition).sort((a, b) => a.waitingPosition - b.waitingPosition);
+  const answered = roster.filter(person => person.slot && !person.waitingPosition).sort((a, b) => order[a.slot] - order[b.slot] || byName(a, b));
   return `<section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
     ${silent.length ? `<ul class="name-list">${silent.map(person => row(person, '')).join('')}</ul>` : `<p class="muted home-empty">${roster.some(person => person.active) ? '모두 응답했어요.' : '이 일정에 등록된 회원이 없습니다.'}</p>`}
+    ${waiting.length ? `<h2>대기 ${waiting.length}명</h2><ul class="name-list">${waiting.map(person => row(person,
+      `대기 ${person.waitingPosition}번 · ${voteLabel(person.slot, event)}`)).join('')}</ul>` : ''}
     ${answered.length ? `<details class="event-past"${foldOpen ? ' open' : ''}><summary>응답한 ${answered.length}명${icon('chevron-right', 16)}</summary><ul class="name-list">${answered.map(person =>
       row(person, `${voteLabel(person.slot, event)}${person.lunch ? ' · 점심' : ''}${person.active ? '' : ' · 비활성'}`)).join('')}</ul></details>` : ''}</section>`;
 }
@@ -986,7 +1006,7 @@ const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정',
 // 상세. The live app redraws only this row after a check-in (app.mjs markPresent).
 export function attendanceRow(event, person, confirmed) {
   const present = person.present === true;
-  const facts = [voteLabel(person.slot, event), person.lunch ? '점심' : '', person.present === false ? '불참 확인' : '', recognitionLabel[person.recognition] ?? ''].filter(Boolean).join(' · ');
+  const facts = [person.waitingPosition ? `대기 ${person.waitingPosition}번` : '', voteLabel(person.slot, event), person.lunch ? '점심' : '', person.present === false ? '불참 확인' : '', recognitionLabel[person.recognition] ?? ''].filter(Boolean).join(' · ');
   return `<li data-member="${esc(person.id)}" data-search="${esc(person.name)}" data-selected="${present}">
       <button type="button" class="att-row" data-action="mark-present" data-id="${esc(person.id)}" aria-pressed="${present}" aria-label="${esc(person.name)} 출석"${confirmed ? ' disabled' : ''}>
         <span><strong>${esc(person.name)}</strong><small>${esc(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
@@ -1003,7 +1023,7 @@ export function attendanceCount(counts) {
 function attendancePanel(event, roster, counts, confirmed, onlyUnmarked = false) {
   const favor = row => row.slot === 'early' ? 0 : 1;
   const byOrder = (a, b) => favor(a) - favor(b) || a.name.localeCompare(b.name, 'ko');
-  const coming = roster.filter(row => row.slot === 'early' || row.slot === 'late').sort(byOrder);
+  const coming = roster.filter(row => !row.waitingPosition && (row.slot === 'early' || row.slot === 'late')).sort(byOrder);
   const others = roster.filter(row => !coming.includes(row)).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const list = people => `<ul class="att-list">${people.map(person => attendanceRow(event, person, confirmed)).join('')}</ul>`;
   return `<section id="attendance" class="att" aria-label="당일 출석"${onlyUnmarked ? ' data-only="unmarked"' : ''}>

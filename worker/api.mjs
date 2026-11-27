@@ -24,17 +24,31 @@ const eventKinds = ['regular', 'flash', 'match', 'social'];
 const pinLimit = 3;
 const guestStates = ['pending', 'confirmed', 'arrived', 'cancelled'];
 const bodyLimit = 24 * 1024;
-const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published, kind';
+const eventFields = 'id, title, date, time, end_time, place, deadline, deadline_at, early_time, late_time, notes, open, published, kind, capacity';
 const noticeFields = 'id, title, body, date, published';
 // pinned_at and cancelled_at are set only by pinning and cancelling (setPinned, setCancelled), never by the event or
 // notice forms, so they stay out of the field lists above.
 // 참석 현황 on the member screens: how many on the event's roster chose each slot and lunch, counted as the
 // organisers count them (views.mjs countEvent), never who. `table` is the events alias of the query it joins.
-const countColumns = table => [...slots.map(slot => [slot, `cv.slot = '${slot}'`]), ['lunch', 'cv.lunch = 1']]
-  .map(([name, where]) => `(SELECT COUNT(*) FROM roster cr
-  JOIN votes cv ON cv.event_id = cr.event_id AND cv.member_id = cr.member_id
-  WHERE cr.event_id = ${table}.id AND ${where}) AS ${name}_count`).join(', ');
-const readCounts = row => ({ early: row.early_count, late: row.late_count, no: row.no_count, lunch: row.lunch_count });
+// FIFO is derived from the stored admission order, so a withdrawal promotes the next person
+// atomically without a separate update. The insert/update triggers preserve order across clients.
+const voteRank = vote => `(SELECT COUNT(*) FROM votes earlier WHERE earlier.event_id = ${vote}.event_id AND earlier.slot <> 'no'
+  AND COALESCE(earlier.signup_order, earlier.rowid) <= COALESCE(${vote}.signup_order, ${vote}.rowid))`;
+const waitingPosition = (vote, event) => `CASE WHEN ${event}.capacity IS NOT NULL AND ${vote}.slot <> 'no'
+  AND ${voteRank(vote)} > ${event}.capacity THEN ${voteRank(vote)} - ${event}.capacity END`;
+const countColumns = table => {
+  const attending = `(${table}.capacity IS NULL OR ${voteRank('cv')} <= ${table}.capacity)`;
+  const filters = [
+    ['early', `cv.slot = 'early' AND ${attending}`], ['late', `cv.slot = 'late' AND ${attending}`],
+    ['no', "cv.slot = 'no'"], ['lunch', `cv.lunch = 1 AND (cv.slot = 'no' OR ${attending})`],
+    ['waiting', `${table}.capacity IS NOT NULL AND cv.slot <> 'no' AND ${voteRank('cv')} > ${table}.capacity`]
+  ];
+  return filters.map(([name, where]) => `(SELECT COUNT(*) FROM roster cr
+    JOIN votes cv ON cv.event_id = cr.event_id AND cv.member_id = cr.member_id
+    WHERE cr.event_id = ${table}.id AND ${where}) AS ${name}_count`).join(', ');
+};
+const readCounts = row => ({ early: row.early_count, late: row.late_count, no: row.no_count, lunch: row.lunch_count,
+  ...(row.capacity != null && { waiting: row.waiting_count }) });
 
 function json(body, status = 200, cookie) {
   const headers = new Headers({
@@ -184,7 +198,8 @@ function serializeEvent(row) {
     place: row.place, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
     notes: row.notes, open, published, canVote: open && published && row.deadline_at > currentSeconds(),
     kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
-    ...(row.vote_closed_at != null && { voteClosed: true })
+    ...(row.vote_closed_at != null && { voteClosed: true }),
+    ...(row.capacity != null && { capacity: row.capacity })
   };
 }
 
@@ -223,7 +238,8 @@ function serializeSettlement(row) {
 }
 
 function serializeVote(row) {
-  return row ? { slot: row.slot, lunch: Boolean(row.lunch) } : null;
+  return row?.slot ? { slot: row.slot, lunch: Boolean(row.lunch),
+    ...(row.waiting_position != null && { waitingPosition: row.waiting_position }) } : null;
 }
 
 function validateVote(body, allowClear = false, allowed = slots) {
@@ -246,8 +262,10 @@ function validateEvent(input) {
     notes: text(input.notes ?? '', '공개 안내', 3000, true),
     open: boolean(input.open ?? false, '투표 열림 상태'),
     published: boolean(input.published ?? false, '공개 상태'),
-    kind: input.kind ?? 'regular'
+    kind: input.kind ?? 'regular',
+    capacity: input.capacity == null ? null : number(input.capacity, '정원', 10000)
   };
+  if (fields.capacity === 0) bad('정원은 1명 이상으로 설정해 주세요.');
   if (!eventKinds.includes(fields.kind)) bad('일정 종류를 확인해 주세요.');
   if (fields.endTime <= fields.time || fields.lateTime <= fields.earlyTime) {
     bad('시간과 선발·후발 순서를 확인해 주세요.');
@@ -258,7 +276,7 @@ function validateEvent(input) {
 
 function eventParams(event) {
   return [event.title, event.date, event.time, event.endTime, event.place, event.deadline, toEpoch(event.deadline),
-    event.earlyTime, event.lateTime, event.notes, +event.open, +event.published, event.kind];
+    event.earlyTime, event.lateTime, event.notes, +event.open, +event.published, event.kind, event.capacity ?? null];
 }
 
 async function fetchEvent(db, club, id) {
@@ -320,7 +338,7 @@ async function listPublic(db, club, memberId) {
   const time = now.slice(11, 16);
   const seconds = currentSeconds();
   const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at, e.cancelled_at, e.vote_closed_at,
-        e.early_time, e.late_time, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
+        e.early_time, e.late_time, e.capacity, ${waitingPosition('v', 'e')} AS my_waiting_position, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
   const upcoming = `FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
@@ -345,7 +363,9 @@ async function listPublic(db, club, memberId) {
       place: memberId ? row.place : null, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
       canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
       ...(row.vote_closed_at != null && { voteClosed: true }),
-      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row)
+      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row),
+      ...(row.capacity != null && { capacity: row.capacity }),
+      ...(row.my_waiting_position != null && { myWaitingPosition: row.my_waiting_position })
     })),
     notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
     record: memberId ? await memberRecord(db, club, memberId, date) : null
@@ -395,32 +415,31 @@ async function memberVote(db, club, method, id, user, body = {}) {
   `, id, club, user.id).first();
   if (!roster) missing();
 
-  if (method === 'GET') {
-    const row = await sql(db, 'SELECT slot, lunch FROM votes WHERE event_id = ? AND member_id = ?', id, user.id).first();
-    return { vote: serializeVote(row) };
-  }
+  const readVote = sql(db, `SELECT v.slot, v.lunch, ${waitingPosition('v', 'e')} AS waiting_position
+    FROM votes v JOIN events e ON e.id = v.event_id WHERE v.event_id = ? AND v.member_id = ?`, id, user.id);
+  if (method === 'GET') return { vote: serializeVote(await readVote.first()) };
   if (method !== 'PUT') methodNotAllowed();
   // slot null is 응답 취소: the answer is removed under the same conditions that let it be saved.
   const { slot, lunch } = validateVote(body, true);
   const canAnswer = `FROM roster r JOIN events e ON r.event_id = e.id JOIN members m ON m.id = r.member_id
     WHERE r.event_id = ? AND r.member_id = ? AND m.active = 1 AND e.club_id = ?
       AND m.credential_version = ? AND e.published = 1 AND e.open = 1 AND e.deadline_at > unixepoch()`;
-  const result = slot === null
-    ? await sql(db, `DELETE FROM votes WHERE event_id = ? AND member_id = ? AND EXISTS (SELECT 1 ${canAnswer})`,
-      id, user.id, id, user.id, club, user.version).run()
-    : await sql(db, `
+  const write = slot === null
+    ? sql(db, `DELETE FROM votes WHERE event_id = ? AND member_id = ? AND EXISTS (SELECT 1 ${canAnswer})`,
+      id, user.id, id, user.id, club, user.version)
+    : sql(db, `
     INSERT INTO votes (event_id, member_id, slot, lunch)
     SELECT r.event_id, r.member_id, ?, ?
     ${canAnswer}
     ON CONFLICT (event_id, member_id) DO UPDATE SET slot = excluded.slot, lunch = excluded.lunch
-  `, slot, +lunch, id, user.id, club, user.version).run();
-  // Nothing removed is fine when there was no answer to remove; an answer still there means the vote is closed.
-  const blocked = slot === null
-    ? await sql(db, 'SELECT 1 FROM votes WHERE event_id = ? AND member_id = ?', id, user.id).first()
-    : !result.meta.changes;
+  `, slot, +lunch, id, user.id, club, user.version);
+  const [result, vote, counts] = await db.batch([write, readVote,
+    sql(db, `SELECT capacity, ${countColumns('events')} FROM events WHERE id = ? AND club_id = ?`, id, club)
+  ]);
+  // Nothing removed is fine when there was no answer; a remaining answer in this snapshot means voting was closed.
+  const blocked = slot === null ? vote.results.length > 0 : !result.meta.changes;
   if (blocked) throw new ApiError(409, '투표가 마감되었거나 회원 정보가 바뀌었어요. 새로고침해 주세요.');
-  const counts = await sql(db, `SELECT ${countColumns('events')} FROM events WHERE id = ? AND club_id = ?`, id, club).first();
-  return { vote: slot === null ? null : { slot, lunch }, counts: readCounts(counts) };
+  return { vote: serializeVote(vote.results[0]), counts: readCounts(counts.results[0]) };
 }
 
 async function listAdmin(db, club) {
@@ -486,6 +505,13 @@ async function updateMember(env, id, body) {
     DELETE FROM sessions WHERE member_id = ?
       AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0)
   `, id, id, club));
+  if (active === 0) statements.push(sql(db, `
+    DELETE FROM votes WHERE member_id = ? AND slot <> 'no' AND event_id IN (
+      SELECT e.id FROM events e JOIN members m ON m.club_id=e.club_id
+      WHERE e.club_id=? AND m.id=? AND m.active=0 AND e.capacity IS NOT NULL AND e.date>=?
+        AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id=e.id AND s.confirmed=1)
+    )
+  `, id, club, id, kstToday()));
   if (active === 1) statements.push(rosterOpenEvents(db, club, id));
   statements.push(sql(db, 'SELECT id, name, active FROM members WHERE id = ? AND club_id = ?', id, club));
   const results = await db.batch(statements);
@@ -548,7 +574,7 @@ async function addEvent(db, club, body) {
   await db.batch([
     sql(db, `
       INSERT INTO events (club_id, ${eventFields})
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, club, id, ...eventParams(data)),
     sql(db, 'INSERT INTO roster (event_id, member_id) SELECT ?, id FROM members WHERE club_id = ? AND active = 1', id, club)
   ]);
@@ -560,19 +586,32 @@ async function updateEvent(db, club, id, body) {
   const data = validateEvent({ ...previous, ...body });
   if (data.open && previous.cancelled) throw new ApiError(409, '취소한 일정은 투표를 열 수 없어요. 먼저 취소를 풀어 주세요.');
   ensureVoteStartsBeforeDeadline(data, previous);
+  const changedCapacity = data.capacity !== (previous.capacity ?? null);
+  const today = kstToday();
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
-      early_time=?, late_time=?, notes=?, open=?, published=?, kind=?,
+      early_time=?, late_time=?, notes=?, open=?, published=?, kind=?, capacity=?,
       vote_closed_at=CASE WHEN ?=1 THEN NULL WHEN open=1 THEN unixepoch() ELSE vote_closed_at END
     WHERE id=? AND club_id=?
       AND title=? AND date=? AND time=? AND end_time=? AND place=? AND deadline=? AND deadline_at=?
-      AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=?
+      AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=? AND capacity IS ?
+      AND (? IS NULL OR ? >= capacity OR ? >= (
+        SELECT COUNT(*) FROM votes v JOIN members m ON m.id=v.member_id
+        WHERE v.event_id=events.id AND v.slot<>'no' AND (m.active=1 OR ? < ? OR (events.capacity IS NOT NULL AND events.date>=?))
+      ))
       AND (
-        (date=? AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
+        (date=? AND ?=0 AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
       AND (?=0 OR cancelled_at IS NULL)
-  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.date, +data.open, id, +data.open).run();
+  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.capacity, data.capacity, data.capacity, data.date, today, today, data.date, +data.open, +changedCapacity, id, +data.open).run();
   if (!updates.meta.changes) {
+    if (changedCapacity) {
+      const current = await fetchEvent(db, club, id);
+      const saved = eventParams(previous);
+      if (current.cancelled === previous.cancelled && eventParams(current).every((value, index) => value === saved[index])) {
+        throw new ApiError(409, '확정 인원보다 정원을 줄이거나 마무리한 일정의 정원을 바꿀 수 없어요.');
+      }
+    }
     throw new ApiError(409, '다른 곳에서 일정이 바뀌었거나 마무리가 확정됐어요. 새로고침한 뒤 확인해 주세요.');
   }
   return { event: await fetchEvent(db, club, id) };
@@ -582,8 +621,9 @@ async function eventDetails(db, club, id) {
   const [event, roster, guests, settlement, previous] = await db.batch([
     sql(db, `SELECT ${eventFields}, pinned_at, cancelled_at, vote_closed_at FROM events WHERE id = ? AND club_id = ?`, id, club),
     sql(db, `
-      SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition
-      FROM roster r JOIN members m ON r.member_id = m.id
+      SELECT m.id, m.name, m.active, v.slot, v.lunch, a.present, a.recognition,
+        ${waitingPosition('v', 'e')} AS waiting_position
+      FROM roster r JOIN members m ON r.member_id = m.id JOIN events e ON e.id = r.event_id
       LEFT JOIN votes v ON v.event_id = r.event_id AND v.member_id = r.member_id
       LEFT JOIN attendance a ON a.event_id = r.event_id AND a.member_id = r.member_id
       WHERE r.event_id = ? ORDER BY m.name, m.id
@@ -606,7 +646,8 @@ async function eventDetails(db, club, id) {
     carryStock: carry ? { shuttles: closingShuttles(carry), date: carry.date, time: carry.time } : null,
     roster: roster.results.map(row => ({
       id: row.id, name: row.name, active: Boolean(row.active), slot: row.slot, lunch: Boolean(row.lunch),
-      present: row.present === null ? null : Boolean(row.present), recognition: row.recognition
+      present: row.present === null ? null : Boolean(row.present), recognition: row.recognition,
+      ...(row.waiting_position != null && { waitingPosition: row.waiting_position })
     })),
     guests: guests.results.map(serializeGuest),
     settlement: serializeSettlement(settlement.results[0])
@@ -623,14 +664,18 @@ async function ensureRoster(db, club, eventId, memberId) {
 async function overrideVote(db, club, id, memberId, body) {
   await ensureRoster(db, club, id, memberId);
   const { slot, lunch } = validateVote(body, true);
-  if (slot === null) {
-    await sql(db, 'DELETE FROM votes WHERE event_id = ? AND member_id = ?', id, memberId).run();
-  } else {
-    await sql(db, `
-      INSERT INTO votes (event_id, member_id, slot, lunch) VALUES (?, ?, ?, ?)
-      ON CONFLICT (event_id, member_id) DO UPDATE SET slot=excluded.slot, lunch=excluded.lunch
-    `, id, memberId, slot, +lunch).run();
-  }
+  const editable = `SELECT 1 FROM events e WHERE e.id=? AND e.club_id=?
+    AND (e.capacity IS NULL OR (e.cancelled_at IS NULL AND NOT EXISTS (
+      SELECT 1 FROM settlements s WHERE s.event_id=e.id AND s.confirmed=1
+    ) AND (?=0 OR EXISTS (SELECT 1 FROM members WHERE id=? AND club_id=e.club_id AND active=1))))`;
+  const editParams = [id, club, +(slot === 'early' || slot === 'late'), memberId];
+  const write = slot === null
+    ? sql(db, `DELETE FROM votes WHERE event_id=? AND member_id=? AND EXISTS (${editable})`, id, memberId, ...editParams)
+    : sql(db, `INSERT INTO votes (event_id, member_id, slot, lunch)
+      SELECT ?, ?, ?, ? WHERE EXISTS (${editable})
+      ON CONFLICT (event_id, member_id) DO UPDATE SET slot=excluded.slot, lunch=excluded.lunch`, id, memberId, slot, +lunch, ...editParams);
+  const [, allowed] = await db.batch([write, sql(db, editable, ...editParams)]);
+  if (!allowed.results.length) throw new ApiError(409, '일정이 취소·마무리됐거나 회원이 활동 중지 상태예요. 신청을 확인해 주세요.');
   return { vote: slot === null ? null : { slot, lunch } };
 }
 
@@ -933,7 +978,7 @@ const markWords = { direct: '직접', substitute: '대타', approved: '별도 �
 const guestWords = { pending: '신청', confirmed: '확정', arrived: '도착', cancelled: '취소' };
 const eventWords = {
   title: '제목', date: '날짜', time: '시간', endTime: '시간', place: '장소', deadline: '투표 마감',
-  earlyTime: '집합 시간', lateTime: '집합 시간', notes: '안내', kind: '종류'
+  earlyTime: '집합 시간', lateTime: '집합 시간', notes: '안내', kind: '종류', capacity: '정원'
 };
 const eventKindWords = { regular: '정기', flash: '번개', match: '대회', social: '모임' };
 

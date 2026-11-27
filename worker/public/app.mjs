@@ -355,7 +355,8 @@ function render({ voteSaved = false, motion = '', arrive = '' } = {}) {
     main.innerHTML = loginScreen(club, signIn.name ?? rememberedName(), signIn.numberStep, true);
     return;
   }
-  main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user);
+  main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user,
+    operating(state.user) && state.section === 'event' && !state.selectedEvent);
   if (arrive) main.querySelector('.admin-content').dataset.arrive = arrive;
   const bar = main.querySelector('.tab-bar');
   if (bar?.dataset.current && lastTab && lastTab !== bar.dataset.current) {
@@ -597,7 +598,7 @@ async function refreshVoteCounts() {
       } else {
         // The names follow the numbers, so the list under them never disagrees; the fold stays as it was.
         state.detail = detail;
-        target.innerHTML = voteSummary(detail.roster);
+        target.innerHTML = voteSummary(detail.roster, detail.event);
         const share = main.querySelector('#vote-share');
         const actions = voteShareAction(detail.event, detail.roster);
         if (share && share.innerHTML !== actions) {
@@ -605,7 +606,8 @@ async function refreshVoteCounts() {
           share.innerHTML = actions;
           if (focused) share.querySelector('button')?.focus({ preventScroll: true });
         }
-        replaceKeepingFocus('.vote-roster', voteRoster(detail.event, detail.roster, main.querySelector('.vote-roster details')?.open ?? false));
+        replaceKeepingFocus('.vote-roster', voteRoster(detail.event, detail.roster, main.querySelector('.vote-roster details')?.open ?? false,
+          Boolean(detail.event.capacity && (detail.event.cancelled || detail.settlement?.confirmed))));
       }
     }
   } catch (error) {
@@ -786,7 +788,7 @@ async function doAction(action, itemId, tab) {
     // rows in the list below.
     case 'calendar-month': {
       const shown = main.querySelector('.calendar')?.dataset.month;
-      const month = shown && calendarTarget(shown, itemId, today());
+      const month = shown && calendarTarget(shown, itemId);
       if (!month || month === shown) break;
       state.calendarMonth = month;
       render();
@@ -1046,6 +1048,7 @@ const read = (data, key) => raw(data, key).trim();
 function buildEvent(data) {
   const fields = ['title', 'kind', 'date', 'time', 'endTime', 'place', 'deadline', 'earlyTime', 'lateTime', 'notes'];
   const event = Object.fromEntries(fields.map(key => [key, read(data, key)]));
+  event.capacity = read(data, 'capacity') === '' ? null : Number(read(data, 'capacity'));
   event.open = data.has('open');
   event.published = data.has('published');
   if (!event.published && event.open) throw new Error('웹 투표를 열려면 회원에게 일정을 공개해 주세요.');
@@ -1104,7 +1107,7 @@ async function doSubmit(kind, itemId, data) {
     case 'event': {
       const values = buildEvent(data);
       const changed = itemId && eventSnapshot?.id === itemId
-        ? Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== eventSnapshot[key]))
+        ? Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== (key === 'capacity' ? eventSnapshot.capacity ?? null : eventSnapshot[key])))
         : values;
       if (!Object.keys(changed).length) {
         closeDialog();

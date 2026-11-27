@@ -143,3 +143,29 @@ test('0011 adds nullable payment and stock fields without rewriting saved guest 
     db.close();
   }
 });
+
+test('0012 leaves existing schedules unlimited and preserves their responses and insertion order', () => {
+  const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: true });
+  try {
+    db.exec(sources[files[0]]);
+    db.exec(sources[files[1]]);
+    seedSingleClub(db);
+    const migration = '0012_event_capacity.sql';
+    for (const file of files.slice(2, files.indexOf(migration))) db.exec(sources[file]);
+    const saved = snapshot(db);
+    assert.ok(saved.events.length && saved.votes.length);
+    db.exec(sources[migration]);
+    const current = snapshot(db);
+    assert.deepEqual(current.events.map(({ capacity, ...row }) => {
+      assert.equal(capacity, null);
+      return row;
+    }), saved.events);
+    assert.deepEqual(current.votes.map(({ signup_order, ...row }) => {
+      assert.equal(signup_order, null);
+      return row;
+    }), saved.votes);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  } finally {
+    db.close();
+  }
+});

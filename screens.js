@@ -82,8 +82,8 @@
       const past = finishedEvents().map(event => eventLink(event, e(event.title),
         e(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`)));
       return `<header class="list-tools"><h1 class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
-          <span class="list-actions">${calendarToggle()}<button class="btn btn-secondary btn-small" type="button" data-action="open-event">${icon('plus', 17)} 새 일정</button></span></header>`
-        + (calendarOpen() ? `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendar(state.events)}</div></section>` : '')
+          ${calendarToggle()}</header>`
+        + (calendarOpen() ? calendar(state.events) : '')
         + (rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>')
         + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : '');
     }
@@ -104,20 +104,24 @@
       // everyone who has, folded. 응답 변경 opens 응답 조정 with that member picked.
       function poll() {
         const report = counts(event);
-        const responded = report.yes + report.no;
+        const responded = report.yes + report.no + report.waiting;
         const row = (member, detail) => `<li><span><strong>${e(member.name)}</strong>${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
           : action('응답 변경', 'open-vote', event.id, {tone: 'text btn-small', extra: `data-kind="${e(member.id)}" aria-label="${e(member.name)} 응답 변경"`})}</li>`;
         const silent = members.filter(member => !event.votes[member.id]);
         const closed = !event.cancelled && !pollAvailable && (event.voteClosed || deadlinePassed(event) || Object.values(event.votes).some(Boolean));
         const order = {early: 0, late: 1, yes: 1, no: 2};
-        const answered = members.filter(member => event.votes[member.id]).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
+        const position = member => window.clubModel.waitingPosition(event, member.id);
+        const waiting = members.filter(position).sort((a, b) => position(a) - position(b));
+        const answered = members.filter(member => event.votes[member.id] && !position(member)).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
         return `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts"><p class="vote-total">응답 ${responded} / ${report.total}명</p>
+            ${event.capacity ? `<p class="muted">정원 ${event.capacity}명 · 확정 ${report.yes}명 · 대기 ${report.waiting}명</p>` : ''}
             <p class="muted">선발 ${report.early} · 후발 ${report.late} · 불참 ${report.no} · 점심 ${report.lunch}</p>
             <svg class="now-meter" viewBox="0 0 ${Math.max(report.total, 1)} 1" preserveAspectRatio="none" role="img" aria-label="응답 ${responded}/${report.total}명"><rect width="${responded}" height="1"/></svg></div>
             <div class="now-actions">${action(closed ? '마감 안내 복사' : '투표 링크 복사', closed ? 'copy-vote-closed' : 'copy-link', event.id, {tone: pollAvailable || closed ? 'primary' : 'secondary', extra: 'data-kind="vote"'})}</div>
             ${pollAvailable && members.length ? `<a class="btn btn-text now-own" href="#public-vote/${encodeURIComponent(event.id)}" data-route="public-vote/${encodeURIComponent(event.id)}">회원 화면 체험</a>` : ''}</section>
           <section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
             ${silent.length ? `<ul class="name-list">${silent.map(member => row(member, '')).join('')}</ul>` : `<p class="muted home-empty">${members.length ? '모두 응답했어요.' : '이 일정에 등록된 멤버가 없어요.'}</p>`}
+            ${waiting.length ? `<h2>대기 ${waiting.length}명</h2><ul class="name-list">${waiting.map(member => row(member, `대기 ${position(member)}번`)).join('')}</ul>` : ''}
             ${answered.length ? `<details class="event-past"><summary>응답한 ${answered.length}명${icon('chevron-right', 16)}</summary><ul class="name-list">${answered.map(member =>
               row(member, `${slotLabel(event.votes[member.id])}${event.lunch[member.id] ? ' · 점심' : ''}`)).join('')}</ul></details>` : ''}</section>`;
       }
@@ -127,7 +131,7 @@
       function attendance() {
         const report = attendanceCounts(event);
         const actionAllowed = event.date <= today && !event.finalized && !event.cancelled;
-        const coming = member => ['early', 'late', 'yes'].includes(event.votes[member.id]);
+        const coming = member => ['early', 'late', 'yes'].includes(event.votes[member.id]) && !window.clubModel.waitingPosition(event, member.id);
         const row = member => {
           const status = event.attendance[member.id];
           const present = status === 'present';
@@ -362,7 +366,8 @@
       return form(dialog, dialog.id ? '일정 수정' : '새 일정',
         group('무엇을, 어디서', field('일정 이름', input('title', event.title, 'required maxlength="80"'))
           + field('종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
-          + field('장소', input('place', event.place, 'required maxlength="100"'), true))
+          + field('장소', input('place', event.place, 'required maxlength="100"'), true)
+          + field('신청 정원 (선택)', input('capacity', event.capacity, 'type="number" min="1" max="10000" step="1" inputmode="numeric"'), true))
         + group('언제', field('날짜', input('date', event.date || today, 'type="date" required'))
           + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
           + field('시작 시간', input('time', event.time, 'type="time" required'))

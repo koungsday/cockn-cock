@@ -1,6 +1,6 @@
 (() => {
   const model = window.clubModel;
-  const {today, dateLabel, counts, attendanceCounts, stats, addDays, deadlinePassed, settlement, qualification} = model;
+  const {today, dateLabel, counts, waitingPosition, saveResponse, attendanceCounts, stats, addDays, deadlinePassed, settlement, qualification} = model;
   const app = document.querySelector('#app');
   const modal = document.querySelector('#dialog');
   const mobileNav = document.querySelector('#mobile-navigation');
@@ -232,7 +232,8 @@
           <div class="breadcrumb">
             <span class="breadcrumb-parent">썬콕19</span><span class="breadcrumb-divider">/</span><strong>${currentLabel(currentRoute)}</strong>
           </div>
-          <div class="topbar-actions">${viewSwitch(member)}<span class="demo-label"><i></i> 가상 데이터 체험</span>
+          <div class="topbar-actions">${currentRoute.page === 'events'
+            ? `<button class="icon-button" type="button" data-action="open-event" aria-label="새 일정">${icon('plus', 18)}</button>` : ''}${viewSwitch(member)}<span class="demo-label"><i></i> 가상 데이터 체험</span>
             <button type="button" class="icon-button topbar-menu" data-action="open-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="mobile-navigation" aria-expanded="false">${menuIcon}</button></div>
         </header>
         <main class="main-content" id="main-content" tabindex="-1"></main>
@@ -371,7 +372,7 @@
     }
     const id = escape(event.id);
     const stage = sessionStage(event);
-    const {yes, no, pending, total, early, late, lunch} = counts(event);
+    const {yes, no, pending, total, early, late, lunch, waiting} = counts(event);
     const present = attendanceCounts(event).present;
     const arrived = event.guests.filter(guest => guest.arrived).length;
     const open = (label, tab) => `<a class="btn btn-primary" href="#event/${id}/${tab}" data-route="event/${id}/${tab}">${label}</a>`;
@@ -381,7 +382,7 @@
     const vote = pollIsOpen(event) ? `${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : closed ? '투표가 마감됐어요' : '투표가 닫혀 있어요';
     const [kicker, fact, numbers, actions] = {
       1:() => ['다음 일정', `${escape(event.place)} · ${escape(vote)}`,
-        nowStats([['선발', early], ['후발', late], ['점심', lunch], ['불참', no], ['미응답', pending]], yes + no, total, `응답 ${yes + no}/${total}명`),
+        nowStats([['선발', early], ['후발', late], ['점심', lunch], ['불참', no], ...(event.capacity ? [['대기', waiting]] : []), ['미응답', pending]], yes + no + waiting, total, `응답 ${yes + no + waiting}/${total}명`),
         open(pending > 0 ? `미응답 ${pending}명 보기` : '응답 명단 보기', 'poll')
           + `<button class="btn btn-secondary" type="button" data-action="${closed ? 'copy-vote-closed' : 'copy-link'}" data-kind="vote" data-id="${id}">${closed ? '마감 안내 복사' : '투표 링크 복사'}</button>`],
       2:() => ['오늘 일정', escape(event.place), attendance(), open('출석 체크', 'attendance')],
@@ -549,7 +550,7 @@
     // 일정 달력 (the live doAction): the asked month slides in from its side; a date marks its rows in the list below.
     if (action === 'calendar-month') {
       const shown = app.querySelector('.calendar')?.dataset.month;
-      const month = shown && window.clubCalendar.calendarTarget(shown, id, today);
+      const month = shown && window.clubCalendar.calendarTarget(shown, id);
       if (!month || month === shown) return;
       ui.calendarMonth = month;
       renderPage();
@@ -701,7 +702,7 @@
     } else if (action === 'cancel-public-vote' && pollIsOpen(event) && ui.publicReceipts[id]) {
       // 응답 취소 on the member vote screen, as the live one (worker/public/app.mjs cancel-vote).
       const {member: own} = ui.publicReceipts[id];
-      delete event.votes[own];
+      saveResponse(event, own, null);
       delete event.lunch[own];
       delete ui.publicReceipts[id];
       persist('응답을 취소했어요.');
@@ -781,6 +782,20 @@
         && deadlinePassed({deadline:value('deadline'), deadlineTime:value('deadlineTime')})) {
         return fieldError(form, 'deadlineTime', '투표 마감은 투표를 여는 시각보다 늦어야 해요.');
       }
+      const capacity = value('capacity') === '' ? null : Number(value('capacity'));
+      if (capacity != null && (!Number.isInteger(capacity) || capacity < 1 || capacity > 10000)) return fieldError(form, 'capacity', '정원을 확인해 주세요.');
+      const date = value('date');
+      const inactiveSignups = event && capacity != null && date >= today && (!event.capacity || event.date < today)
+        ? state.members.filter(member => member.status === 'inactive' && event.votes[member.id] && event.votes[member.id] !== 'no')
+        : [];
+      if (event && capacity !== (event.capacity ?? null)) {
+        const confirmed = inactiveSignups.length
+          ? Math.min(event.capacity ?? Infinity, counts({...event, capacity:null}).yes - inactiveSignups.length)
+          : counts(event).yes;
+        if (event.finalized || (capacity && capacity < confirmed)) {
+          return fieldError(form, 'capacity', '확정 인원보다 정원을 줄이거나 마무리한 일정의 정원을 바꿀 수 없어요.');
+        }
+      }
       if (event?.finalized && value('date') > today) return fieldError(form,'date','출석을 확정한 모임은 미래 날짜로 옮길 수 없어요.');
       if (!event) {
         event = {id:idFor('event'),finalized:false,pinnedAt:null,cancelled:false,roster:state.members.filter(member => member.status === 'active').map(member => member.id),
@@ -788,6 +803,11 @@
         state.events.push(event);
       }
       Object.assign(event, Object.fromEntries(['title','date','time','endTime','earlyTime','lateTime','place','deadline','deadlineTime','notes'].map(key => [key,value(key)])));
+      for (const member of inactiveSignups) {
+        saveResponse(event, member.id, null);
+        delete event.lunch[member.id];
+      }
+      event.capacity = capacity;
       event.kind = kindLabels[value('kind')] ? value('kind') : 'regular';
       const open = formData.has('pollOpen') && !event.finalized && !event.cancelled;
       if (open || event.pollOpen) event.voteClosed = !open;
@@ -805,6 +825,14 @@
       const member = state.members.find(item => item.id === id) || {id:idFor('member'),joined:today};
       if (isNew) state.members.push(member);
       Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),notes:value('notes')});
+      if (member.status === 'inactive') {
+        for (const event of state.events) {
+          if (event.capacity && event.date >= today && !event.finalized && event.votes[member.id] && event.votes[member.id] !== 'no') {
+            saveResponse(event, member.id, null);
+            delete event.lunch[member.id];
+          }
+        }
+      }
       ui.memberQuery = '';
       ui.memberStatus = member.status;
       target = 'members';
@@ -861,10 +889,11 @@
         return showToast('예시 회원과 응답을 선택해 주세요.');
       }
       const lunch = formData.has('lunch');
-      event.votes[member] = vote;
+      saveResponse(event, member, vote);
       event.lunch[member] = lunch;
       if (type === 'public-vote') ui.publicReceipts[id] = {member,vote,lunch};
-      message = vote === 'early' ? '선발로 응답했어요.' : vote === 'late' ? '후발로 응답했어요.' : '불참을 기록했어요.';
+      const waiting = waitingPosition(event, member);
+      message = waiting ? `대기 ${waiting}번으로 신청했어요.` : vote === 'early' ? '선발로 응답했어요.' : vote === 'late' ? '후발로 응답했어요.' : '불참을 기록했어요.';
     } else return;
     if (modal.open) modal.close();
     persist(message);
