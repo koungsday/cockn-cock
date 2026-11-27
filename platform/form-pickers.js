@@ -191,7 +191,7 @@
       position();
       for (const options of popup.querySelectorAll('.picker-clock-options')) {
         const current = options.querySelector('[aria-pressed=true]');
-        if (current) options.scrollTop += current.getBoundingClientRect().top - options.getBoundingClientRect().top;
+        if (current) options.scrollTop = current.offsetTop - (options.clientHeight - current.offsetHeight) / 2;
       }
       (popup.querySelector('[aria-pressed=true]:enabled') || popup.querySelector('button')).focus({ preventScroll: true });
     });
