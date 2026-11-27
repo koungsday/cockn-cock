@@ -24,6 +24,7 @@ for (const file of [
 const shared = (await Promise.all(['../styles.css', '../share.css'].map(file => readFile(new URL(file, import.meta.url), 'utf8'))))
   .join('\n').replaceAll("url('assets/", "url('/assets/");
 const entries = [
+  ['form-pickers.js', await readFile(new URL('../platform/form-pickers.js', import.meta.url), 'utf8')],
   ['live.css', `${theme}\n${shared}\n${await readFile(new URL('live.css', site), 'utf8')}`],
   ['app.mjs', await readFile(new URL('app.mjs', site), 'utf8')],
   ['views.mjs', await readFile(new URL('views.mjs', site), 'utf8')],

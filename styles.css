@@ -621,3 +621,32 @@ html.menu-locked body {
    behind the dim turned green (사용자 지적, 2026-11-26). */
 html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); }
 html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--paper); }
+
+/* Shared form pickers keep the original control in the form for submission. */
+.picker-native { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; pointer-events: none; clip-path: inset(50%); }
+.form-picker { display: block; min-width: 0; }
+.picker-trigger, .picker-option, .picker-days button, .picker-month > button {
+  min-height: var(--touch-target); font: inherit; color: var(--ink); cursor: pointer;
+}
+.picker-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%;
+  padding: 6px 10px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); text-align: left;
+}
+.picker-trigger::after { content: ''; flex: none; width: 6px; height: 6px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; rotate: 45deg; }
+.picker-trigger[aria-invalid=true] { border-color: var(--accent-red); }
+.picker-popup {
+  width: min(360px, calc(100% - 28px)); max-height: min(70dvh, 460px); overflow: auto;
+  padding: 12px; border: 1px solid var(--field-line); border-radius: 15px; background: var(--surface); color: var(--ink);
+}
+.picker-month { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.picker-month > input { min-width: 0; width: 4em; }
+.picker-month > button { min-width: var(--touch-target); }
+.picker-month > button:not(.btn), .picker-option, .picker-days button {
+  border: 0; border-radius: 8px; background: var(--hint);
+}
+.picker-option { display: block; width: 100%; text-align: left; padding-inline: 10px; margin-top: 4px; }
+.picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-block: 8px; text-align: center; }
+.picker-days button { padding: 0; }
+.picker-popup [aria-pressed=true] { background: var(--court); color: var(--surface); }
+.picker-popup button:disabled, .picker-trigger:disabled { opacity: .5; cursor: default; }
+.picker-problem:not(:empty) { display: block; margin-top: 4px; color: var(--ink); font-size: var(--t4); }
