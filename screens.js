@@ -423,7 +423,7 @@
       const member = state.members.find(item => item.id === dialog.id);
       if (!member || !dialog.kind) return '';
       const text = `썬콕19 접속 안내\n성함 ${member.name}\n임시 번호 ${dialog.kind}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${location.href.split('#')[0]}`;
-      return confirm('회원에게 보낼 접속 안내', `<p>${e(member.name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
+      return confirm('비밀번호 재설정', `<p>${e(member.name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
         <p class="form-note">가상 체험이라 실제 번호는 바뀌지 않아요.</p>
         <textarea class="copy-text" readonly rows="6" aria-label="회원 접속 안내">${e(text)}</textarea>`, action('접속 안내 복사', 'copy-invitation', '', { tone: 'primary' }));
     }

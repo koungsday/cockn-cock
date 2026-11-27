@@ -509,12 +509,14 @@ function matchingControl(control) {
     candidate.dataset.action === control.dataset.action && candidate.dataset.id === control.dataset.id && !candidate.disabled);
 }
 
+// The one-time 접속 안내. A member's comes only from 비밀번호 재설정 and carries its name as the title (사용자 요청
+// 2026-11-27); an organiser's (번호 재발급, 운영진 추가) keeps "운영진에게 보낼 접속 안내".
 function credentialDialog(name, temporaryPin, organizer = false) {
   const text = organizer
     ? `${club.name} 운영진 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n모임 화면 ${new URL(club.home, location.origin).href}\n처음 로그인하면 나만 아는 번호 6자리로 바꿔 주세요.`
     : `${club.name} 접속 안내\n성함 ${name}\n임시 번호 ${temporaryPin}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${new URL(club.home, location.origin).href}`;
   const who = organizer ? '운영진' : '회원';
-  openDialog(`${who}에게 보낼 접속 안내`, `<p>${esc(name)} ${who}에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
+  openDialog(organizer ? '운영진에게 보낼 접속 안내' : '비밀번호 재설정', `<p>${esc(name)} ${who}에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
     <textarea class="copy-text" readonly rows="6" aria-label="${who} 접속 안내">${esc(text)}</textarea>
     ${button('접속 안내 복사', 'copy-invitation')}`);
 }
