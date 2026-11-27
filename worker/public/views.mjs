@@ -1,7 +1,7 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { loadingCenter, shellSkeleton } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
-import { calendarBlock, calendarDayPanel } from './calendar.mjs';
+import { calendarBlock, calendarDayPanel, calendarPanel, calendarToggle } from './calendar.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -496,9 +496,6 @@ function calendarEvents(events, now) {
     done: `${event.date}T${event.endTime}` <= now.minute || finished(event, now) }));
 }
 
-// The month grid starts open. One button folds or opens it in the member's and the organisers' 일정 alike.
-const calendarToggle = open => button(open ? '달력 접기' : '달력으로 보기', 'calendar-toggle', { css: 'text small calendar-toggle' });
-
 // 일정 (회원): every published upcoming event in the member order (FLOW.md 4), each opening its vote, with the month's
 // calendar above them when asked for. month: the calendar's 'YYYY-MM', this month when none was picked.
 export function memberEventsScreen({ events }, monthEvents, user, { month, selected, calendarOpen }) {
@@ -508,8 +505,8 @@ export function memberEventsScreen({ events }, monthEvents, user, { month, selec
   const dayRows = selected ? monthEvents.filter(event => event.date === selected).map(row) : [];
   const calendar = calendarOpen ? calendarBlock(calendarEvents(monthEvents, now), { month, selected, today: now.day, icon }) : '';
   return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
-    <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${calendarToggle(calendarOpen)}</div>
-    ${calendar}${calendarDayPanel(selected, dayRows, { listClass: 'member-records' })}
+    <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${calendarToggle(calendarOpen, icon)}</div>
+    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { listClass: 'member-records' }))}
     <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div>
     </div></section>`);
 }
@@ -632,12 +629,11 @@ export function adminShell(section, contents, club, user, hasEvent = false) {
   const title = sections.find(([name]) => name === section)?.[1] ?? sections[0][1];
   const schedule = section === 'event' && operating(user);
   const eventDetail = schedule && hasEvent;
-  const calendarList = section === 'event' && !hasEvent;
   return `<div class="admin-app">
     <aside class="sidebar">${brand(club)}${adminMenu(section, user)}
       <div class="sidebar-footer">${sidebarAccount(user)}</div>
     </aside>
-    <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
+    <div class="main-shell${schedule ? ' schedule-shell' : ''}">
       <header class="topbar"><div class="topbar-inner">
         ${eventDetail ? button(`${icon('arrow-left', 20)} 뒤로`, 'event-list', { css: 'text schedule-back' }) : ''}
         <div class="breadcrumb">
@@ -756,30 +752,19 @@ function flowFacts(event, now) {
 }
 
 // A list on the page itself: a quiet label with one action, then whole rows (.event-link), no box around them.
-function homeList(title, titleId, rows, empty, action = '', css = '') {
-  return `<section class="home-list${css ? ` ${css}` : ''}" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
+function homeList(title, titleId, rows, empty, action = '') {
+  return `<section class="home-list" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
     ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : `<p class="muted home-empty">${empty}</p>`}</section>`;
 }
 
-function homeRow(action, id, title, detail, { tab = '', glyph = 'chevron-right' } = {}) {
-  return `<li><button type="button" class="event-link" data-action="${action}" data-id="${esc(id)}"${tab ? ` data-tab="${tab}"` : ''}><span><strong>${title}</strong><small>${detail}</small></span>${icon(glyph, 18)}</button></li>`;
+function homeRow(action, id, title, detail, { tab = '' } = {}) {
+  return `<li><button type="button" class="event-link" data-action="${action}" data-id="${esc(id)}"${tab ? ` data-tab="${tab}"` : ''}><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
 }
 
-// 다른 일정 (FLOW.md): every unfinished event but the one in the card, in the 운영 홈 order (flow.mjs). The whole row
-// opens the event on the tab its stage needs. Redrawn with the vote counts.
-export function homeFlows(events, featuredId, listing = null, now = koreanNow()) {
-  const awaiting = new Set((listing?.events ?? []).filter(awaitingVote).map(event => event.id));
-  const rows = flowOrder(events, now).filter(event => event.id !== featuredId).map(event => {
-    const { stage, title, detail } = flowFacts(event, now);
-    return homeRow('open-event', event.id, title, `${detail}${awaiting.has(event.id) ? ' · 내 응답 전' : ''}`,
-      { tab: { today: 'attendance', wrapup: 'settlement' }[stage] ?? 'poll' });
-  });
-  if (events.length && !events.some(event => event.date >= now.day)) {
-    const latest = [...events].sort((a, b) => b.date.localeCompare(a.date))[0];
-    rows.push(homeRow('clone-event', latest.id, '다음 주 일정 만들기', '예정된 일정이 없어요. 지난 일정을 복제해요.', { glyph: 'plus' }));
-  }
-  return homeList('다른 일정', 'home-todo-title', rows, featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.',
-    button('전체 보기', 'tab', { id: 'event', css: 'text small' }), 'home-flows');
+// The count excludes the featured event and links to the full schedule (DESIGN.md 4).
+export function homeFlows(events, featuredId, now = koreanNow()) {
+  const count = flowOrder(events, now).filter(event => event.id !== featuredId).length;
+  return `<div class="home-flows"><button type="button" class="event-link" data-action="event-list"><span><strong>다른 일정</strong></span><small>${count}개</small>${icon('chevron-right', 18)}</button></div>`;
 }
 
 // 지난 일정: the latest event whose 마무리 is confirmed (unfinished ones are among the 진행 중인 일정), with its counts
@@ -811,7 +796,7 @@ export function adminHome({ events, notices }, upcoming, last = null, listing = 
   return `<div class="home-page">
     <header class="list-tools"><h1 tabindex="-1" class="sr-only">운영 홈</h1><p>${esc(flowSummary(events))}</p>${button(`${icon('plus', 17)} 새 일정`, 'new-event', { css: 'secondary small' })}</header>
     <div id="home-now">${homeNow(upcoming, listing, true)}</div>
-    <div id="home-flows">${homeFlows(events, upcoming?.event.id, listing)}</div>
+    <div id="home-flows">${homeFlows(events, upcoming?.event.id)}</div>
     ${homeList('최근 공지', 'home-notices-title', recent, '아직 등록한 공지가 없어요.', button('전체 보기', 'tab', { id: 'notices', css: 'text small' }))}
     ${homeLast(last)}
   </div>`;
@@ -902,8 +887,8 @@ function eventList(events, month, calendarOpen, selected) {
     .map(event => finished(event, now) ? pastRow(event) : flowRow(event)) : [];
   const add = selected ? button(`${icon('plus', 16)} 일정 추가`, 'new-event', { id: selected, css: 'text small' }) : '';
   return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
-      ${calendarToggle(calendarOpen)}</header>
-    ${calendar}${calendarDayPanel(selected, dayRows, { action: add })}
+      ${calendarToggle(calendarOpen, icon)}</header>
+    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { action: add }))}
     <div class="calendar-other-dates">
     ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
     ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;
@@ -1146,7 +1131,7 @@ function organizersPanel(organizers, me) {
     const self = organizer.id === me;
     return `<tr><td><div class="member-name">${avatar(organizer.name)}<strong>${esc(organizer.name)}</strong></div></td>
     <td>${self ? pill('나', 'green') : pill(organizer.mustChange ? '자기 번호 정하기 전' : '사용 중', organizer.mustChange ? 'warm' : 'green')}</td>
-    <td class="table-actions">${self ? '<small>메뉴의 번호 바꾸기</small>'
+    <td class="table-actions">${self ? ''
       : button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })
         + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
   </tr>`;
@@ -1184,11 +1169,15 @@ export function membersScreen(members, organizers = [], me = null) {
 }
 
 export function memberForm(member = null) {
-  return form('member', `<div class="form-grid">${field('이름', 'name', member?.name, { wide: true, attrs: 'maxlength="60" required' })}</div>`
-    + (member ? check('활동 회원', 'active', member.active) : `<div class="form-grid">${field('생년월일 6자리', 'birthday', '', {
+  const birthday = member ? '' : field('생년월일 6자리', 'birthday', '', {
       type: 'password', wide: true, attrs: 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required',
       help: '회원이 첫 로그인에 입력합니다. 가입 처리 후에는 이 화면에서 조회할 수 없어요.',
-    })}</div>`), member ? '회원 저장' : '회원 등록', member?.id);
+  });
+  return form('member', `<div class="form-grid">${field('이름', 'name', member?.name, { wide: true, attrs: 'maxlength="60" required' })}
+    ${birthday}
+    ${select('성별', 'gender', [['', '미기재'], ['male', '남성'], ['female', '여성'], ['other', '기타']], member?.gender)}
+    ${textarea('메모 (운영진만 볼 수 있어요)', 'memo', member?.memo, 'rows="3" maxlength="500"')}</div>`
+    + (member ? check('활동 회원', 'active', member.active) : ''), member ? '회원 저장' : '회원 등록', member?.id);
 }
 
 // 비밀번호 재설정 under 회원 수정, apart from 회원 저장, read by 운영진: the user's layout (one line, three steps, a ※ note)

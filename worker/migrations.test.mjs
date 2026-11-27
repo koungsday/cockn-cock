@@ -144,6 +144,28 @@ test('0011 adds nullable payment and stock fields without rewriting saved guest 
   }
 });
 
+test('0013 gives existing members empty profile fields and preserves their links and credentials', () => {
+  const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: true });
+  try {
+    db.exec(sources[files[0]]);
+    db.exec(sources[files[1]]);
+    seedSingleClub(db);
+    const migration = '0013_member_profile.sql';
+    for (const file of files.slice(2, files.indexOf(migration))) db.exec(sources[file]);
+    const previous = snapshot(db);
+    db.exec(sources[migration]);
+    const current = snapshot(db);
+    current.members = current.members.map(({ gender, memo, ...row }) => {
+      assert.deepEqual([gender, memo], ['', '']);
+      return row;
+    });
+    assert.deepEqual(current, previous);
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  } finally {
+    db.close();
+  }
+});
+
 test('0012 leaves existing schedules unlimited and preserves their responses and insertion order', () => {
   const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: true });
   try {

@@ -130,6 +130,11 @@ function memberName(value) {
   return text(typeof value === 'string' ? value.normalize('NFC') : value, '회원 이름', 60);
 }
 
+function memberGender(value) {
+  if (!['', 'male', 'female', 'other'].includes(value)) bad('성별을 확인해 주세요.');
+  return value;
+}
+
 function boolean(value, label) {
   if (typeof value !== 'boolean') bad(label + '을 확인해 주세요.');
   return value;
@@ -209,6 +214,12 @@ function serializeNotice(row) {
 
 function serializeMember(row) {
   return { id: row.id, name: row.name, active: Boolean(row.active) };
+}
+
+async function memberProfile(db, club, id) {
+  const row = await sql(db, 'SELECT id, name, active, gender, memo FROM members WHERE id = ? AND club_id = ?', id, club).first();
+  if (!row) missing();
+  return { member: { ...serializeMember(row), gender: row.gender, memo: row.memo } };
 }
 
 function serializeGuest(row) {
@@ -479,6 +490,8 @@ async function addMember(env, body) {
   const { DB: db, CLUB_SCOPE: club } = env;
   const name = memberName(body.name);
   const birthday = parseBirthday(body.birthday);
+  const gender = body.gender === undefined ? '' : memberGender(body.gender);
+  const memo = body.memo === undefined ? '' : text(body.memo, '회원 메모', 500, true);
   const candidates = await membersNamed(env, name);
   // Organisers are members too, so this also keeps a new member from an organiser's login (ROLES.md).
   if ((await matchingCredentials(env, candidates, birthday, true)).length) {
@@ -488,13 +501,13 @@ async function addMember(env, body) {
   const id = crypto.randomUUID();
   const [insert] = await db.batch([
     sql(db, `
-      INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version)
-      SELECT ?, ?, ?, ?, ?, ?
+      INSERT INTO members (id, club_id, name, credential_salt, credential_hash, credential_version, gender, memo)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?
       WHERE NOT EXISTS (
         SELECT 1 FROM members WHERE club_id = ? AND ${sameName('name')} IN (?, ?)
           AND credential_version NOT IN (SELECT value FROM json_each(?))
       )
-    `, id, club, name, salt, hash, version, club, spaceless(name), spaceless(name.normalize('NFD')),
+    `, id, club, name, salt, hash, version, gender, memo, club, spaceless(name), spaceless(name.normalize('NFD')),
     JSON.stringify(candidates.map(row => row.credential_version))),
     rosterOpenEvents(db, club, id)
   ]);
@@ -506,11 +519,14 @@ async function updateMember(env, id, body) {
   const { DB: db, CLUB_SCOPE: club } = env;
   const name = body.name === undefined ? null : memberName(body.name);
   const active = body.active === undefined ? null : +boolean(body.active, '활동 상태');
+  const gender = body.gender === undefined ? null : memberGender(body.gender);
+  const memo = body.memo === undefined ? null : text(body.memo, '회원 메모', 500, true);
   // PINs are stored hashed, so a rename cannot be compared with them; a name and credential shared by two members
   // is refused at sign-in instead (auth.mjs login).
   const statements = [sql(db, `
-    UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active) WHERE id = ? AND club_id = ?
-  `, name, active, id, club)];
+    UPDATE members SET name = COALESCE(?,name), active = COALESCE(?,active),
+      gender = COALESCE(?,gender), memo = COALESCE(?,memo) WHERE id = ? AND club_id = ?
+  `, name, active, gender, memo, id, club)];
   if (active === 0) statements.push(sql(db, `
     DELETE FROM sessions WHERE member_id = ?
       AND EXISTS (SELECT 1 FROM members WHERE id = ? AND club_id = ? AND active = 0)
@@ -569,7 +585,7 @@ async function resetMember(env, id) {
     `, 'pin-member:' + id, id, version)
   ]);
   if (!updated.meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 시도해 주세요.');
-  return { temporaryPin: temporary };
+  return { name: target.name, temporaryPin: temporary };
 }
 
 function ensureVoteStartsBeforeDeadline(event, previous) {
@@ -1097,15 +1113,17 @@ async function routeAdmin(db, env, url, method, body, user) {
   }
   const member = memberPath.exec(path);
   if (member) {
+    if (method === 'GET' && !member[2]) return json(await memberProfile(db, club, member[1]));
     if (method === 'PATCH' && !member[2]) {
       const result = await updateMember(env, member[1], body);
-      const change = [body.name !== undefined && '이름', body.active !== undefined && (body.active ? '다시 활동' : '활동 중지')].filter(Boolean);
+      const change = [body.name !== undefined && '이름', body.active !== undefined && (body.active ? '다시 활동' : '활동 중지'),
+        body.gender !== undefined && '성별', body.memo !== undefined && '메모'].filter(Boolean);
       await record('member.update', member[1], () => `${result.member.name}${change.length ? ' · ' + change.join(', ') : ''}`);
       return json(result);
     }
     if (method === 'POST' && member[2]) {
       const result = await resetMember(env, member[1]);
-      await record('member.reset', member[1], () => memberLabel(db, club, member[1]));
+      await record('member.reset', member[1], () => result.name);
       return json(result);
     }
     methodNotAllowed();

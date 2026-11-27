@@ -192,7 +192,8 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
 
   const reset = await admin.request('/api/admin/members/' + member.member.id + '/reset', {method:'POST', body:{}});
   await visitor.request('/api/votes/' + event.id, {expect:401});
-  assert.deepEqual(Object.keys(reset), ['temporaryPin']);
+  assert.deepEqual(Object.keys(reset), ['name', 'temporaryPin']);
+  assert.equal(reset.name, member.member.name);
   assert.match(reset.temporaryPin, /^\d{6}$/);
   assert.notEqual(reset.temporaryPin, '684270');
   await visitor.login(name, '684270', 401);
@@ -477,6 +478,46 @@ test('an organiser cannot take a same-named member credential, and secrets stop 
   await client('203.0.113.17').adminLogin().then(({user}) => assert.equal(user.role, 'member'));
   assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM members WHERE organizer = 1').first()).count, 0, 'a retired organiser is not recreated from the secrets');
   await operator.request('/api/admin', {expect:403});
+});
+
+test('only an organiser can read or edit a member profile', async t => {
+  const { DB, client } = setup(t);
+  const admin = client();
+  await admin.adminLogin();
+  const name = '가상 프로필 회원';
+  const birthday = '880726';
+  const memo = '운영진 메모\n<검증>';
+  const { member } = await admin.request('/api/admin/members', {
+    method: 'POST', expect: 201, body: { name, birthday, gender: 'female', memo },
+  });
+  const profile = '/api/admin/members/' + member.id;
+  const fields = async () => {
+    const { member: saved } = await admin.request(profile);
+    return [saved.gender, saved.memo];
+  };
+  assert.deepEqual(await fields(), ['female', memo]);
+  const listing = await admin.request('/api/admin');
+  assert.deepEqual(listing.members.find(row => row.id === member.id), member, 'the shared admin listing has no profile fields');
+
+  const ordinary = client('203.0.113.21');
+  assert.equal((await ordinary.login(name, birthday)).user.id, member.id);
+  await ordinary.request(profile, { expect: 403 });
+  await ordinary.request(profile, { method: 'PATCH', expect: 403, body: { memo: '' } });
+  await client().request(profile, { expect: 401 });
+  assert.deepEqual(await fields(), ['female', memo]);
+  await admin.request(profile, { method: 'PATCH', body: { name: '가상 수정 회원' } });
+  assert.deepEqual(await fields(), ['female', memo], 'a partial patch preserves the optional profile fields');
+  await admin.request(profile, { method: 'PATCH', expect: 400, body: { gender: 'invalid' } });
+  await admin.request(profile, { method: 'PATCH', expect: 400, body: { memo: '나'.repeat(501) } });
+  assert.deepEqual(await fields(), ['female', memo]);
+
+  await admin.request(profile, { method: 'PATCH', body: { gender: '', memo: '' } });
+  assert.deepEqual(await fields(), ['', '']);
+  const reset = await admin.request(profile + '/reset', { method: 'POST', body: {} });
+  assert.equal(reset.name, '가상 수정 회원');
+  const records = await DB.prepare('SELECT summary FROM audit_log WHERE target_id = ?').bind(member.id).all();
+  assert(records.results.some(row => row.summary.includes('메모')));
+  assert.doesNotMatch(JSON.stringify(records.results), /<검증>/, 'only the field name is in the audit log');
 });
 
 test('administrator PIN attempts share a limit across source addresses', async t => {

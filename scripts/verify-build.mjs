@@ -111,14 +111,13 @@ assert.match(openDemo(() => '#home').html, /<h1 class="sr-only">운영 홈<\/h1>
 for (const label of ['홈', '일정', '공지', '회원 관리', '반기 집계']) {
   assert.match(openDemo(() => '#home').html, new RegExp(`<span>${label}<\/span>`), `the organiser menu has ${label} as the live club names it`);
 }
-// 일정 흐름 (FLOW.md): the demo home holds the first of the 진행 중인 일정 in the 지금 할 일 card and lists the rest in
-// the live order (flow.js) as whole-row links (단순화 3); the member home bundles the votes still to answer.
+// 일정 흐름 (FLOW.md): the demo home holds the first of the 진행 중인 일정 in the 지금 할 일 card and links the remaining
+// count to 일정; the member home bundles the votes still to answer.
 const demoHome = openDemo(() => '#home').html;
 assert.match(demoHome, /진행 중인 일정 \d+개/);
 assert.match(demoHome, /<section class="panel now-card" aria-labelledby="next-event-title"/);
 assert.match(demoHome, /<ol class="now-steps" aria-label="일정 진행 \d\/4단계: [^"]+">/);
-assert.match(demoHome, /<h2 id="home-todo-title">다른 일정<\/h2>/);
-assert.match(demoHome, /<a class="event-link" href="#event\/[^"]+\/(poll|attendance|settlement)"/);
+assert.match(demoHome, /<div id="home-flows"><div class="home-flows"><a class="event-link" href="#events" data-route="events"><span><strong>다른 일정<\/strong><\/span><small>\d+개<\/small><svg[^]*?<\/svg><\/a><\/div><\/div>/);
 for (const gone of ['class="featured"', 'poll-dashboard', 'dashboard-metrics']) assert(!demoHome.includes(gone), `the home no longer draws ${gone}`);
 // The member home shares the live member home's markup and stylesheet (worker/public/views.mjs homeScreen).
 const memberHome = openDemo(() => '#member').html;
@@ -130,8 +129,8 @@ for (const marker of ['public-share-card member-next', 'member-next-action', 'me
 // checked in worker/calendar.test.mjs.
 for (const hash of ['#events', '#member-events']) {
   const page = openDemo(() => hash).html;
-  assert.match(page, /data-action="calendar-toggle">달력 접기</, `${hash} offers to fold the calendar`);
-  assert.match(page, /<div class="calendar" data-month=/, `${hash} opens with the calendar`);
+  assert.match(page, /data-action="calendar-toggle" aria-expanded="true" aria-controls="calendar-panel" aria-label="달력 접기"[^>]*><svg/, `${hash} offers to fold the calendar with an icon`);
+  assert.match(page, /id="calendar-panel"><div class="calendar" data-month=/, `${hash} opens with the calendar`);
 }
 assert(home.includes(`href="${basePath}share.css"`));
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);

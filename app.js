@@ -219,7 +219,6 @@
     const member = memberView(currentRoute);
     const schedule = !member && menuPage() === 'events';
     const eventDetail = schedule && currentRoute.page === 'event';
-    const calendarList = currentRoute.page === 'events' || currentRoute.page === 'member-events';
     app.innerHTML = `
       <aside class="sidebar">
         ${brand()}
@@ -233,7 +232,7 @@
           ${viewSwitch(member)}
         </div>
       </aside>
-      <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
+      <div class="main-shell${schedule ? ' schedule-shell' : ''}">
         <header class="topbar"><div class="topbar-inner">
           ${eventDetail ? `<a class="btn btn-text schedule-back" href="#events" data-route="events">${icon('arrow-left',20)} 뒤로</a>` : ''}
           <div class="breadcrumb">
@@ -326,7 +325,7 @@
   // cancelled quiet. ui.calendarMonth is the month picked, this month when none was.
   function calendar(events) {
     const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
-      regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
+      regular:(event.kind ?? 'regular') === 'regular', done:`${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), selected:ui.calendarDate, today, icon});
   }
   function selectedCalendarDate() { return ui.calendarDate; }
@@ -344,7 +343,7 @@
   // 당일 출석 (screens.js attendance): 미확인만 보기, and the member just checked, whose check is drawn once.
   function onlyUnmarked() { return Boolean(ui.onlyUnmarked); }
   function justChecked() { return ui.justChecked; }
-  function calendarToggle() { return `<button class="btn btn-text btn-small calendar-toggle" type="button" data-action="calendar-toggle">${calendarOpen() ? '달력 접기' : '달력으로 보기'}</button>`; }
+  function calendarToggle() { return window.clubCalendar.calendarToggle(calendarOpen(), icon); }
   function pollIsOpen(event) {
     return event.pollOpen && !event.finalized && !event.cancelled && !deadlinePassed(event);
   }
@@ -414,8 +413,8 @@
       <a class="btn btn-text now-own" href="#public-vote/${id}" data-route="public-vote/${id}">회원 화면 체험</a></section>`;
   }
   // A list on the page itself (the live homeList and homeRow): a quiet label with one action, then whole rows.
-  function homeList(title, titleId, rows, empty, action = '', css = '') {
-    return `<section class="home-list${css ? ` ${css}` : ''}" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
+  function homeList(title, titleId, rows, empty, action = '') {
+    return `<section class="home-list" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
       ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : `<p class="muted home-empty">${empty}</p>`}</section>`;
   }
   function homeRow(path, title, detail) {
@@ -424,18 +423,10 @@
   function moreLink(route) {
     return `<a class="btn btn-text btn-small" href="#${route}" data-route="${route}">전체 보기</a>`;
   }
-  // 다른 일정 (the live homeFlows): every unfinished event but the one in the card, in the same order; the whole row
-  // opens the event on the tab its stage needs.
+  // The live homeFlows count and schedule shortcut, with the demo's schedule hash.
   function renderFlows(flows, featuredId) {
-    const rows = flows.filter(event => event.id !== featuredId).map(event => {
-      const {stage, title, detail} = flowFacts(event);
-      return homeRow(`event/${event.id}/${{today:'attendance', wrapup:'settlement'}[stage] ?? 'poll'}`, title, detail);
-    });
-    if (state.events.length && !state.events.some(event => event.date >= today)) {
-      rows.push(`<li><button class="event-link" type="button" data-action="${state.repeat.enabled ? 'generate-next' : 'open-event'}"><span><strong>${state.repeat.enabled ? '다음 일정 만들기' : '새 일정 만들기'}</strong>
-        <small>예정된 일정이 없어요. ${state.repeat.enabled ? '반복 일정으로 만들 수 있어요.' : '새 일정을 만들어 투표를 시작하세요.'}</small></span>${icon('plus',18)}</button></li>`);
-    }
-    return homeList('다른 일정', 'home-todo-title', rows, featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.', moreLink('events'), 'home-flows');
+    const count = flows.filter(event => event.id !== featuredId).length;
+    return `<div class="home-flows"><a class="event-link" href="#events" data-route="events"><span><strong>다른 일정</strong></span><small>${count}개</small>${icon('chevron-right',18)}</a></div>`;
   }
   // 지난 일정 (the live homeLast): the latest session whose 출석·게스트 확정 is done.
   function renderLast(event) {
@@ -549,7 +540,7 @@
       app.querySelector(`${visible} [data-route="${CSS.escape(roleSwitchFocus.dataset.route)}"]`)?.focus({preventScroll:true});
     }
   });
-  function handleClick(ev) {
+  async function handleClick(ev) {
     const control = ev.target.closest('[data-route], [data-action]');
     if (!control) return;
     if (control.dataset.route) {
@@ -583,10 +574,17 @@
       return;
     }
     if (action === 'calendar-toggle') {
-      ui.calendarOpen = !ui.calendarOpen;
+      const panel = app.querySelector('#calendar-panel');
+      const { animateCalendarFold, redrawCalendar } = window.clubCalendar;
+      if (panel.hasAttribute('data-folding')) return;
+      control.focus({ preventScroll: true });
+      const opening = !ui.calendarOpen;
+      if (!opening) await animateCalendarFold(panel, false);
+      if (!panel.isConnected) return;
+      ui.calendarOpen = opening;
       ui.calendarDate = '';
-      renderPage();
-      app.querySelector('.calendar-toggle')?.focus({preventScroll:true});
+      redrawCalendar(app, renderPage);
+      if (opening) await animateCalendarFold(app.querySelector('#calendar-panel'), true);
       return;
     }
     // 미확인만 보기 (the live att-filter): hides the checked rows in place, no redraw.
@@ -848,7 +846,7 @@
       const isNew = !id;
       const member = state.members.find(item => item.id === id) || {id:idFor('member'),joined:today};
       if (isNew) state.members.push(member);
-      Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),notes:value('notes')});
+      Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),gender:value('gender'),notes:value('notes')});
       if (member.status === 'inactive') {
         for (const event of state.events) {
           if (event.capacity && event.date >= today && !event.finalized && event.votes[member.id] && event.votes[member.id] !== 'no') {

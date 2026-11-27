@@ -89,8 +89,8 @@
       const add = selected ? action(`${icon('plus', 16)} 일정 추가`, 'new-event', selected, {tone:'text btn-small'}) : '';
       return `<header class="list-tools"><h1 class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
           ${calendarToggle()}</header>`
-        + (calendarOpen() ? calendar(state.events) : '')
-        + window.clubCalendar.calendarDayPanel(selected, dayRows, {action:add})
+        + window.clubCalendar.calendarPanel(calendarOpen() ? calendar(state.events)
+          + window.clubCalendar.calendarDayPanel(selected, dayRows, {action:add}) : '')
         + `<div class="calendar-other-dates">${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
         ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;
     }
@@ -408,7 +408,9 @@
         + field('역할', `<select name="role">${['회원', '운영진'].map(role => option(role, role, member.role)).join('')}</select>`)
         + field('활동 상태', `<select name="status">${option('active', '활동 중', member.status)}${option('inactive', '활동 중지', member.status)}</select>`)
         + field('가입일', input('joined', member.joined || today, 'type="date" required'), true)
-        + field('메모', `<textarea name="notes" rows="3" maxlength="500">${e(member.notes || '')}</textarea>`, true))
+        + field('성별', `<select name="gender">${[['', '미기재'], ['male', '남성'], ['female', '여성'], ['other', '기타']]
+          .map(([value, label]) => option(value, label, member.gender ?? '')).join('')}</select>`)
+        + field('메모 (운영진만 볼 수 있어요)', `<textarea name="notes" rows="3" maxlength="500">${e(member.notes || '')}</textarea>`, true))
         + (found ? memberAccess(found) : '');
     }
 

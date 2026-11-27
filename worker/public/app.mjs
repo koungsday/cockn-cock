@@ -10,7 +10,7 @@ import {
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { loadingKind } from './skeleton.mjs';
 import { flowOrder, koreanNow } from './flow.mjs';
-import { calendarTarget } from './calendar.mjs';
+import { animateCalendarFold, calendarTarget, redrawCalendar } from './calendar.mjs';
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
@@ -610,12 +610,11 @@ async function refreshVoteCounts() {
     ]);
     if (target.isConnected && !busy) {
       if (onHome) {
-        // The card and 다른 일정 change with the counts (미응답 n명 stays true for every event listed). Both sit inside
-        // #home-now and #home-flows, which stay, so the page's arriving motion does not replay.
+        // The card and the schedule count refresh inside #home-now and #home-flows without replaying the arrival.
         state.upcoming = detail;
         state.admin = admin;
         replaceKeepingFocus('.now-card', homeNow(detail, state.listing));
-        replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id, state.listing));
+        replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id));
       } else {
         // The names follow the numbers, so the list under them never disagrees; the fold stays as it was.
         state.detail = detail;
@@ -826,14 +825,31 @@ async function doAction(action, itemId, tab) {
     }
     // 달력으로 보기 / 달력 접기: the list stays, the month grid comes and goes above it; focus stays on the button.
     case 'calendar-toggle': {
-      if (!state.calendarOpen && !operating(state.user)) {
-        const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
-        state.memberCalendar = await memberMonth(month);
+      const panel = main.querySelector('#calendar-panel');
+      if (panel.hasAttribute('data-folding')) break;
+      const version = navigationVersion;
+      const opening = !state.calendarOpen;
+      main.querySelector('.calendar-toggle').focus({ preventScroll: true });
+      const redraw = () => {
+        if (!panel.isConnected || version !== navigationVersion || state.section !== 'event' || state.selectedEvent) return;
+        state.calendarOpen = opening;
+        state.calendarDate = '';
+        redrawCalendar(main, render);
+        if (opening) void animateCalendarFold(main.querySelector('#calendar-panel'), true);
+      };
+      if (!opening) {
+        const animation = animateCalendarFold(panel, false);
+        if (animation) void animation.then(redraw);
+        else redraw();
+        break;
       }
-      state.calendarOpen = !state.calendarOpen;
-      state.calendarDate = '';
-      render();
-      main.querySelector('.calendar-toggle')?.focus({ preventScroll: true });
+      if (!operating(state.user)) {
+        const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
+        const listing = await memberMonth(month);
+        if (!panel.isConnected) break;
+        state.memberCalendar = listing;
+      }
+      redraw();
       break;
     }
     case 'calendar-day':
@@ -1010,8 +1026,7 @@ async function doAction(action, itemId, tab) {
     case 'edit-member': {
       // 비밀번호 재설정 lives here (memberAccess); its confirm and the 접속 안내 replace this dialog, and closing any of them
       // returns to the row's 연필.
-      const member = state.admin.members.find(person => person.id === itemId);
-      if (!member) return showSaved('회원 목록이 바뀌어 새로 불러왔어요.');
+      const { member } = await request(`/api/admin/members/${id(itemId)}`);
       openDialog('회원 수정', memberForm(member) + memberAccess(member));
       break;
     }
@@ -1020,9 +1035,8 @@ async function doAction(action, itemId, tab) {
         + button('새 임시 번호 만들기', 'confirm-reset-member', { id: itemId }));
       break;
     case 'confirm-reset-member': {
-      const member = state.admin.members.find(person => person.id === itemId);
-      const result = await request(`/api/admin/members/${id(itemId)}/reset`, 'POST', {});
-      credentialDialog(member.name, result.temporaryPin);
+      const { name, temporaryPin } = await request(`/api/admin/members/${id(itemId)}/reset`, 'POST', {});
+      credentialDialog(name, temporaryPin);
       break;
     }
     case 'new-organizer': {
@@ -1088,7 +1102,7 @@ function buildEvent(data) {
   return event;
 }
 
-async function doSubmit(kind, itemId, data) {
+async function doSubmit(kind, itemId, data, form) {
   switch (kind) {
     case 'login-name': {
       const name = read(data, 'name');
@@ -1205,11 +1219,20 @@ async function doSubmit(kind, itemId, data) {
       break;
     }
     case 'member': {
-      const name = read(data, 'name');
+      const profile = { name: read(data, 'name'), gender: read(data, 'gender'), memo: read(data, 'memo') };
       if (itemId) {
-        await update(`/api/admin/members/${id(itemId)}`, 'PATCH', { name, active: data.has('active') }, '회원 정보를 저장했어요.');
+        const original = {
+          name: form.elements.namedItem('name').defaultValue.trim(),
+          active: form.elements.namedItem('active').defaultChecked,
+          gender: form.querySelector('select[name="gender"] option[selected]').value,
+          memo: form.elements.namedItem('memo').defaultValue.trim(),
+        };
+        const updated = { ...profile, active: data.has('active') };
+        const changes = Object.fromEntries(Object.entries(updated).filter(([key, value]) => value !== original[key]));
+        if (Object.keys(changes).length) await update(`/api/admin/members/${id(itemId)}`, 'PATCH', changes, '회원 정보를 저장했어요.');
+        else closeDialog();
       } else {
-        await request('/api/admin/members', 'POST', { name, birthday: read(data, 'birthday') });
+        await request('/api/admin/members', 'POST', { ...profile, birthday: read(data, 'birthday') });
         await showSaved('회원을 등록했어요.');
       }
       break;
@@ -1254,7 +1277,8 @@ async function run(work, control) {
   const version = navigationVersion;
   const initialFocus = document.activeElement;
   const saved = control.disabled;
-  control.disabled = true;
+  // The calendar folds beneath its trigger. Keep the trigger focused while the busy guard handles repeat presses.
+  if (control.dataset.action !== 'calendar-toggle') control.disabled = true;
   const form = control.matches('button[type="submit"]') ? control.form : null;
   const inline = form?.querySelector('.inline-error') ?? (dialog.open ? dialog.querySelector('.inline-error') : null);
   const field = form?.querySelector('#login-value');
@@ -1439,7 +1463,7 @@ document.addEventListener('submit', event => {
   const { form: kind, id: itemId } = form.dataset;
   const data = new FormData(form);
   const control = event.submitter || form.querySelector('button[type=submit]');
-  void run(() => doSubmit(kind, itemId, data), control);
+  void run(() => doSubmit(kind, itemId, data, form), control);
 });
 
 function applyFilter(control) {

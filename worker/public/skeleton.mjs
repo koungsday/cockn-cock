@@ -49,11 +49,10 @@ const bodies = {
 // kind: one of the bodies above; '' draws the shell alone (the HTML's first paint). operating: seven menu bars, else four.
 export function shellSkeleton(kind = '', operating = false) {
   const schedule = kind === 'event-list' || kind === 'event';
-  const calendarList = kind === 'event-list' || kind === 'member-events';
   return `<div class="admin-app admin-skeleton" aria-hidden="true">
     <aside class="sidebar"><div class="brand"><img class="brand-mark" width="43" height="43" src="/assets/shuttlecock-icon-96.png" alt="">${bar('sk-brand')}</div>
       <div class="sk-nav">${bars(operating ? 7 : 4, 'sk-nav-item')}</div></aside>
-    <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
+    <div class="main-shell${schedule ? ' schedule-shell' : ''}">
       <div class="topbar"><div class="topbar-inner">${bar('sk-crumb')}${bar('sk-icon')}</div></div>
       <div class="main-content admin-content">${bodies[kind] ?? ''}</div>
       <div class="tab-bar">${Array.from({ length: 4 }, () => `<span class="tab-bar-link">${bar('sk-icon')}</span>`).join('')}</div>
