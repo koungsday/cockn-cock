@@ -1067,10 +1067,20 @@ test('optional capacity admits in order and promotes the first waiting member wi
   assert.equal(publicPage.event.capacity, 2);
   assert.doesNotMatch(JSON.stringify(publicPage), /waitingPosition|가상 신청 회원/);
   await admin.request(edit, {method:'PATCH', body:{capacity:1}, expect:409});
+  await admin.request(edit, {method:'PATCH', body:{cancelled:true}});
   await admin.request('/api/admin/members/' + ids[3], {method:'PATCH', body:{active:false}});
-  assert.equal((await read(one)).waitingPosition, undefined, 'deactivation releases a future confirmed spot');
+  await admin.request(edit, {method:'PATCH', body:{cancelled:false}});
+  assert.equal((await read(one)).waitingPosition, undefined, 'deactivation releases a place even if a cancelled event is restored');
   await admin.request(edit, {method:'PATCH', body:{capacity:3}});
   assert.equal((await read(one)).waitingPosition, undefined);
   await admin.request(edit, {method:'PATCH', body:{capacity:null}});
   assert.deepEqual((await read(one)), {slot:'early', lunch:false});
+
+  const unlimited = (await admin.request('/api/admin/events', {method:'POST', expect:201, body:futureEvent()})).event;
+  const unlimitedVote = '/api/votes/' + unlimited.id;
+  await one.request(unlimitedVote, {method:'PUT', body:{slot:'early', lunch:false}});
+  await admin.request('/api/admin/members/' + ids[0], {method:'PATCH', body:{active:false}});
+  await admin.request('/api/admin/events/' + unlimited.id, {method:'PATCH', body:{capacity:1}});
+  const admitted = await two.request(unlimitedVote, {method:'PUT', body:{slot:'early', lunch:false}});
+  assert.equal(admitted.vote.waitingPosition, undefined, 'a previously inactive member does not hold a newly limited spot');
 });

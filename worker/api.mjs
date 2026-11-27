@@ -509,7 +509,7 @@ async function updateMember(env, id, body) {
     DELETE FROM votes WHERE member_id = ? AND slot <> 'no' AND event_id IN (
       SELECT e.id FROM events e JOIN members m ON m.club_id=e.club_id
       WHERE e.club_id=? AND m.id=? AND m.active=0 AND e.capacity IS NOT NULL AND e.date>=?
-        AND e.cancelled_at IS NULL AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id=e.id AND s.confirmed=1)
+        AND NOT EXISTS (SELECT 1 FROM settlements s WHERE s.event_id=e.id AND s.confirmed=1)
     )
   `, id, club, id, kstToday()));
   if (active === 1) statements.push(rosterOpenEvents(db, club, id));
@@ -594,12 +594,15 @@ async function updateEvent(db, club, id, body) {
     WHERE id=? AND club_id=?
       AND title=? AND date=? AND time=? AND end_time=? AND place=? AND deadline=? AND deadline_at=?
       AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=? AND capacity IS ?
-      AND (? IS NULL OR ? >= capacity OR ? >= (SELECT COUNT(*) FROM votes WHERE event_id=events.id AND slot<>'no'))
+      AND (? IS NULL OR ? >= capacity OR ? >= (
+        SELECT COUNT(*) FROM votes v JOIN members m ON m.id=v.member_id
+        WHERE v.event_id=events.id AND v.slot<>'no' AND (events.capacity IS NOT NULL OR ? < ? OR m.active=1)
+      ))
       AND (
         (date=? AND ?=0 AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
       AND (?=0 OR cancelled_at IS NULL)
-  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.capacity, data.capacity, data.capacity, data.date, +data.open, +changedCapacity, id, +data.open).run();
+  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.capacity, data.capacity, data.capacity, data.date, kstToday(), data.date, +data.open, +changedCapacity, id, +data.open).run();
   if (!updates.meta.changes) {
     if (changedCapacity) {
       const current = await fetchEvent(db, club, id);
