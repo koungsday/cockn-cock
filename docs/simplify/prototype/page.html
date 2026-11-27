@@ -2,21 +2,20 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* 짜임: 휴대폰은 한 줄 화면과 아래 글자 탭, 넓은 화면은 왼쪽 메뉴와 가운데 한 줄(최대 720px). 시안 설정은 앱 밖 맨 위 띠.
-   색은 중립 바탕 + 초록 하나(주요 버튼·현재 위치·켜짐). 글자는 네 단계(22·18·16·14)와 굵기 둘(400·600). 한 가지 밝은 모습만 쓴다(제품이 밝은 화면 하나). */
+   색은 중립 바탕 + 짙은 초록 하나(주요 버튼·켜짐). 메뉴는 지금 실사용과 같은 어두운 바탕에 연두 알약. 글자는 네 단계(22·18·16·14)와 굵기 둘(400·600). 한 가지 밝은 모습만 쓴다(제품이 밝은 화면 하나). */
 @font-face { font-family: "Wanted Sans UI"; src: url("fonts/WantedSansUI-v1.0.3.woff2") format("woff2"); font-weight: 400 1000; font-display: swap; }
 @font-face { font-family: "Nexen Tire"; src: url("fonts/NexenTire-Regular-2014.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 :root {
   color-scheme: light;
   --bg: #f5f5f2; --surface: #ffffff; --ink: #1d2421; --sub: #5a635e; --line: #e3e4df; --edge: #b4bbb5;
-  --accent: #126047; --accent-soft: #edf4ef; --on: #ffffff; --danger: #a3312f; --lab: #e9e9e4;
-  --menu: #ffffff; --menu-ink: #5a635e; --menu-on: #126047; --menu-on-bg: #edf4ef; --menu-line: #e3e4df;
+  --accent: #10483a; --accent-hover: #0a372c; --accent-soft: #e8f0eb; --on: #ffffff; --danger: #a3312f; --lab: #e9e9e4; --hover: #eeefeb;
+  --menu: #252c29; --menu-ink: #d3d9d4; --menu-on: #eef1ee; --menu-hover: #2f3733; --menu-line: #3a433e; --lime: #d0f988;
   --font: "Wanted Sans UI", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-name: "Nexen Tire", var(--font);
   --t1: 22px; --t2: 18px; --t3: 16px; --t4: 14px;
   --ease: cubic-bezier(.22, 1, .36, 1); --quick: 160ms; --arrive: 220ms;
   --side-l: max(16px, env(safe-area-inset-left, 0px)); --side-r: max(16px, env(safe-area-inset-right, 0px));
 }
-:root[data-menu="dark"] { --menu: #252c29; --menu-ink: #c5ccc7; --menu-on: #ffffff; --menu-on-bg: #3a433e; --menu-line: #252c29; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--t3)/1.55 var(--font); -webkit-text-size-adjust: 100%; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
@@ -42,40 +41,79 @@ strong, b { font-weight: 600; }
 .seg button { border: 0; background: transparent; min-height: 44px; padding: 0 14px; font-size: var(--t4); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on); }
 
-/* 틀 */
+/* 틀: 지금 실사용과 같은 모습 (어두운 왼쪽 메뉴, 휴대폰은 떠 있는 어두운 아이콘 바와 연두 알약, 오른쪽 위 메뉴 버튼) */
 .side { display: none; }
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
-.bar-in { display: flex; align-items: center; gap: 8px; min-height: 56px; max-width: 720px; margin: 0 auto; padding: 0 var(--side-r) 0 var(--side-l); }
-.brand { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-family: var(--font-name); font-size: var(--t2); }
+.bar-in { display: flex; align-items: center; gap: 8px; min-height: 56px; max-width: 760px; margin: 0 auto; padding: 0 var(--side-r) 0 var(--side-l); }
+.crumb { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; font-size: var(--t3); white-space: nowrap; }
+.crumb span { overflow: hidden; color: var(--sub); text-overflow: ellipsis; }
+.crumb h1 { font-size: var(--t3); font-weight: 600; }
+.icon-btn { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; margin-right: -10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); transition: background-color var(--quick); }
+.icon-btn + .icon-btn { margin-left: 6px; }
+.back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-left: -6px; padding: 0 10px 0 6px; border: 0; border-radius: 10px; background: transparent; font-size: var(--t3); transition: background-color var(--quick); }
+.main { max-width: 760px; margin: 0 auto; padding: 20px var(--side-r) calc(112px + env(safe-area-inset-bottom, 0px)) var(--side-l); outline: none; }
+.tabs { position: fixed; z-index: 6; inset: auto max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; max-width: 420px; margin-inline: auto; padding: 6px; border-radius: 16px; background: var(--menu); box-shadow: 0 12px 30px #1b2a2138, 0 2px 8px #1b2a211f; }
+.tab { position: relative; z-index: 1; display: grid; place-items: center; min-height: 48px; border: 0; border-radius: 11px; background: transparent; color: var(--menu-ink); transition: background-color var(--quick), color var(--quick); }
+.tabs .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tabs .tab[aria-current="page"] { color: var(--ink); }
+.tab-mark { position: absolute; inset-block: 6px; left: 6px; width: calc((100% - 24px) / 4); border-radius: 11px; background: var(--lime); translate: calc(var(--at, 0) * (100% + 4px)) 0; }
+.side .brand, .drawer .brand { display: flex; align-items: center; gap: 8px; padding: 4px 12px 16px; color: var(--menu-on); font-family: var(--font-name); font-size: var(--t2); }
 .brand img { width: 26px; height: 26px; }
-.bar-title { flex: 1; min-width: 0; font-size: var(--t2); font-weight: 600; }
-.d-only { display: none; }
-.icon-btn { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; margin-right: -10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); }
-.back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-left: -6px; padding: 0 10px 0 6px; border: 0; border-radius: 10px; background: transparent; font-size: var(--t3); }
-.main { max-width: 720px; margin: 0 auto; padding: 20px var(--side-r) calc(108px + env(safe-area-inset-bottom, 0px)) var(--side-l); outline: none; }
-.tabs { position: fixed; inset: auto 0 0; z-index: 6; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--menu); border-top: 1px solid var(--menu-line);
-  padding: 0 max(4px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(4px, env(safe-area-inset-left, 0px)); }
-.tab { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 60px; border: 0; background: transparent; color: var(--menu-ink); font-size: var(--t4); line-height: 1.2; }
-.tab[aria-current="page"] { color: var(--menu-on); font-weight: 600; }
+.side .tab, .drawer .tab { grid-auto-flow: column; justify-content: start; gap: 10px; width: 100%; min-height: 48px; padding: 0 12px; font-size: var(--t3); }
+.side .tab[aria-current="page"], .drawer .tab[aria-current="page"] { background: var(--menu-line); color: var(--menu-on); font-weight: 600; }
+.drawer { width: min(86vw, 360px); height: 100%; max-height: none; margin: 0 0 0 auto; padding: calc(14px + env(safe-area-inset-top, 0px)) 12px 20px; border: 0; background: var(--menu); color: var(--menu-ink); }
+.drawer::backdrop { background: #19352772; }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; }
+.drawer .icon-btn { margin: -4px 0 0; color: var(--menu-on); }
+.drawer-list { display: grid; gap: 4px; }
 @media (min-width: 900px) {
-  .app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 92vh; }
-  .side { display: block; background: var(--menu); border-right: 1px solid var(--menu-line); }
+  .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 92vh; }
+  .side { display: block; background: var(--menu); }
   .side-in { position: sticky; top: env(safe-area-inset-top, 0px); display: grid; gap: 4px; padding: 18px 12px; }
-  .side .brand { color: var(--menu-on); padding: 4px 10px 16px; }
-  :root:not([data-menu="dark"]) .side .brand { color: var(--ink); }
-  .side .tab { grid-auto-flow: column; justify-content: start; justify-items: start; gap: 10px; min-height: 48px; padding: 0 10px; border-radius: 10px; font-size: var(--t3); }
-  .side .tab[aria-current="page"] { background: var(--menu-on-bg); }
   .tabs, .m-only { display: none; }
-  .d-only { display: block; }
   .main { padding-bottom: 64px; }
+}
+@media (hover: hover) {
+  .side .tab:not([aria-current]):hover, .drawer .tab:not([aria-current]):hover, .tabs .tab:not([aria-current]):hover { background: var(--menu-hover); color: var(--menu-on); }
+  .icon-btn:hover, .back:hover { background: var(--hover); }
+  .drawer .icon-btn:hover { background: var(--menu-hover); }
 }
 
 /* 부품 */
 .now { display: grid; gap: 4px; }
 .now .when { color: var(--sub); font-size: var(--t4); }
 .mine { margin-top: 8px; font-weight: 600; }
+.card { padding: 20px 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; color: var(--sub); font-size: var(--t4); }
+.steps span { display: grid; gap: 6px; }
+.steps i { height: 4px; border-radius: 99px; background: var(--line); }
+.steps .done i { background: var(--edge); }
+.steps .at { color: var(--ink); font-weight: 600; }
+.steps .at i { background: var(--accent); }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; }
+.stats div { display: flex; align-items: baseline; gap: 6px; }
+.stats dt { color: var(--sub); font-size: var(--t4); }
+.stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter { height: 6px; margin-top: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.tally { display: grid; gap: 10px; margin-top: 14px; }
+.tally div { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; font-size: var(--t4); }
+.tally span { color: var(--sub); }
+.tally strong { font-variant-numeric: tabular-nums; }
+.tally .meter { grid-column: 1 / -1; margin-top: 4px; }
 .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; padding: 0 16px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); font-size: var(--t3); font-weight: 600; transition: background-color var(--quick), border-color var(--quick); }
 .btn.primary { border-color: var(--accent); background: var(--accent); color: var(--on); }
+.btn:active { scale: .985; }
+@media (hover: hover) {
+  .btn:hover { background: var(--hover); }
+  .btn.primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+  .row:hover strong { color: var(--accent); }
+  button.row:hover > svg { color: var(--accent); translate: 3px 0; }
+  .choice:hover { border-color: var(--accent); }
+  .link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .subtab:hover { color: var(--ink); }
+  .cal-grid button:hover b { background: var(--accent); color: var(--on); }
+}
 .btn-row { display: grid; gap: 8px; margin-top: 16px; }
 .link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); font-size: var(--t4); font-weight: 600; }
 .label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-top: 28px; color: var(--sub); font-size: var(--t4); font-weight: 400; }
@@ -85,7 +123,8 @@ strong, b { font-weight: 600; }
 .row > span:first-child { display: grid; gap: 2px; min-width: 0; }
 .row strong { font-size: var(--t3); font-weight: 600; }
 .row small { color: var(--sub); font-size: var(--t4); }
-.row > svg { flex: none; color: var(--edge); }
+.row > svg { flex: none; color: var(--edge); transition: translate var(--quick) var(--ease), color var(--quick); }
+.row strong { transition: color var(--quick); }
 .row.plain { min-height: 56px; }
 .row em { flex: none; font-style: normal; font-size: var(--t4); color: var(--sub); }
 .facts { display: grid; gap: 2px; margin-top: 6px; }
@@ -93,7 +132,7 @@ strong, b { font-weight: 600; }
 .subtabs { display: flex; margin: 20px 0 18px; border-bottom: 1px solid var(--line); }
 .subtab { flex: 1; min-height: 48px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--sub); font-size: var(--t3); }
 .subtab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); font-weight: 600; }
-.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
 .choice { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 68px; padding: 8px; border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); font-size: var(--t2); font-weight: 600; transition: background-color var(--quick), border-color var(--quick); }
 .choice small { color: var(--sub); font-size: var(--t4); font-weight: 400; }
 .choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
@@ -135,7 +174,7 @@ strong, b { font-weight: 600; }
 .cal-grid span, .cal-grid button { display: grid; place-items: center; min-height: 44px; border: 0; background: transparent; color: var(--ink); }
 .cal-grid .dow, .cal-grid .out { color: var(--sub); }
 .cal-grid .out { opacity: .5; }
-.cal-grid button b { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cal-grid button b { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 600; transition: background-color var(--quick), color var(--quick); }
 .cal-grid .today { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
 .toast { position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 8; width: max-content; max-width: min(92vw, 440px); padding: 12px 16px; border-radius: 10px; background: var(--ink); color: var(--on); font-size: var(--t4); translate: -50% 0; }
 @media (min-width: 900px) {
@@ -147,8 +186,20 @@ strong, b { font-weight: 600; }
   .main.push > * { animation: come var(--arrive) var(--ease) backwards; --from: 16px 0; }
   .main.pop > * { animation: come var(--arrive) var(--ease) backwards; --from: -16px 0; }
   .toast { animation: come var(--arrive) var(--ease) backwards; --from: -50% 8px; }
+  .main.enter > * { animation: come var(--arrive) var(--ease) backwards; --from: 0 12px; }
+  .main.enter > :nth-child(2) { animation-delay: 40ms; }
+  .main.enter > :nth-child(n+3) { animation-delay: 80ms; }
+  .tabs[data-slide] .tab-mark { animation: slide var(--arrive) var(--ease); }
+  .drawer[open] { animation: come var(--arrive) var(--ease); --from: 100% 0; }
+  .drawer[open]::backdrop { animation: dim var(--arrive) var(--ease); }
+  .meter i { animation: grow var(--arrive) var(--ease) backwards; transform-origin: left; }
+  .att[aria-pressed="true"] .ck svg { animation: pop var(--quick) var(--ease); }
 }
 @keyframes come { from { opacity: .4; translate: var(--from); } }
+@keyframes slide { from { translate: calc(var(--was, 0) * (100% + 4px)) 0; } }
+@keyframes dim { from { opacity: 0; } }
+@keyframes grow { from { scale: 0 1; } }
+@keyframes pop { from { scale: .4; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -158,11 +209,11 @@ strong, b { font-weight: 600; }
     <div class="lab-row"><span>보기</span><span class="seg" role="group" aria-label="보기"><button type="button" data-lab="role" data-v="organizer">운영진</button><button type="button" data-lab="role" data-v="member">회원</button></span></div>
     <div class="lab-row"><span>시점</span><span class="seg" role="group" aria-label="시점"><button type="button" data-lab="moment" data-v="before">전날</button><button type="button" data-lab="moment" data-v="today">당일</button><button type="button" data-lab="moment" data-v="after">끝난 뒤</button></span></div>
     <div class="lab-row"><span>회원 로그인</span><span class="seg" role="group" aria-label="회원 로그인"><button type="button" data-lab="signedIn" data-v="true">한 뒤</button><button type="button" data-lab="signedIn" data-v="false">하기 전</button></span></div>
-    <div class="lab-row"><span>메뉴 색</span><span class="seg" role="group" aria-label="메뉴 색"><button type="button" data-lab="menu" data-v="light">밝게</button><button type="button" data-lab="menu" data-v="dark">어둡게</button></span></div>
     <p>가상 자료로만 움직이는 시안입니다. 저장한 것은 새로 고치면 처음으로 돌아갑니다.</p>
   </div>
 </details>
 <div class="app" id="app"></div>
+<dialog class="drawer" id="drawer" aria-label="메뉴"></dialog>
 
 <script>
 (() => {
@@ -176,7 +227,8 @@ strong, b { font-weight: 600; }
     more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
     user: '<circle cx="12" cy="7" r="3.5"/><path d="M4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2"/>',
     back: '<path d="m12 19-7-7 7-7m-7 7h15"/>', chev: '<path d="m9 6 6 6-6 6"/>', left: '<path d="m15 6-6 6 6 6"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="m5 12 4 4L19 6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="m5 12 4 4L19 6"/>', x: '<path d="m6 6 12 12M18 6 6 18"/>', menu: '<path d="M4 9h16M4 15h16"/>',
+    chart: '<path d="M3 3v18h18M8 16v-4m5 4V8m5 8V5"/>', sliders: '<path d="M4 6h10m4 0h2M4 12h4m4 0h8M4 18h12m4 0h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   };
   const icon = (name, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name]}</svg>`;
 
@@ -199,6 +251,7 @@ strong, b { font-weight: 600; }
   const votes = { e1: {}, e2: {} };
   [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].forEach((i, n) => { votes.e1['m' + i] = { slot: n < 9 ? 'early' : 'late', lunch: [0, 2, 4, 6, 9, 11].includes(n) }; });
   [1, 4, 5, 8, 9, 12].forEach((i, n) => { votes.e2['m' + i] = { slot: n < 4 ? 'early' : 'late', lunch: false }; });
+  votes.e1.m16 = { slot: 'no', lunch: false };
   const attendance = {};
   const guests = { e1: [{ id: 'g0', name: '박하늘' }, { id: 'g1', name: '정다온' }] };
   const notices = [
@@ -207,10 +260,11 @@ strong, b { font-weight: 600; }
     { id: 'n3', title: '연말 친선 대회 참가 신청', date: '2026-11-10', pinned: false, body: '12월 12일 연말 친선 대회 참가 신청을 받습니다.\n투표가 열리면 일정에서 응답해 주세요.' },
   ];
   const rules = { periods: '2', goal: 6, kinds: ['정기', '번개', '대회'], reward: 'mark' };
-  const state = { role: 'organizer', moment: 'before', signedIn: true, menu: 'light', tab: { organizer: 'home', member: 'schedule' }, stack: [], calendar: false, calMonth: '', eventTab: '', draft: {}, form: {}, login: { step: 1, name: '' }, msg: '', err: false, flash: '', onlyMissing: false, guestOpen: false, confirm: '', report: '', temp: '', vals: {} };
+  const state = { role: 'organizer', moment: 'before', signedIn: true, menu: 'light', tab: { organizer: 'home', member: 'home' }, stack: [], calendar: false, calMonth: '', eventTab: '', draft: {}, form: {}, login: { step: 1, name: '' }, msg: '', err: false, flash: '', onlyMissing: false, guestOpen: false, confirm: '', report: '', temp: '', vals: {} };
+  // 지금 실사용과 같은 메뉴: 앞 네 개가 휴대폰 하단 바, 전부는 왼쪽 메뉴(PC)와 오른쪽 위 메뉴(휴대폰).
   const TABS = {
-    organizer: [['home', '홈', 'home'], ['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['members', '회원', 'users'], ['more', '더보기', 'more']],
-    member: [['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['record', '내 기록', 'user']],
+    organizer: [['home', '홈', 'home'], ['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['members', '회원 관리', 'users'], ['progress', '반기 집계', 'chart'], ['rules', '모임 규칙', 'sliders'], ['record', '내 기록', 'user']],
+    member: [['home', '홈', 'home'], ['schedule', '일정', 'calendar'], ['notices', '공지', 'megaphone'], ['record', '내 기록', 'user']],
   };
 
   const now = () => NOW[state.moment];
@@ -222,10 +276,11 @@ strong, b { font-weight: 600; }
   const me = () => ME[state.role];
   const byId = id => events.find(e => e.id === id);
   const active = () => members.filter(m => m.active);
-  const counts = e => { const v = Object.values(votes[e.id] ?? {}); return { all: v.length, early: v.filter(x => x.slot === 'early').length, late: v.filter(x => x.slot === 'late').length, lunch: v.filter(x => x.lunch).length }; };
+  const counts = e => { const v = Object.values(votes[e.id] ?? {}), n = slot => v.filter(x => x.slot === slot).length; return { all: v.length, early: n('early'), late: n('late'), no: n('no'), going: n('early') + n('late'), lunch: v.filter(x => x.lunch).length }; };
+  const going = (id, m) => ['early', 'late'].includes(votes[id]?.[m.id]?.slot);
   const canVote = e => e.published && !e.cancelled && !e.closed && now() < e.deadline;
   const deadlineText = e => { const [d, t] = e.deadline.split('T'); return `${rel(d) || fmtDate(d)} ${t}`; };
-  const slotText = (e, v) => `${v.slot === 'early' ? '선발' : '후발'} ${e[v.slot]}${v.lunch ? ' · 점심' : ''}`;
+  const slotText = (e, v) => v.slot === 'no' ? '불참' : `${v.slot === 'early' ? '선발' : '후발'} ${e[v.slot]}${v.lunch ? ' · 점심' : ''}`;
   const signed = () => state.role === 'organizer' || state.signedIn;
   const presentCount = id => { const a = attendance[id] ?? {}; return { members: members.filter(m => a[m.id]).length, guests: (guests[id] ?? []).filter(g => a[g.id]).length }; };
   const status = e => e.cancelled ? '취소한 일정' : e.settled ? '마무리 완료' : e.date < today() ? '마무리 전' : e.date === today() ? '오늘' : !e.published ? '공개 전' : `응답 ${counts(e).all} / ${active().length}명`;
@@ -266,58 +321,77 @@ strong, b { font-weight: 600; }
 
   // 회원 화면
   const roots = { member: {}, organizer: {} };
-  roots.member.schedule = () => {
-    const list = memberEvents(), [next, ...rest] = list;
-    let top = `<section class="now"><p class="when">다음 일정</p><h2 class="t1">예정된 일정이 없어요</h2><p>운영진이 일정을 올리면 여기에 보여요.</p></section>`;
+  const meter = (value, total) => `<div class="meter" aria-hidden="true"><i style="width:${total ? Math.round(value / total * 100) : 0}%"></i></div>`;
+  const stats = items => `<dl class="stats">${items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+  const sortedNotices = () => [...notices].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date));
+  const noticeRow = n => row('open', `notice:${n.id}`, esc(n.title), `${fmtDate(n.date)}${n.pinned ? ' · 맨 위 고정' : ''}`);
+  const more = (text, tab) => `<button type="button" class="link" data-act="tab" data-arg="${tab}" data-key="more-${tab}">${text}</button>`;
+  roots.member.home = () => {
+    const [next, ...rest] = memberEvents();
+    let top = `<section class="card now"><p class="when">다음 일정</p><h2 class="t1">예정된 일정이 없어요</h2><p>운영진이 일정을 올리면 여기에 보여요.</p></section>`;
     if (next) {
-      const mine = signed() && votes[next.id]?.[me()];
+      const mine = signed() && votes[next.id]?.[me()], c = counts(next);
       const action = mine ? `<p class="mine">내 응답 · ${slotText(next, mine)}</p><div class="btn-row"><button type="button" class="btn" data-act="open" data-arg="vote:${next.id}" data-key="next">${canVote(next) ? '응답 바꾸기' : '일정 보기'}</button></div>`
         : `<div class="btn-row"><button type="button" class="btn${canVote(next) ? ' primary' : ''}" data-act="open" data-arg="vote:${next.id}" data-key="next">${canVote(next) ? '참석 투표하기' : '일정 보기'}</button></div>`;
-      top = `<section class="now"><p class="when">${when(next)}</p><h2 class="t1">${esc(next.title)}</h2><p>${signed() ? esc(next.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">${canVote(next) ? `투표 마감 ${deadlineText(next)}` : '투표가 마감됐어요'}</p>${action}</section>`;
+      top = `<section class="card now"><p class="when">${when(next)}</p><h2 class="t1">${esc(next.title)}</h2><p>${signed() ? esc(next.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">${canVote(next) ? `투표 마감 ${deadlineText(next)}` : '투표가 마감됐어요'}</p>
+        <div class="tally">${[['선발', c.early], ['후발', c.late], ['점심 함께', c.lunch]].map(([k, v]) => `<div><span>${k}</span><strong>${v}명</strong>${meter(v, c.going)}</div>`).join('')}</div>${action}</section>`;
     }
-    return { title: '일정', brand: true, body: `${top}${label('이후 일정', calToggle())}${state.calendar ? calendar(list, 'vote') : ''}${rowsOf(rest.map(eventRow)) || '<p class="sub">이후 일정이 아직 없어요.</p>'}` };
+    const waiting = rest.filter(e => canVote(e) && !(signed() && votes[e.id]?.[me()])), later = rest.filter(e => !waiting.includes(e));
+    return { title: '홈', body: `${top}${waiting.length ? label(`응답할 투표 ${waiting.length}개`) + rowsOf(waiting.map(eventRow)) : ''}${later.length ? label('이후 일정', more('전체 보기', 'schedule')) + rowsOf(later.slice(0, 3).map(eventRow)) : ''}
+      ${label('공지', more('전체 보기', 'notices'))}${rowsOf(sortedNotices().slice(0, 2).map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>'}` };
+  };
+  roots.member.schedule = () => {
+    const list = memberEvents();
+    return { title: '일정', body: `${label(`예정 ${list.length}개`, calToggle())}${state.calendar ? calendar(list, 'vote') : ''}${rowsOf(list.map(eventRow)) || '<p class="sub">예정된 일정이 없어요.</p>'}` };
   };
   roots.member.notices = roots.organizer.notices = () => ({
     title: '공지', action: state.role === 'organizer' ? `<button type="button" class="icon-btn" data-act="open" data-arg="notice-form:" aria-label="새 공지">${icon('plus')}</button>` : '',
-    body: rowsOf([...notices].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date)).map(n => row('open', `notice:${n.id}`, esc(n.title), `${fmtDate(n.date)}${n.pinned ? ' · 맨 위 고정' : ''}`))) || '<p class="sub">올라온 공지가 없어요.</p>',
+    body: rowsOf(sortedNotices().map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>',
   });
   const recordBody = () => {
     const m = members.find(x => x.id === me()), done = Math.min(m.marks, rules.goal);
-    return `<section class="now"><p class="when">올해 출석</p><h2 class="t1">23회</h2></section>
-      ${label('이번 반기 줄서기 인정')}<p><strong>${done} / ${rules.goal}회</strong></p><div class="dots" aria-hidden="true">${Array.from({ length: rules.goal }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>
-      <p class="sub gap">콕 수령: ${m.rewarded ? '받았어요' : done >= rules.goal ? '받을 수 있어요. 운영진에게 말씀해 주세요.' : '아직이에요'}</p>
+    return `<section class="card now"><p class="when">올해 출석</p><h2 class="t1">23회</h2>
+      <p class="gap"><strong>이번 반기 줄서기 인정 ${done} / ${rules.goal}회</strong></p><div class="dots" aria-hidden="true">${Array.from({ length: rules.goal }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>
+      <p class="sub" style="margin-top:12px">콕 수령: ${m.rewarded ? '받았어요' : done >= rules.goal ? '받을 수 있어요. 운영진에게 말씀해 주세요.' : '아직이에요'}</p></section>
       ${label('내 계정')}${rowsOf([row('toast', '번호 바꾸기는 시안에서 열리지 않아요.', '번호 바꾸기', ''), row('logout', '', '로그아웃', '')])}`;
   };
-  roots.member.record = () => signed() ? { title: '내 기록', body: recordBody() }
-    : { title: '내 기록', body: `<section class="now"><h2 class="t1">로그인하면 내 기록이 보여요</h2><p>출석 횟수와 줄서기 인정, 콕 수령을 볼 수 있어요.</p><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="login:">로그인</button></div></section>` };
+  roots.member.record = roots.organizer.record = () => signed() ? { title: '내 기록', body: recordBody() }
+    : { title: '내 기록', body: `<section class="card now"><h2 class="t1">로그인하면 내 기록이 보여요</h2><p>출석 횟수와 줄서기 인정, 콕 수령을 볼 수 있어요.</p><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="login:">로그인</button></div></section>` };
 
   // 운영진 화면
+  const stepNames = ['일정 준비', '참석 투표', '당일 출석', '마무리'];
+  const steps = at => `<div class="steps" role="img" aria-label="진행 ${at + 1}/4 단계: ${stepNames[at]}">${stepNames.map((name, i) => `<span class="${i < at ? 'done' : i === at ? 'at' : ''}"><i></i>${name}</span>`).join('')}</div>`;
   roots.organizer.home = () => {
     const list = openEvents();
     const focus = list.find(e => e.date < today() && !e.cancelled) ?? list.find(e => e.date === today() && !e.cancelled) ?? list.find(e => e.published && !e.cancelled) ?? list[0];
-    let top = `<section class="now"><p class="when">지금 할 일</p><h2 class="t1">예정된 일정이 없어요</h2><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="event-form:">새 일정 만들기</button></div></section>`;
+    let top = `<section class="card now"><p class="when">지금 할 일</p><h2 class="t1">예정된 일정이 없어요</h2><div class="btn-row"><button type="button" class="btn primary" data-act="open" data-arg="event-form:">새 일정 만들기</button></div></section>`;
     if (focus) {
-      const c = counts(focus), p = presentCount(focus.id), waiting = active().length - c.all;
-      const mine = votes[focus.id]?.[me()];
-      let fact, buttons;
+      const c = counts(focus), p = presentCount(focus.id), total = active().length, waiting = total - c.all, mine = votes[focus.id]?.[me()];
+      let at, fact, detail, buttons;
       if (focus.date < today()) {
-        fact = `출석 ${p.members}명 · 게스트 ${p.guests}명 · 마무리 전`;
+        at = 3; fact = '운동이 끝났어요. 마무리만 남았어요.';
+        detail = stats([['출석', `${p.members}명`], ['게스트', `${p.guests}명`], ['참석 예정', `${c.going}명`]]) + meter(p.members, c.going);
         buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:wrap" data-key="now-1">마무리하기</button>`;
       } else if (focus.date === today()) {
-        fact = `참석 예정 ${c.all}명 · ${esc(focus.place)}`;
+        at = 2; fact = esc(focus.place);
+        detail = stats([['참석 예정', `${c.going}명`], ['출석 체크', `${p.members}명`], ['게스트', `${(guests[focus.id] ?? []).length}명`]]) + meter(p.members, c.going);
         buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:att" data-key="now-1">출석 체크 시작</button>`;
       } else if (!focus.published) {
-        fact = '아직 회원에게 보이지 않아요';
+        at = 0; fact = '아직 회원에게 보이지 않아요.'; detail = '';
         buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:poll" data-key="now-1">일정 열어 공개하기</button>`;
       } else {
-        fact = `응답 ${c.all} / ${active().length}명 · 미응답 ${waiting}명`;
+        at = 1; fact = `응답 ${c.all} / ${total}명 · 투표 마감 ${deadlineText(focus)}`;
+        detail = stats([['선발', c.early], ['후발', c.late], ['점심', c.lunch], ['불참', c.no], ['미응답', waiting]]) + meter(c.all, total);
         buttons = `<button type="button" class="btn primary" data-act="open" data-arg="event:${focus.id}:poll" data-key="now-1">미응답 ${waiting}명 보기</button><button type="button" class="btn" data-act="copy" data-arg="${focus.id}" data-key="now-2">투표 링크 복사</button>`;
       }
       const own = focus.published && canVote(focus) && !mine ? `<button type="button" class="link" data-act="open" data-arg="vote:${focus.id}" data-key="own">내 응답은 아직이에요 · 지금 하기</button>` : '';
-      top = `<section class="now"><p class="when">${focus.date < today() ? `${rel(focus.date) || fmtDate(focus.date)} 끝남 · ${fmtDate(focus.date)}` : when(focus)}</p><h2 class="t1">${esc(focus.title)}</h2><p>${fact}</p><div class="btn-row">${buttons}</div>${own}</section>`;
+      top = `<section class="card now"><p class="when">${focus.date < today() ? `${rel(focus.date) || fmtDate(focus.date)} 끝남 · ${fmtDate(focus.date)}` : when(focus)}</p><h2 class="t1">${esc(focus.title)}</h2><p>${fact}</p>${steps(at)}${detail}<div class="btn-row">${buttons}</div>${own}</section>`;
     }
-    const rest = list.filter(e => e !== focus);
-    return { title: '홈', brand: true, body: `${top}${label('다른 일정')}${rowsOf(rest.map(eventRow)) || '<p class="sub">다른 일정이 없어요.</p>'}` };
+    const rest = list.filter(e => e !== focus), last = doneEvents()[0];
+    return { title: '홈', action: `<button type="button" class="icon-btn" data-act="open" data-arg="event-form:" aria-label="새 일정">${icon('plus')}</button>`,
+      body: `${top}${label('다른 일정', more('전체 보기', 'schedule'))}${rowsOf(rest.map(eventRow)) || '<p class="sub">다른 일정이 없어요.</p>'}
+        ${label('최근 공지', more('전체 보기', 'notices'))}${rowsOf(sortedNotices().slice(0, 2).map(noticeRow)) || '<p class="sub">올라온 공지가 없어요.</p>'}
+        ${last ? label('지난 일정') + rowsOf([row('open', `event:${last.id}:wrap`, esc(last.title), `${fmtDate(last.date)} · 출석 ${last.present ?? presentCount(last.id).members}명 · 마무리 완료`)]) : ''}` };
   };
   roots.organizer.schedule = () => {
     const list = openEvents(), done = doneEvents();
@@ -326,14 +400,14 @@ strong, b { font-weight: 600; }
         <details class="fold"><summary><span>끝난 일정 ${done.length}개</span>${icon('chev', 18)}</summary>${rowsOf(done.map(e => row('open', `event:${e.id}:wrap`, esc(e.title), `${fmtDate(e.date)} · 출석 ${e.present ?? presentCount(e.id).members}명`)))}</details>` };
   };
   roots.organizer.members = () => ({
-    title: '회원', action: `<button type="button" class="icon-btn" data-act="open" data-arg="member-form:" aria-label="회원 추가">${icon('plus')}</button>`,
+    title: '회원 관리', action: `<button type="button" class="icon-btn" data-act="open" data-arg="member-form:" aria-label="회원 추가">${icon('plus')}</button>`,
     body: `<div class="field" style="margin-top:0"><label for="member-q">이름으로 찾기</label><input id="member-q" type="search" autocomplete="off" data-filter="member-rows"></div>
       ${label(`회원 ${members.length}명`)}<ul class="rows" id="member-rows">${members.map(m => `<li data-name="${esc(m.name)}">${row('open', `member:${m.id}`, esc(m.name), [m.organizer ? '운영진' : '', m.active ? '' : '쉬는 중'].filter(Boolean).join(' · '))}</li>`).join('')}</ul>`,
   });
-  roots.organizer.more = () => ({ title: '더보기', body: rowsOf([row('open', 'progress:', '반기 집계', '줄서기 인정과 콕 수령'), row('open', 'rules:', '모임 규칙', '집계 구간과 목표'), row('open', 'record:', '내 기록', ''), row('logout', '', '로그아웃', '')]) });
+  roots.organizer.progress = () => ({ ...screens.progress(), back: false });
+  roots.organizer.rules = () => ({ ...screens.rules(), back: false });
 
   const screens = {};
-  screens.record = () => ({ title: '내 기록', back: true, body: recordBody() });
   screens.vote = ({ id }) => {
     const e = byId(id), mine = signed() && votes[id]?.[me()];
     const draft = state.draft[id] ?? (state.draft[id] = { slot: mine?.slot ?? '', lunch: Boolean(mine?.lunch) });
@@ -342,11 +416,11 @@ strong, b { font-weight: 600; }
     if (e.cancelled) form = '<p class="gap"><strong>이 일정은 취소됐어요.</strong></p>';
     else if (!canVote(e)) form = `${mine ? `<p class="mine gap">내 응답 · ${slotText(e, mine)}</p>` : ''}<p class="sub gap">투표가 마감됐어요.</p>`;
     else if (!signed()) form = `<div class="btn-row gap"><button type="button" class="btn primary" data-act="open" data-arg="login:">로그인하고 투표하기</button></div><p class="sub" style="margin-top:8px">성함과 번호 6자리로 한 번만 로그인하면 돼요.</p>`;
-    else form = `<div class="choices" role="group" aria-label="참석 시간">${['early', 'late'].map(s => `<button type="button" class="choice" data-act="slot" data-arg="${id}:${s}" data-key="slot-${s}" aria-pressed="${draft.slot === s}">${s === 'early' ? '선발' : '후발'}<small>${e[s]}부터</small></button>`).join('')}</div>
-      <label class="check"><input type="checkbox" id="lunch" data-act="lunch" data-arg="${id}"${draft.lunch ? ' checked' : ''}>점심 함께해요</label>
+    else form = `<div class="choices" role="group" aria-label="참석 여부">${[['early', '선발', `${e.early}부터`], ['late', '후발', `${e.late}부터`], ['no', '불참', '못 가요']].map(([slot, text, sub]) => `<button type="button" class="choice" data-act="slot" data-arg="${id}:${slot}" data-key="slot-${slot}" aria-pressed="${draft.slot === slot}">${text}<small>${sub}</small></button>`).join('')}</div>
+      <label class="check" id="lunch-row"${draft.slot === 'no' ? ' hidden' : ''}><input type="checkbox" id="lunch" data-act="lunch" data-arg="${id}"${draft.lunch ? ' checked' : ''}>점심 함께해요</label>
       <div class="btn-row"><button type="button" class="btn primary" data-act="save-vote" data-arg="${id}" data-key="save">${mine ? '응답 바꾸기' : '응답 저장'}</button></div>${statusLine()}
-      ${mine ? `<button type="button" class="link" data-act="cancel-vote" data-arg="${id}" data-key="cancel-vote">응답 취소</button>` : '<p class="sub">못 오시면 응답하지 않아도 돼요.</p>'}`;
-    return { title: '일정', back: true, body: `<h2 class="t1">${esc(e.title)}</h2><div class="facts"><p>${fmtDate(e.date)} ${e.time}–${e.end}</p><p>${signed() ? esc(e.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">투표 마감 ${deadlineText(e)}</p></div>${e.notes && signed() ? `<p class="notes">${esc(e.notes)}</p>` : ''}${form}<p class="sub gap" id="vote-count">지금 참석 ${c.all}명 (선발 ${c.early} · 후발 ${c.late})</p>` };
+      ${mine ? `<button type="button" class="link" data-act="cancel-vote" data-arg="${id}" data-key="cancel-vote">응답 취소</button>` : ''}`;
+    return { title: '일정', back: true, body: `<h2 class="t1">${esc(e.title)}</h2><div class="facts"><p>${fmtDate(e.date)} ${e.time}–${e.end}</p><p>${signed() ? esc(e.place) : '<span class="sub">장소는 로그인 후 보여요</span>'}</p><p class="sub">투표 마감 ${deadlineText(e)}</p></div>${e.notes && signed() ? `<p class="notes">${esc(e.notes)}</p>` : ''}${form}<p class="sub gap" id="vote-count">지금 참석 ${c.going}명 (선발 ${c.early} · 후발 ${c.late})</p>` };
   };
   screens.login = () => ({ title: '로그인', back: true, body: state.login.step === 1
     ? `<h2 class="t1">성함을 알려 주세요</h2><form data-form="login-name" novalidate>${field('login-name', '성함', 'autocomplete="off" maxlength="20"', state.login.name)}<div class="btn-row"><button class="btn primary">다음</button></div>${statusLine()}</form>`
@@ -367,11 +441,12 @@ strong, b { font-weight: 600; }
     const e = byId(id), tab = state.eventTab || (e.date < today() ? 'wrap' : e.date === today() ? 'att' : 'poll');
     const c = counts(e), att = attendance[id] ?? (attendance[id] = {});
     const responders = active().filter(m => votes[id]?.[m.id]), silent = active().filter(m => !votes[id]?.[m.id]);
+    const goers = active().filter(m => going(id, m)), others = active().filter(m => !going(id, m));
     let panel;
     if (tab === 'poll') {
       const mine = votes[id]?.[me()];
       const closed = !canVote(e);
-      panel = `<p class="t2">응답 ${c.all} / ${active().length}명</p><p class="sub">선발 ${c.early} · 후발 ${c.late} · 점심 ${c.lunch}${e.published ? '' : ' · 아직 공개 전'}</p>
+      panel = `<p class="t2">응답 ${c.all} / ${active().length}명</p><p class="sub">선발 ${c.early} · 후발 ${c.late} · 불참 ${c.no} · 점심 ${c.lunch}${e.published ? '' : ' · 아직 공개 전'}</p>${meter(c.all, active().length)}
         ${e.published ? `<div class="btn-row"><button type="button" class="btn${closed ? '' : ' primary'}" data-act="copy" data-arg="${id}" data-key="copy">투표 링크 복사</button></div>` : `<div class="btn-row"><button type="button" class="btn primary" data-act="publish" data-arg="${id}" data-key="publish">회원에게 공개하기</button></div>`}
         ${rowsOf([row('open', `vote:${id}`, '내 응답', mine ? slotText(e, mine) : closed ? '응답하지 않았어요' : '아직 안 했어요')]).replace('class="rows"', 'class="rows gap"')}
         ${label(`미응답 ${silent.length}명`)}${rowsOf(silent.map(m => plain(esc(m.name), '')))}
@@ -384,19 +459,19 @@ strong, b { font-weight: 600; }
             : row(e.cancelled ? 'cancel-event' : 'confirm', e.cancelled ? id : `cancel-${id}`, e.cancelled ? '취소 풀기' : '일정 취소', ''),
         ].filter(Boolean))}`;
     } else if (tab === 'att') {
-      if (e.date > today()) panel = `<p class="sub">출석은 당일부터 체크할 수 있어요.</p>${label(`참석 예정 ${responders.length}명`)}${rowsOf(responders.map(m => plain(esc(m.name), '', slotText(e, votes[id][m.id]))))}`;
+      if (e.date > today()) panel = `<p class="sub">출석은 당일부터 체크할 수 있어요.</p>${label(`참석 예정 ${goers.length}명`)}${rowsOf(goers.map(m => plain(esc(m.name), '', slotText(e, votes[id][m.id]))))}`;
       else {
         const p = presentCount(id);
         const item = (who, sub) => `<button type="button" class="row att" data-act="att" data-arg="${id}:${who.id}" data-key="att-${who.id}" aria-pressed="${Boolean(att[who.id])}"><span><strong>${esc(who.name)}</strong><small>${sub}</small></span><span class="ck">${icon('check', 20)}</span></button>`;
-        panel = `<div class="${state.onlyMissing ? 'only-missing' : ''}" id="att-list">${rowsOf([...responders.map(m => item(m, slotText(e, votes[id][m.id]))), ...(guests[id] ?? []).map(g => item(g, '게스트'))])}
-          <details class="fold"><summary><span>응답 없이 온 회원 체크 (${silent.length}명)</span>${icon('chev', 18)}</summary>${rowsOf(silent.map(m => item(m, '응답 없음')))}</details></div>
+        panel = `<div class="${state.onlyMissing ? 'only-missing' : ''}" id="att-list">${rowsOf([...goers.map(m => item(m, slotText(e, votes[id][m.id]))), ...(guests[id] ?? []).map(g => item(g, '게스트'))])}
+          <details class="fold"><summary><span>참석 예정이 아닌 회원 ${others.length}명</span>${icon('chev', 18)}</summary>${rowsOf(others.map(m => item(m, votes[id]?.[m.id] ? '불참' : '응답 없음')))}</details></div>
           ${state.guestOpen ? `<form class="inline" data-form="guest" data-id="${id}" novalidate><input id="guest-name" name="guest-name" aria-label="게스트 이름" maxlength="20" autocomplete="off"><button class="btn">게스트 추가</button></form>${statusLine()}` : `<button type="button" class="link" data-act="guest-open" data-key="guest-open">게스트 추가</button>`}
           <div class="foot"><strong id="att-count">출석 ${p.members + p.guests}명</strong><button type="button" class="link" data-act="att-filter" data-key="att-filter" aria-pressed="${state.onlyMissing}">${state.onlyMissing ? '모두 보기' : '안 온 사람만 보기'}</button></div>`;
       }
     } else if (e.date > today()) panel = '<p class="sub">마무리는 운동이 끝난 뒤에 할 수 있어요.</p>';
     else if (e.settled) panel = `<p class="t2">마무리 완료</p><p class="sub">출석 ${e.present ?? presentCount(id).members}명</p>${state.report ? `<pre class="report">${esc(state.report)}</pre><div class="btn-row"><button type="button" class="btn" data-act="copy-report" data-key="copy-report">마무리 글 복사</button></div>` : ''}`;
     else {
-      const p = presentCount(id), unchecked = responders.filter(m => !att[m.id]).length;
+      const p = presentCount(id), unchecked = goers.filter(m => !att[m.id]).length;
       panel = `<p class="t2">출석 ${p.members}명 · 게스트 ${p.guests}명</p>${unchecked ? `<p class="sub">참석한다고 한 ${unchecked}명은 출석 체크가 없어 집계에서 빠져요.</p>` : ''}
         <form data-form="wrap" data-id="${id}" novalidate><div class="grid2">${field('wrap-box', '콕 이월 (타)', 'inputmode="numeric"', '2')}${field('wrap-carry', '콕 이월 (낱개)', 'inputmode="numeric"', '5')}</div>
         <div class="grid2">${field('wrap-left', '오늘 남은 콕 (낱개)', 'inputmode="numeric"', '18')}${field('wrap-fee', '코트 찬조금 (원)', 'inputmode="numeric"', '30000')}</div>
@@ -446,22 +521,35 @@ strong, b { font-weight: 600; }
     const top = state.stack.at(-1);
     return top ? screens[top.name](top) : roots[state.role][state.tab[state.role]]();
   }
-  let toastTimer;
+  let toastTimer, lastMark = -1;
+  const tabButton = current => ([id, text, glyph]) => `<button type="button" class="tab" data-act="tab" data-arg="${id}" data-key="tab-${id}" title="${text}"${current === id ? ' aria-current="page"' : ''}>${icon(glyph, 22)}<span>${text}</span></button>`;
+  const brand = () => `<div class="brand"><img src="shuttlecock-icon-96.png" alt="" width="26" height="26">${CLUB}</div>`;
   function render(dir = '') {
     const v = view(), tabs = TABS[state.role], current = state.tab[state.role];
     const key = dir ? null : document.activeElement?.dataset?.key;
-    const tabButton = ([id, text, glyph]) => `<button type="button" class="tab" data-act="tab" data-arg="${id}" data-key="tab-${id}"${current === id ? ' aria-current="page"' : ''}>${icon(glyph, 22)}<span>${text}</span></button>`;
-    const brand = `<div class="brand"><img src="shuttlecock-icon-96.png" alt="" width="26" height="26">${CLUB}</div>`;
-    app.innerHTML = `<nav class="side" aria-label="메뉴"><div class="side-in">${brand}${tabs.map(tabButton).join('')}</div></nav>
-      <div class="col"><header class="bar"><div class="bar-in">${v.back ? `<button type="button" class="back" data-act="back" data-key="back">${icon('back', 20)}<span>뒤로</span></button>` : ''}${v.brand ? brand.replace('class="brand"', 'class="brand m-only"') : ''}<h1 class="bar-title${v.brand ? ' d-only' : ''}">${v.title}</h1>${v.action ?? ''}</div></header>
+    const mark = tabs.slice(0, 4).findIndex(([id]) => id === current);
+    app.innerHTML = `<nav class="side" aria-label="메뉴"><div class="side-in">${brand()}${tabs.map(tabButton(current)).join('')}</div></nav>
+      <div class="col"><header class="bar"><div class="bar-in">${v.back ? `<button type="button" class="back" data-act="back" data-key="back">${icon('back', 20)}<span>뒤로</span></button>` : ''}<div class="crumb">${v.back ? '' : `<span>${CLUB}</span><span>/</span>`}<h1>${v.title}</h1></div>${v.action ?? ''}<button type="button" class="icon-btn m-only" data-act="menu" data-key="menu" aria-label="메뉴 열기">${icon('menu')}</button></div></header>
       <main class="main ${dir}" id="main" tabindex="-1">${v.body}</main></div>
-      <nav class="tabs" aria-label="메뉴">${tabs.map(tabButton).join('')}</nav>${state.flash ? `<div class="toast" role="status">${esc(state.flash)}</div>` : ''}`;
-    document.documentElement.dataset.menu = state.menu;
-    if (dir) { window.scrollTo(0, 0); document.getElementById('main').focus({ preventScroll: true }); }
+      <nav class="tabs" aria-label="바로가기"${mark >= 0 && lastMark >= 0 && lastMark !== mark ? ' data-slide' : ''} style="--at:${Math.max(mark, 0)};--was:${Math.max(lastMark, 0)}">${mark >= 0 ? '<span class="tab-mark"></span>' : ''}${tabs.slice(0, 4).map(tabButton(current)).join('')}</nav>${state.flash ? `<div class="toast" role="status">${esc(state.flash)}</div>` : ''}`;
+    lastMark = mark;
+    if (dir && dir !== 'enter') { window.scrollTo(0, 0); document.getElementById('main').focus({ preventScroll: true }); }
     else if (key) [...app.querySelectorAll('[data-key]')].find(el => el.dataset.key === key && el.offsetParent)?.focus({ preventScroll: true });
     for (const b of document.querySelectorAll('[data-lab]')) b.setAttribute('aria-pressed', String(String(state[b.dataset.lab]) === b.dataset.v));
     document.getElementById('lab-now').textContent = `${state.role === 'organizer' ? '운영진' : '회원'} · ${{ before: '전날', today: '당일', after: '끝난 뒤' }[state.moment]}`;
   }
+  // 휴대폰의 전체 메뉴: 오른쪽에서 들어오는 서랍. ×, 바깥, Esc로 닫힌다.
+  const drawer = document.getElementById('drawer');
+  function openMenu() {
+    const account = state.role === 'member' && !state.signedIn ? `<button type="button" class="tab" data-act="open" data-arg="login:">${icon('user', 22)}<span>로그인</span></button>` : `<button type="button" class="tab" data-act="logout">${icon('back', 22)}<span>로그아웃</span></button>`;
+    drawer.innerHTML = `<div class="drawer-head">${brand()}<button type="button" class="icon-btn" data-act="menu-close" aria-label="메뉴 닫기">${icon('x')}</button></div><div class="drawer-list">${TABS[state.role].map(tabButton(state.tab[state.role])).join('')}${account}</div>`;
+    drawer.showModal();
+  }
+  drawer.addEventListener('click', ev => {
+    const el = ev.target.closest('[data-act]');
+    if (ev.target === drawer || el) drawer.close();
+    if (el && el.dataset.act !== 'menu-close') acts[el.dataset.act]?.(el.dataset.arg ?? '', el);
+  });
   function toast(text) {
     state.flash = text; clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { state.flash = ''; app.querySelector('.toast')?.remove(); }, 3500);
@@ -483,18 +571,29 @@ strong, b { font-weight: 600; }
   const val = (form, id) => form.querySelector('#' + id)?.value.trim() ?? '';
 
   const acts = {
-    tab(arg) { clear(); state.stack = []; state.tab[state.role] = arg; render(); window.scrollTo(0, 0); },
+    tab(arg) {
+      const order = TABS[state.role].map(([id]) => id), was = order.indexOf(state.tab[state.role]), deep = state.stack.length;
+      clear(); state.stack = []; state.tab[state.role] = arg;
+      render(order.indexOf(arg) > was ? 'push' : order.indexOf(arg) < was || deep ? 'pop' : '');
+    },
+    menu: () => openMenu(),
     open(arg) { const [name, id, tab] = arg.split(':'); go(name, id, tab); },
     back,
     toast(arg) { toast(arg); render(); },
     logout() { clear(); state.stack = []; state.role = 'member'; state.signedIn = false; toast('로그아웃했어요. 로그인 전 회원 화면이에요.'); render(); window.scrollTo(0, 0); },
     'cal-toggle'() { state.calendar = !state.calendar; state.calMonth = ''; render(); },
     cal(arg) { const [y, m] = (state.calMonth || today().slice(0, 7)).split('-').map(Number); const x = new Date(y, m - 1 + Number(arg), 1); state.calMonth = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`; render(); },
-    slot(arg, el) { const [id, slot] = arg.split(':'); state.draft[id].slot = slot; for (const b of app.querySelectorAll('[data-act="slot"]')) b.setAttribute('aria-pressed', String(b === el)); const s = app.querySelector('.status'); if (s) s.textContent = ''; say(''); },
+    slot(arg, el) {
+      const [id, slot] = arg.split(':'), lunch = document.getElementById('lunch');
+      state.draft[id].slot = slot; for (const b of app.querySelectorAll('[data-act="slot"]')) b.setAttribute('aria-pressed', String(b === el));
+      // 불참이면 점심을 묻지 않는다.
+      document.getElementById('lunch-row').hidden = slot === 'no'; if (slot === 'no') { state.draft[id].lunch = false; lunch.checked = false; }
+      const line = app.querySelector('.status'); if (line) line.textContent = ''; say('');
+    },
     lunch(arg, el) { state.draft[arg].lunch = el.checked; },
     'save-vote'(id) {
       const draft = state.draft[id];
-      if (!draft.slot) { say('선발과 후발 중 하나를 골라 주세요.', true); return render(); }
+      if (!draft.slot) { say('선발, 후발, 불참 중 하나를 골라 주세요.', true); return render(); }
       (votes[id] ??= {})[me()] = { slot: draft.slot, lunch: draft.lunch };
       say(`저장됐어요 · ${slotText(byId(id), votes[id][me()])}`); render();
     },
@@ -586,6 +685,6 @@ strong, b { font-weight: 600; }
     }
     render();
   });
-  render();
+  render('enter');
 })();
 </script>
