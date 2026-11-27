@@ -77,8 +77,10 @@
     const group = make('div', '', { class: 'picker-clock-group' });
     const options = make('div', '', { class: 'picker-clock-options', role: 'group', 'aria-label': label });
     group.append(make('strong', label), options);
-    for (let index = 0; index < count; index++) {
-      const value = two(index * step);
+    // The steps, plus a value already saved off them (23:59 from before the pickers), so keeping it needs no change.
+    const values = Array.from({ length: count }, (_, index) => two(index * step));
+    if (selected && !values.includes(selected)) values.push(selected);
+    for (const value of values.sort()) {
       const choice = button(value, { 'aria-label': value + label, 'aria-pressed': String(value === selected) });
       choice.addEventListener('click', () => {
         options.querySelector('[aria-pressed=true]')?.setAttribute('aria-pressed', 'false');
@@ -117,6 +119,50 @@
     const timeText = `${Number(hour) < 12 ? '오전' : '오후'} ${Number(hour) % 12 || 12}시 ${minute}분`;
     return dateText ? `${dateText} · ${timeText}` : timeText;
   }
+
+  // Keys inside an open picker (a select's): ↑↓ through the list or the hours and minutes, ←→↑↓ by day and week in the
+  // calendar, Home and End, and a first letter or digit for the next option starting with it. Disabled ones are passed.
+  function moveWithin(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const current = document.activeElement;
+    if (!(current instanceof HTMLButtonElement)) return;
+    const days = current.closest('.picker-days');
+    const group = days || current.closest('.picker-clock-options') || (current.classList.contains('picker-option') ? current.parentElement : null);
+    if (!group) return;
+    const items = [...group.querySelectorAll(days ? 'button' : current.classList.contains('picker-option') ? '.picker-option' : 'button')];
+    const index = items.indexOf(current);
+    const step = { ArrowDown: days ? 7 : 1, ArrowUp: days ? -7 : -1, ArrowRight: days ? 1 : 0, ArrowLeft: days ? -1 : 0 }[event.key];
+    let next;
+    if (step) {
+      for (let at = index + step; at >= 0 && at < items.length; at += step) if (!items[at].disabled) { next = items[at]; break; }
+    } else if (event.key === 'Home' || event.key === 'End') {
+      next = (event.key === 'Home' ? items : [...items].reverse()).find(item => !item.disabled);
+    } else if (!days && event.key.length === 1 && event.key.trim()) {
+      const key = event.key.toLocaleLowerCase('ko-KR');
+      next = [...items.slice(index + 1), ...items.slice(0, index + 1)]
+        .find(item => !item.disabled && item.textContent.trim().toLocaleLowerCase('ko-KR').startsWith(key));
+    }
+    if (!next || next === current) return;
+    event.preventDefault();
+    next.focus();
+    next.scrollIntoView({ block: 'nearest' });
+  }
+
+  // A form clears a cross-field message (종료 시간, 투표 마감) when another field changes; the picker showing it follows on
+  // the next turn, after the page's own change handlers ran.
+  function settle() {
+    setTimeout(() => {
+      for (const trigger of document.querySelectorAll('.picker-trigger[aria-invalid=true]')) {
+        const wrapper = trigger.closest('.form-picker');
+        if (!wrapper?.previousElementSibling?.validity?.valid) continue;
+        trigger.removeAttribute('aria-invalid');
+        const problem = wrapper.querySelector('.picker-problem');
+        if (problem) problem.textContent = '';
+      }
+    });
+  }
+  document.addEventListener('input', settle);
+  document.addEventListener('change', settle);
 
   function enhance(field) {
     if (field.nextElementSibling?.classList.contains('form-picker')) return;
@@ -166,9 +212,19 @@
     popup.addEventListener('beforetoggle', event => {
       trigger.setAttribute('aria-expanded', String(event.newState === 'open'));
     });
+    popup.addEventListener('focusout', event => {
+      if (event.relatedTarget instanceof Node && !popup.contains(event.relatedTarget) && popup.matches(':popover-open')) popup.hidePopover();
+    });
+    popup.addEventListener('keydown', moveWithin);
+    // Pressing the button of an open picker: the press closes it as a click outside would, so the click that follows must
+    // not open it again.
+    let openAtPress = false;
+    trigger.addEventListener('pointerdown', () => { openAtPress = popup.matches(':popover-open'); });
     trigger.addEventListener('click', () => {
-      if (popup.matches(':popover-open')) {
-        popup.hidePopover();
+      const wasOpen = openAtPress || popup.matches(':popover-open');
+      openAtPress = false;
+      if (wasOpen) {
+        if (popup.matches(':popover-open')) popup.hidePopover();
         return;
       }
       const close = button('×', { class: 'icon-button picker-close', 'aria-label': '닫기' });
@@ -196,7 +252,6 @@
         }, minDay, field.max.slice(0, 10));
         if (time) {
           let [hour = '', minute = ''] = (clock || '').split(':');
-          if (minute && Number(minute) % 10 !== 0) minute = '';
           const apply = button('선택 적용', { class: 'btn btn-secondary' });
           const error = make('p', '', { role: 'status' });
           const row = make('div', '', { class: 'picker-clock' });
@@ -240,7 +295,9 @@
         const current = options.querySelector('[aria-pressed=true]');
         if (current) options.scrollTop = current.offsetTop - (options.clientHeight - current.offsetHeight) / 2;
       }
-      (popup.querySelector('[aria-pressed=true]:enabled') || popup.querySelector('button')).focus({ preventScroll: true });
+      // The chosen value, else the first one that can be chosen (not ×), so ↑↓ and a first letter work at once.
+      (popup.querySelector('[aria-pressed=true]:enabled') || popup.querySelector('.picker-option:enabled, .picker-days button:enabled, .picker-clock-options button:enabled')
+        || popup.querySelector('button')).focus({ preventScroll: true });
     });
     refresh();
     if (document.activeElement === field) trigger.focus();

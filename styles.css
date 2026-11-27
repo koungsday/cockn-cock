@@ -233,6 +233,24 @@ p { line-height: 1.58; }
 .att-foot .btn[aria-pressed="true"] { background: var(--accent-soft); }
 @media (hover: hover) { .att-row:not(:disabled):hover strong:not(.member-label) { color: var(--court); } }
 .att-actions { margin-top: 12px; }
+/* 마무리 and 게스트 (단순화 7): the numbers as one line and the form on the page, as 참석 투표; guests are rows like the
+   회원 명단. A state is a word: plain, --court 600 when it asks for something, --muted when it is the usual. */
+.settle-box { display: grid; gap: 4px; margin-top: 18px; }
+.settle-box > p { margin: 0; }
+.settle-box > .muted { font-size: var(--t4); }
+.settle-box > .form-note { margin-top: 6px; }
+.settle-box .settlement-form { margin-top: 14px; }
+.guest-list { margin-top: 22px; }
+.guest-list > .form-note { margin: 8px 0 0; }
+.event-link:disabled { cursor: default; }
+.event-link:disabled strong { color: var(--ink); }
+.state-word { white-space: nowrap; }
+.state-due { color: var(--court); font-weight: 600; }
+.state-quiet { color: var(--muted); }
+.progress-period { margin-top: 14px; }
+/* 연도 and 기간 side by side even on a phone: two short values, one question (which half-year). */
+.progress-period .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 26rem; }
+.progress-period .form-actions { margin-top: 10px; }
 @media (max-width: 700px) { .att-foot { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 @media (min-width: 701px) {
   .now-card { padding: 24px; }
@@ -371,8 +389,6 @@ p { line-height: 1.58; }
 .progress-filters .search-field input[type="search"] { width: 100%; min-height: var(--touch-target); }
 
 .event-notes { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
-.back-link { align-self: start; }
-.back-link .btn { padding-left: 0; min-height: 34px; }
 .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 20px 0 18px; border-bottom: 1px solid var(--line); }
 .tabs :is(a, button) { display: grid; place-items: center; min-height: 48px; margin-bottom: -1px; padding-inline: 4px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--t3); text-align: center; }
 .tabs :is(a, button)[aria-current="page"] { border-color: var(--court); color: var(--neutral-ink); font-weight: 600; }
@@ -555,7 +571,7 @@ textarea { min-height: 100px; resize: vertical; }
 }
 /* DESIGN.md 4: touch screens get 44px targets; mouse layouts keep their density (.btn 41px, .btn-small 34px, .icon-button 38px). */
 @media (pointer: coarse) {
-  .btn, .btn-small, .data-table .table-actions .btn, .back-link .btn, .form-check, .public-example a { min-height: var(--touch-target); }
+  .btn, .btn-small, .data-table .table-actions .btn, .form-check, .public-example a { min-height: var(--touch-target); }
   .brand, .platform-link { min-height: var(--touch-target); }
   .public-example a, .platform-link, .mobile-nav-links .platform-link { display: inline-flex; align-items: center; }
   .icon-button, .icon-btn { width: var(--touch-target); height: var(--touch-target); }
@@ -702,14 +718,12 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
 :is(input, select).picker-native[aria-hidden="true"] { position: absolute; inline-size: 1px; block-size: 1px; max-inline-size: 1px; min-block-size: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; clip-path: inset(50%); }
 .form-picker { display: block; min-width: 0; }
 .picker-trigger, .picker-option, .picker-days button, .picker-heading { margin-bottom: 8px; }
-.picker-close { width: var(--touch-target); height: var(--touch-target); font-size: var(--t2); }
-.picker-popup > [role=status]:empty { display: none; }
 .picker-month > button {
   min-height: var(--touch-target); font: inherit; color: var(--ink); cursor: pointer;
 }
 .picker-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%;
-  padding: 6px 10px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); text-align: left;
+  min-height: 40px; padding: 6px 10px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); text-align: left;
 }
 .picker-trigger::after { content: ''; flex: none; width: 6px; height: 6px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; rotate: 45deg; }
 .picker-trigger:focus-visible {
@@ -717,7 +731,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
   box-shadow: inset 0 0 0 1px var(--focus);
   outline: none;
 }
-.picker-trigger[aria-invalid=true] { border-color: var(--accent-red); }
+.picker-trigger[aria-invalid=true] { border-color: #9d2e30; }
 .picker-popup {
   position: fixed; inset: auto; margin: 0;
   max-height: min(70dvh, 460px); overflow: auto;
@@ -731,9 +745,9 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
 .picker-month > button:not(.btn), .picker-option, .picker-days button {
   border: 0; border-radius: 8px; background: var(--hint);
 }
-.picker-option { display: block; width: 100%; text-align: left; padding-inline: 10px; margin-top: 4px; }
+.picker-option { display: block; width: 100%; min-height: 36px; text-align: left; padding-inline: 10px; margin-top: 4px; }
 .picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-block: 8px; text-align: center; }
-.picker-days button { padding: 0; }
+.picker-days button { min-height: 36px; padding: 0; }
 .picker-popup [aria-pressed=true] { background: var(--ink); color: var(--surface); }
 .picker-popup button:disabled, .picker-trigger:disabled { opacity: .5; cursor: default; }
 .picker-problem:not(:empty) { display: block; margin-top: 4px; color: var(--ink); font-size: var(--t4); }
@@ -795,6 +809,13 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
   border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
 }
 .picker-clock + .btn { width: 100%; }
+/* Touch (after the picker rules above, which it must outrank): the button stands where a select was and takes its 44px
+   (31px before, 2026-11-27), and so do the list rows and dates (19px). Seven dates in a picker as wide as its field also
+   take the popup's side padding: 37px → 40px a date at 375px in the 일정 창 (44px would need a wider field). */
+@media (pointer: coarse) {
+  .picker-trigger, .picker-option, .picker-days button { min-height: var(--touch-target); }
+  .picker-days { gap: 0; margin-inline: -10px; }
+}
 
 /* 일정 모달: empty text fields carry their hints, and each picker names itself next to its current value. */
 .dialog [data-form="event"] { --focus: var(--neutral-ink); }
@@ -817,7 +838,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
 .dialog [data-form="event"] .picker-trigger::after { grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 8px; margin-inline-end: 2px; border-color: var(--neutral-muted); }
 .dialog [data-form="event"] .picker-caption { grid-column: 1; color: var(--neutral-muted); font-size: var(--t4); line-height: 1.25; }
 .dialog [data-form="event"] .picker-value { grid-column: 1; font-size: var(--t2); line-height: 1.25; overflow-wrap: anywhere; }
-.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { background: var(--neutral-soft); }
+.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button):not([aria-pressed="true"]) { background: var(--neutral-soft); }
 .dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { min-height: var(--touch-target); }
 .dialog [data-form="event"] .picker-popup .picker-clock-options button { font-size: var(--t2); }
 .dialog [data-form="event"] .picker-popup [aria-pressed="true"] { background: var(--neutral-ink); color: var(--surface); }

@@ -190,7 +190,7 @@
           <div><dt>투표 마감</dt><dd>${escape(helpers.dateLabel(item.deadline))} ${escape(item.deadlineTime)}</dd></div>
         </dl>
         ${item.notes ? `<p class="public-share-body">${escape(item.notes)}</p>` : ''}
-        ${item.capacity ? `<p class="public-form-note">정원 ${item.capacity}명</p>` : ''}
+        ${item.capacity ? (() => { const c = window.clubModel.counts(item); return `<p class="public-form-note">정원 ${item.capacity}명 · 확정 ${c.early + c.late}명${c.waiting ? ` · 대기 ${c.waiting}명` : ''}</p>`; })() : ''}
         ${voteForm(item, state, helpers)}
         ${countsBlock(item, escape)}`
       : `<p class="public-share-body">${escape(item.body)}</p>`;

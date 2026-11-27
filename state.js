@@ -290,7 +290,7 @@
     return {members, arrivals, total: members + arrivals, recorded, guestPaid: paid.length,
       transferWon: paid.reduce((sum, guest) => sum + (guest.transferWon ?? 0), 0),
       receivedShuttles: paid.reduce((sum, guest) => sum + (guest.receivedShuttles ?? 0), 0),
-      legacy, priorSingles, priorTubes, remainingSingles, courtDonation, singles: priorSingles + remainingSingles,
+      legacy, priorSingles, priorTubes, remainingSingles, courtDonation,
       openingShuttles, addedShuttles, usedShuttles,
       closingShuttles: legacy ? priorSingles + priorTubes * 12 + remainingSingles : openingShuttles + addedShuttles - usedShuttles};
   }
