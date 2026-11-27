@@ -35,6 +35,7 @@
     check:'<path d="m5 12 4 4L19 6"/>',
     x:'<path d="m6 6 12 12M18 6 6 18"/>',
     'chevron-right':'<path d="m9 6 6 6-6 6"/>',
+    'chevron-left':'<path d="m15 6-6 6 6 6"/>',
     'arrow-left':'<path d="m12 19-7-7 7-7m-7 7h15"/>',
     edit:'<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
     megaphone:'<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
@@ -71,7 +72,7 @@
     closed:['투표 마감','muted'], today:['오늘','warm'], wrapup:['마무리 전','warm']
   };
   const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow};
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -101,6 +102,15 @@
       return;
     }
     location.hash = target;
+  }
+  // The side a page comes in from (the live goTo): a later menu or an item opened from its list from the right, an
+  // earlier menu or back to the list from the left; another tab of the same event does not move.
+  function arriveSide(before, after) {
+    const order = [...pages, ...memberPages].map(([key]) => key);
+    const menu = route => ({event:'events', 'public-vote':'member-events', 'public-notice':'member-notices'})[route.page] ?? route.page;
+    if (menu(before) === menu(after) && (before.id ?? '') === (after.id ?? '')) return '';
+    const step = order.indexOf(menu(after)) - order.indexOf(menu(before));
+    return step > 0 || (!step && after.id) ? 'next' : 'back';
   }
   function currentLabel(route) {
     if (route.page === 'event' || route.page === 'public-vote') return '일정';
@@ -147,8 +157,9 @@
   // Phones: the first four sections stay one tap away; 더보기 opens the full menu (DESIGN.md 4).
   // Same markup as the live app (worker/public/views.mjs adminTabBar): four icons; the menu opens from the top bar.
   function tabBar(active, member) {
-    return `<nav class="tab-bar" aria-label="바로가기">
-      ${(member ? memberPages : pages).slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
+    const current = (member ? memberPages : pages).slice(0, 4).findIndex(([key]) => key === active);
+    return `<nav class="tab-bar" aria-label="바로가기"${current < 0 ? '' : ` data-current="${current}"`}>
+      ${current < 0 ? '' : '<span class="tab-bar-mark" aria-hidden="true"></span>'}${(member ? memberPages : pages).slice(0, 4).map(([key, label, glyph]) => `<a class="tab-bar-link" href="#${key}" data-route="${key}" title="${label}"${active === key ? ' aria-current="page"' : ''}>${icon(glyph,23)}<span class="sr-only">${label}</span></a>`).join('')}
     </nav>`;
   }
   // Same drawer as the live app (worker/public/app.mjs openAdminMenu): the top bar's two lines turn into × in place.
@@ -230,14 +241,24 @@
         ${tabBar(menuPage(), member)}
       </div>`;
   }
-  function renderPage({focus = false} = {}) {
+  // arrive (DESIGN.md 6 섹션 도착, as the live render): 'next' or 'back' slides the page in from that side, 'enter' rises it.
+  function renderPage({focus = false, arrive = ''} = {}) {
     const member = memberView(currentRoute);
     const label = currentLabel(currentRoute);
     // The shell is redrawn when the breadcrumb or the view changes; the menus follow the view.
     const section = `${member ? 'member' : 'organizer'}:${label}:${menuPage()}`;
     document.title = `${label} · 썬콕19 · 콕콕콕!`;
+    const lastTab = app.querySelector('.tab-bar')?.dataset.current;
     if (!app.querySelector('.main-shell') || app.dataset.section !== section) renderShell();
+    // The lime mark slides from the tab the last page was on (the live render).
+    const bar = app.querySelector('.tab-bar');
+    if (bar?.dataset.current && lastTab && lastTab !== bar.dataset.current) {
+      bar.style.setProperty('--tab-from', lastTab);
+      bar.dataset.slide = '';
+    }
     const content = app.querySelector('#main-content');
+    if (arrive) content.dataset.arrive = arrive;
+    else delete content.dataset.arrive;
     content.innerHTML = member ? window.clubShare.renderMember(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts})
       : currentRoute.page === 'home' ? renderHome()
       : window.clubScreens.renderScreen(currentRoute, state, ui, helpers);
@@ -294,6 +315,13 @@
       wrapup:`${when} · ${late}일 지났어요`
     }[stage];
     return {stage, title:`${pill(word, tone)} ${pinMark(event)}${escape(event.title)}`, detail:escape(detail)};
+  }
+  // 일정 달력 (worker/public/calendar.mjs, built into calendar.js): the live month grid; the past, the finished and the
+  // cancelled quiet. ui.calendarMonth is the month picked, this month when none was.
+  function calendar(events) {
+    const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
+      regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
+    return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), today, icon});
   }
   function pollIsOpen(event) {
     return event.pollOpen && !event.finalized && !event.cancelled && !deadlinePassed(event);
@@ -535,6 +563,22 @@
     const openTypes = ['event','member','notice','repeat','vote','share'];
     if (openTypes.includes(action.replace(/^open-/, ''))) {
       openDialog(action.slice(5),id,control,kind);
+      return;
+    }
+    // 일정 달력 (the live doAction): the asked month slides in from its side; a date marks its rows in the list below.
+    if (action === 'calendar-month') {
+      const shown = app.querySelector('.calendar')?.dataset.month;
+      const month = shown && window.clubCalendar.calendarTarget(shown, id, today);
+      if (!month || month === shown) return;
+      ui.calendarMonth = month;
+      renderPage();
+      const days = app.querySelector('.calendar-days');
+      if (days) days.dataset.slide = month > shown ? 'next' : 'back';
+      app.querySelector(`.calendar [data-action="calendar-month"][data-id="${id}"]`)?.focus({preventScroll:true});
+      return;
+    }
+    if (action === 'calendar-day') {
+      window.clubCalendar.pickCalendarDay(app, id, !reducedMotion.matches);
       return;
     }
     if (action === 'close-dialog') modal.close();
@@ -785,9 +829,11 @@
   window.addEventListener('hashchange', () => {
     if (location.hash === '#main-content') return;
     if (modal.open) modal.close();
+    const before = currentRoute;
     currentRoute = routeFromHash();
+    if (before.page !== currentRoute.page) ui.calendarMonth = null;
     if (mobileNav.open) closeMobileMenu(false);
-    renderPage({focus:true});
+    renderPage({focus:true, arrive:arriveSide(before, currentRoute)});
     window.scrollTo(0,0);
   });
   window.addEventListener('storage', ev => {
@@ -796,5 +842,5 @@
     if (!modal.open) renderPage();
   });
   currentRoute = routeFromHash();
-  renderPage();
+  renderPage({arrive:'enter'});
 })();

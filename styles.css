@@ -174,6 +174,42 @@ p { line-height: 1.58; }
 .event-past summary { display: flex; align-items: center; gap: 4px; min-height: var(--touch-target); color: var(--muted); font-size: .9rem; font-weight: 750; cursor: pointer; }
 .event-past summary::-webkit-details-marker { display: none; }
 .event-past[open] summary svg { transform: rotate(90deg); }
+/* 일정 달력 (DESIGN.md 5): one quiet month above the 일정 list, Sunday first (calendar.mjs). A date with events is a button
+   with its 종류 under the number; picking it marks that date's rows below. */
+.calendar { display: grid; gap: 8px; }
+.calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.calendar-title { margin: 0; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.calendar-steps { display: flex; align-items: center; gap: 4px; }
+.calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+/* Phones: the date rows reach 4px from the card's edge so a date stays 44px wide down to a 360px screen (7 × 44 + 6 × 2). */
+@media (max-width: 520px) {
+  .calendar-weekdays, .calendar-days { gap: 2px; margin-inline: calc(4px - var(--calendar-pad, 13px)); }
+  .member-list .calendar { --calendar-pad: clamp(20px, 5vw, 34px); }
+}
+.calendar-weekdays span { color: var(--muted); font-size: .76rem; font-weight: 700; text-align: center; }
+.calendar-days { margin-block: 0; padding: 0; list-style: none; }
+.calendar-day { display: grid; min-width: 0; min-height: 52px; }
+.calendar-slot, .calendar-date { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 6px 0 4px; border-radius: 8px; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.calendar-day.is-other { color: #aeb4ad; }
+.calendar-date { width: 100%; border: 0; background: var(--hint); color: var(--ink); cursor: pointer; transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
+.calendar-date:hover { background: #e0e8e2; }
+.calendar-date[aria-pressed="true"] { background: #eef7dc; box-shadow: inset 0 0 0 2px var(--court); }
+.calendar-number { min-width: 24px; border-radius: 999px; font-weight: 700; line-height: 1.5; text-align: center; }
+.calendar-day.is-today .calendar-number { box-shadow: 0 0 0 1.5px var(--ink); }
+.calendar-kind { max-width: 100%; padding: 1px 5px; overflow: hidden; border-radius: 5px; background: #dce9e1; color: var(--court); font-size: .75rem; font-weight: 750; line-height: 1.35; white-space: nowrap; }
+.calendar-kind.is-special { background: var(--leaf); color: #2f4a12; }
+.calendar-kind.is-done { background: transparent; color: var(--muted); }
+.calendar-kind small { font-size: inherit; }
+.calendar-name { display: none; }
+/* With the sidebar the cells are wide: a little taller, the number at the top left, the 종류 and the title under it. */
+@media (min-width: 701px) {
+  .calendar-day { min-height: 74px; }
+  .calendar-slot, .calendar-date { align-items: flex-start; padding: 7px 8px; text-align: left; }
+  .calendar-name { display: block; max-width: 100%; overflow: hidden; color: var(--muted); font-size: .78rem; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+}
+.member-list .calendar { margin: 12px 0 10px; }
+:is(.event-list li, .member-record)[data-date] { transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
+:is(.event-list li, .member-record).is-picked { border-radius: 4px; background: #f1f7e6; box-shadow: 0 0 0 6px #f1f7e6; }
 /* 일정 취소 on the 회차 화면: a quiet action under the facts; a cancelled event says so with the way back. */
 .event-cancel { margin-top: -4px; }
 .event-cancel .btn { padding-left: 0; }
@@ -269,7 +305,25 @@ p { line-height: 1.58; }
 input:not([type=checkbox]):not([type=radio]), select, textarea { border: 1px solid var(--field-line); min-height: 40px; border-radius: 8px; background-color: #fff; color: var(--ink); padding: 8px 10px; max-width: 100%; }
 .search-field input:not([type=checkbox]) { padding-left: 35px; }
 select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23526359' stroke-width='1.5'%3E%3Cpath d='m3 5 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
-input[type=checkbox], input[type=radio] { accent-color: #346d4e; width: 18px; height: 18px; flex: none; }
+input[type=radio] { accent-color: #346d4e; width: 18px; height: 18px; flex: none; }
+/* Checkbox (DESIGN.md 5·6), vw-k.com's round check: on, the circle fills with --court from the bottom, then a white
+   check is drawn left to right; off, the check fades as it is and the fill drops back. It never rewinds the drawing. */
+input[type=checkbox] {
+  appearance: none; position: relative; display: inline-grid; place-items: center; flex: none; box-sizing: border-box;
+  width: 22px; height: 22px; margin: 0; border: 2px solid var(--field-line); border-radius: 50%; background: #fff;
+  overflow: hidden; cursor: pointer; transition: border-color var(--dur-quick) linear;
+}
+input[type=checkbox]::before { content: ""; position: absolute; inset: 0; background: var(--court); translate: 0 100%; transition: translate var(--dur-quick) linear; }
+input[type=checkbox]::after {
+  --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 13l4 4L19 7'/%3E%3C/svg%3E");
+  content: ""; position: relative; width: 12px; height: 12px; background: #fff; opacity: 0; clip-path: inset(0 100% 0 0);
+  -webkit-mask: var(--check) center / contain no-repeat; mask: var(--check) center / contain no-repeat;
+  transition: opacity var(--dur-quick) linear, clip-path 0s linear var(--dur-quick);
+}
+input[type=checkbox]:checked { border-color: var(--court); }
+input[type=checkbox]:checked::before { translate: 0 0; transition: translate var(--dur-arrive) var(--ease-settle); }
+input[type=checkbox]:checked::after { opacity: 1; clip-path: inset(0); transition: opacity 0s, clip-path var(--dur-quick) ease-out var(--dur-quick); }
+input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 textarea { min-height: 100px; resize: vertical; }
 .dialog { width: min(536px,calc(100% - 26px)); max-height: calc(100dvh - 28px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 85px #142e2043; padding: 0; }
 .dialog::backdrop { background: #19352772; }
@@ -331,8 +385,15 @@ textarea { min-height: 100px; resize: vertical; }
     display: grid; place-items: center; min-width: 0; min-height: 48px; border: 0; border-radius: 11px;
     background: transparent; color: var(--menu-text-2); transition: background-color var(--dur-quick), color var(--dur-quick);
   }
+  .tab-bar-link { position: relative; z-index: 1; }
   .tab-bar-link:hover { background: var(--menu-hover); color: var(--menu-text); }
-  .tab-bar-link[aria-current="page"] { background: var(--lime); color: var(--ink); }
+  /* The lime mark under the current one of the four (DESIGN.md 6 하단 메뉴): one column wide (6px padding, 4px gaps). */
+  .tab-bar-mark { position: absolute; inset-block: 6px; left: 6px; width: calc((100% - 24px) / 4); border-radius: 11px; background: var(--lime); translate: calc(var(--tab-index, 0) * (100% + 4px)) 0; }
+  /* The column comes from data-current, not a style attribute: the live CSP (style-src 'self') drops those. */
+  .tab-bar[data-current="1"] { --tab-index: 1; }
+  .tab-bar[data-current="2"] { --tab-index: 2; }
+  .tab-bar[data-current="3"] { --tab-index: 3; }
+  .tab-bar-link[aria-current="page"] { background: transparent; color: var(--ink); }
   .tab-bar-link[aria-current="page"] svg { stroke-width: 2.1; }
   .topbar-menu { display: inline-grid; width: var(--touch-target); height: var(--touch-target); margin-right: -6px; color: var(--ink); }
   .topbar-logout { display: none; }
@@ -487,6 +548,25 @@ html.menu-locked body {
 @keyframes menu-bottom-in { from { transform: none; } }
 @keyframes menu-top-out { to { transform: none; } }
 @keyframes menu-bottom-out { to { transform: none; } }
+/* 섹션 도착 and 하단 메뉴 (DESIGN.md 6): the new section's blocks come in from the side of the menu picked (next: from the
+   right, back: from the left; enter: the first screen rises), a quarter of --dur-quick apart; the lime mark slides from
+   the last tab. Only position and opacity move. With reduced motion everything is simply there. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-arrive] > :not(:only-child), [data-arrive] > :only-child > * { animation: section-arrive var(--dur-arrive) var(--ease-settle) backwards; }
+  [data-arrive] > :nth-child(2):not(:only-child), [data-arrive] > :only-child > :nth-child(2) { animation-delay: calc(var(--dur-quick) / 4); }
+  [data-arrive] > :nth-child(n+3), [data-arrive] > :only-child > :nth-child(n+3) { animation-delay: calc(var(--dur-quick) / 2); }
+  [data-arrive="next"] { --view-entry: 18px 0; }
+  [data-arrive="back"] { --view-entry: -18px 0; }
+  [data-arrive="enter"] { --view-entry: 0 12px; }
+  .calendar-days[data-slide] { animation: section-arrive var(--dur-arrive) var(--ease-settle); }
+  .calendar-days[data-slide="next"] { --view-entry: 24px 0; }
+  .calendar-days[data-slide="back"] { --view-entry: -24px 0; }
+  .tab-bar[data-slide] .tab-bar-mark { animation: tab-mark-slide var(--dur-arrive) var(--ease-settle); }
+  .tab-bar[data-slide] .tab-bar-link[aria-current="page"] svg { animation: tab-press var(--dur-quick) var(--ease-settle); }
+}
+@keyframes section-arrive { from { opacity: .5; translate: var(--view-entry, 0 12px); } }
+@keyframes tab-mark-slide { from { translate: calc(var(--tab-from) * (100% + 4px)) 0; } }
+@keyframes tab-press { from { scale: .86; } }
 /* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. The body keeps --paper:
    it has no background of its own, so without this the --ink root showed through every gap between cards and the page
    behind the dim turned green (사용자 지적, 2026-11-26). */

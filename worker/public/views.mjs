@@ -1,6 +1,7 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { adminSkeleton, loadingCenter } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
+import { calendarBlock } from './calendar.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -87,6 +88,7 @@ const paths = {
   repeat: '<path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15m-14 16-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3"/>',
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
   'chevron-right': '<path d="m9 6 6 6-6 6"/>',
+  'chevron-left': '<path d="m15 6-6 6 6 6"/>',
   'arrow-left': '<path d="m12 19-7-7 7-7m-7 7h15"/>',
   edit: '<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
   megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
@@ -409,7 +411,7 @@ function recordCard(record) {
 function memberEventRow(event, signedIn) {
   const state = memberEventState(event, signedIn);
   const tone = state.row === '투표하기' ? ' member-record-open' : state.row === '응답 완료' ? ' member-record-done' : '';
-  return `<li class="member-record"><a class="member-record-link" href="#event/${encodeURIComponent(event.id)}">
+  return `<li class="member-record" data-date="${esc(event.date)}"><a class="member-record-link" href="#event/${encodeURIComponent(event.id)}">
     <span><strong>${pinMark(event)}${esc(event.title)}</strong><span class="member-record-meta"><time datetime="${esc(event.date)}">${esc(kindPrefix(event) + dateLine(event))}</time><span>${esc(event.place)}</span>${event.canVote && event.deadline ? `<span>투표 마감 ${esc(deadlineLabel(event.deadline))}</span>` : ''}</span></span>
     <span class="member-record-action${tone}">${state.row}</span></a></li>`;
 }
@@ -428,6 +430,14 @@ function memberListCard(id, title, rows, empty, heading = 'h2') {
 
 const noEvents = '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.';
 
+// No event yet: the big card still holds its place, as the 운영 홈 does (DESIGN.md 4 회원 화면), with a line instead of 새 회차.
+function noNextCard() {
+  return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
+    <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">다음 일정</span>
+      <h2 id="member-next-title" class="public-title">예정된 회차가 없어요.</h2></header>
+    <div class="public-share-content"><p class="member-answer">운영진이 일정을 올리면 여기에 보여요.</p></div></article>`;
+}
+
 // 회원 홈 (FLOW.md 4·5): the big card is the member's first event (memberOrder), the votes they still have to answer
 // follow it as one bundle ("응답할 투표 n개"), then the rest in the same order. 내 기록 and the PIN 안내 have their own
 // menu (ROLES.md 2단계); an organiser who has yet to set their number sees that first, as it opens the 운영 메뉴.
@@ -436,17 +446,27 @@ export function homeScreen({ events, notices }, club, user = null) {
   const waiting = others.filter(awaitingVote);
   const later = others.filter(event => !awaitingVote(event));
   const signedIn = Boolean(user);
-  const first = next ? nextEventCard(next, signedIn) : memberListCard('member-events', '일정', [], noEvents);
+  const first = next ? nextEventCard(next, signedIn) : noNextCard();
   return memberPage(`<h1 class="sr-only" tabindex="-1">${esc(club.name)} 모임 홈</h1>${user?.organizer ? pinCard(user) : ''}${first}
     ${waiting.length ? memberListCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(event => memberEventRow(event, signedIn)), '') : ''}
     ${later.length ? memberListCard('member-events', '이후 일정', later.map(event => memberEventRow(event, signedIn)), '') : ''}
     ${memberListCard('member-notices', '공지', notices.map(memberNoticeRow), '게시된 공지가 없어요.')}${signedIn ? '' : signInCard}`);
 }
 
-// 일정 (회원): every published upcoming event in the member order (FLOW.md 4); each opens its vote.
-export function memberEventsScreen({ events }, user = null) {
-  const rows = memberOrder(events, koreanNow()).map(event => memberEventRow(event, Boolean(user)));
-  return memberPage(memberListCard('member-events', '일정', rows, noEvents, 'h1'));
+// 일정 달력 (calendar.mjs): every event on its date; the past, the finished and the cancelled ones quiet.
+function calendarEvents(events, now) {
+  return events.map(event => ({ date: event.date, title: event.title, kind: eventKindLabels[event.kind] ?? eventKindLabels.regular,
+    regular: (event.kind ?? 'regular') === 'regular', done: event.date < now.day || finished(event, now) }));
+}
+
+// 일정 (회원): the month's calendar above every published upcoming event in the member order (FLOW.md 4); each opens its
+// vote. month: the calendar's 'YYYY-MM', this month when none was picked.
+export function memberEventsScreen({ events }, user = null, month = null) {
+  const now = koreanNow();
+  const rows = memberOrder(events, now).map(event => memberEventRow(event, Boolean(user)));
+  const calendar = calendarBlock(calendarEvents(events, now), { month: month ?? now.day.slice(0, 7), today: now.day, icon });
+  return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
+    <h1 id="member-events" tabindex="-1">일정</h1>${calendar}${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`);
 }
 
 export function memberNoticesScreen({ notices }) {
@@ -546,9 +566,12 @@ export function adminMenu(section, user) {
 }
 
 // Phones: a floating bar of four icons follows the screen; the full menu opens from the top bar (DESIGN.md 4).
+// The lime mark sits under the current one of the four (DESIGN.md 6 하단 메뉴); app.mjs slides it from the last one.
+// data-current places it (styles.css): the live CSP (style-src 'self') drops style attributes written in markup.
 function adminTabBar(section, user) {
-  return `<nav class="tab-bar" aria-label="바로가기">
-    ${appSections(user).slice(0, 4).map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}" title="${title}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 23)}<span class="sr-only">${title}</span></button>`).join('')}
+  const current = appSections(user).slice(0, 4).findIndex(([name]) => name === section);
+  return `<nav class="tab-bar" aria-label="바로가기"${current < 0 ? '' : ` data-current="${current}"`}>
+    ${current < 0 ? '' : '<span class="tab-bar-mark" aria-hidden="true"></span>'}${appSections(user).slice(0, 4).map(([name, title, glyph]) => `<button type="button" class="tab-bar-link" data-action="tab" data-id="${name}" title="${title}"${section === name ? ' aria-current="page"' : ''}>${icon(glyph, 23)}<span class="sr-only">${title}</span></button>`).join('')}
   </nav>`;
 }
 
@@ -843,13 +866,15 @@ const sessionTabs = [['poll', '참석 투표'], ['attendance', '당일 출석'],
 
 // One event in the 일정 list: the whole row opens its detail (FLOW.md 5 운영 일정 화면).
 function eventLink(event, title, detail) {
-  return `<li><button type="button" class="event-link" data-action="open-event" data-id="${esc(event.id)}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
+  return `<li data-date="${esc(event.date)}"><button type="button" class="event-link" data-action="open-event" data-id="${esc(event.id)}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
 }
 
-// 일정 (#event): every unfinished event in the 운영 홈 order, then the finished ones (마무리 확정 or 취소) folded under
-// 끝난 일정, the latest first.
-function eventList(events) {
+// 일정 (#event): the month's calendar, then every unfinished event in the 운영 홈 order, then the finished ones (마무리
+// 확정 or 취소) folded under 끝난 일정, the latest first.
+function eventList(events, month) {
   const now = koreanNow();
+  const calendar = `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendarBlock(calendarEvents(events, now),
+    { month: month ?? now.day.slice(0, 7), today: now.day, icon })}</div></section>`;
   const flows = flowOrder(events, now);
   const past = events.filter(event => finished(event, now))
     .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
@@ -859,18 +884,19 @@ function eventList(events) {
   });
   const pastRows = past.map(event => eventLink(event, `${event.cancelled ? pill('취소', 'muted') : pill('마무리 완료', 'green')} ${esc(event.title)}`,
     esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.place}`)));
-  return panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>`
+  return calendar + panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>`
     : '<p class="empty-state">진행 중인 일정이 없어요. 새 회차를 만들어 투표를 시작하세요.</p>')
     + (pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''));
 }
 
 // own: the organiser's own answer ({ vote, eligible, saved }); 내 응답 shows when they are on the roster or answered.
-export function eventScreen(events, detail, tab = null, own = null) {
+// month: the list's calendar month (calendar.mjs).
+export function eventScreen(events, detail, tab = null, own = null, month = null) {
   const event = detail?.event;
   const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' }) + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
   const head = pageHead('일정', event ? '투표 응답, 당일 출석, 마무리를 기록하세요.' : '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
   if (!event) {
-    return `<div class="secondary-page">${head}${events.length ? eventList(events)
+    return `<div class="secondary-page">${head}${events.length ? eventList(events, month)
       : panel('회차', '<p class="empty-state">회차를 만들면 참석 투표와 당일 체크를 시작할 수 있어요.</p>')}</div>`;
   }
   const { roster, guests, settlement } = detail;

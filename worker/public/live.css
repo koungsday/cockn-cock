@@ -226,7 +226,6 @@ svg.poll-track .vote-no { fill: #d8e68e; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  #main[data-motion="section"] .admin-content > *,
   #main:is([data-motion="login-next"], [data-motion="login-back"]) .login-card,
   .loading-center .shuttle-loader,
   dialog[open] :is(.dialog-head, .dialog-body),

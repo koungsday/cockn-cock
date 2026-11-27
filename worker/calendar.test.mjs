@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { calendarBlock, calendarTarget, shiftMonth } from './public/calendar.mjs';
+
+const icon = name => `<svg data-icon="${name}"></svg>`;
+const cells = html => [...html.matchAll(/<li class="(calendar-day[^"]*)"[^>]*>([\s\S]*?)<\/li>/g)].map(([, css, body]) => ({ css, body }));
+
+test('months move across the year', () => {
+  assert.equal(shiftMonth('2026-12', 1), '2027-01');
+  assert.equal(shiftMonth('2026-01', -1), '2025-12');
+  assert.equal(calendarTarget('2026-12', 'next', '2026-11-27'), '2027-01');
+  assert.equal(calendarTarget('2026-12', 'prev', '2026-11-27'), '2026-11');
+  assert.equal(calendarTarget('2027-03', 'today', '2026-11-27'), '2026-11');
+});
+
+test('a month starts on its weekday under 일 and fills whole weeks', () => {
+  // 2026-11-01 is a Sunday: no days from October, 30 days, five weeks.
+  const november = cells(calendarBlock([], { month: '2026-11', today: '2026-11-27', icon }));
+  assert.equal(november.length, 35);
+  assert.match(november[0].body, />1</);
+  assert.doesNotMatch(november[0].css, /is-other/);
+  // 2026-12-01 is a Tuesday: 29 and 30 November lead, the 31st ends on a Thursday, five weeks.
+  const december = cells(calendarBlock([], { month: '2026-12', today: '2026-11-27', icon }));
+  assert.equal(december.length, 35);
+  assert.match(december[0].css, /is-other/);
+  assert.match(december[0].body, />29</);
+  assert.match(december[2].body, />1</);
+});
+
+test('event dates are buttons with their 종류, quiet when done, others plain', () => {
+  const html = calendarBlock([
+    { date: '2026-11-22', title: '일요 정기 운동', kind: '정기', regular: true, done: true },
+    { date: '2026-11-29', title: '일요 정기 운동', kind: '정기', regular: true, done: false },
+    { date: '2026-11-29', title: '저녁 번개', kind: '번개', regular: false, done: false },
+    { date: '2026-12-02', title: '수요 번개', kind: '번개', regular: false, done: false },
+  ], { month: '2026-11', today: '2026-11-27', selected: '2026-11-29', icon });
+  assert.match(html, /<h2 class="calendar-title" id="calendar-title">2026년 11월<\/h2>/);
+  const days = cells(html);
+  const day = number => days.find(({ css, body }) => !css.includes('is-other') && new RegExp(`calendar-number">${number}<`).test(body));
+  assert.match(day(22).body, /data-id="2026-11-22" aria-pressed="false"/);
+  assert.match(day(22).body, /calendar-kind is-done">정기/);
+  // Two events on one day: the first one's 종류 and how many more; the label names both.
+  assert.match(day(29).body, /aria-pressed="true" aria-label="11월 29일 일요일 · 정기 일요 정기 운동, 번개 저녁 번개"/);
+  assert.match(day(29).body, /calendar-kind">정기<small>\+1<\/small>/);
+  assert.match(day(27).css, /is-today/);
+  assert.doesNotMatch(day(27).body, /<button/);
+  assert.match(day(27).css, /calendar-day is-today/);
+  // Another month's event is not drawn on this month's spill-over days.
+  assert.doesNotMatch(html, /2026-12-02/);
+  for (const step of ['prev', 'today', 'next']) assert.match(html, new RegExp(`data-action="calendar-month" data-id="${step}"`));
+});
+
+test('titles are escaped in the labels', () => {
+  const html = calendarBlock([{ date: '2026-11-29', title: '<b>"운동"</b>', kind: '정기', regular: true, done: false }],
+    { month: '2026-11', today: '2026-11-27', icon });
+  assert.match(html, /&lt;b&gt;&quot;운동&quot;&lt;\/b&gt;/);
+  assert.doesNotMatch(html, /<b>"운동"/);
+});
