@@ -3,6 +3,14 @@
   const selector = 'select, input:is([type=date], [type=time], [type=datetime-local])';
   if (!HTMLElement.prototype.showPopover) return;
 
+  const repositioners = new WeakMap();
+  function repositionOpen(event) {
+    const popup = document.querySelector('.picker-popup:popover-open');
+    if (popup && (!(event.target instanceof Node) || !popup.contains(event.target))) repositioners.get(popup)?.();
+  }
+  window.addEventListener('resize', repositionOpen);
+  document.addEventListener('scroll', repositionOpen, true);
+
   const today = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
   const two = value => String(value).padStart(2, '0');
   const make = (tag, text, attributes = {}) => {
@@ -54,6 +62,40 @@
     render();
   }
 
+  function clockChoices(label, count, selected, onPick) {
+    const group = make('div', '', { class: 'picker-clock-group' });
+    const options = make('div', '', { class: 'picker-clock-options', role: 'group', 'aria-label': label });
+    group.append(make('strong', label), options);
+    for (let index = 0; index < count; index++) {
+      const value = two(index);
+      const choice = button(value, { 'aria-label': value + label, 'aria-pressed': String(value === selected) });
+      choice.addEventListener('click', () => {
+        options.querySelector('[aria-pressed=true]')?.setAttribute('aria-pressed', 'false');
+        choice.setAttribute('aria-pressed', 'true');
+        onPick(value);
+      });
+      options.append(choice);
+    }
+    return group;
+  }
+
+  function positionPopup(popup, trigger, select) {
+    const field = trigger.getBoundingClientRect();
+    const viewport = document.documentElement;
+    const width = viewport.clientWidth;
+    const height = viewport.clientHeight;
+    const below = height - field.bottom - 8;
+    const above = field.top - 8;
+    if (select) popup.style.width = Math.min(width - 16, Math.max(field.width, 180)) + 'px';
+    popup.style.maxHeight = '';
+    const naturalHeight = popup.offsetHeight;
+    const flip = below < naturalHeight && above > below;
+    popup.dataset.side = flip ? 'above' : 'below';
+    popup.style.maxHeight = Math.max(0, Math.min(naturalHeight, flip ? above : below)) + 'px';
+    popup.style.left = Math.max(8, Math.min(field.left, width - popup.offsetWidth - 8)) + 'px';
+    popup.style.top = (flip ? field.top - popup.offsetHeight : field.bottom) + 'px';
+  }
+
   function enhance(field) {
     if (field.nextElementSibling?.classList.contains('form-picker')) return;
     const select = field instanceof HTMLSelectElement;
@@ -63,6 +105,7 @@
     const trigger = button('', { class: 'picker-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
     const popup = make('div', '', { class: 'picker-popup', popover: 'auto', role: 'dialog', 'aria-label': name });
     const wrapper = make('span', '', { class: 'form-picker' });
+    if (!select && !date) popup.classList.add('picker-popup-clock');
     const problem = make('span', '', { class: 'picker-problem', role: 'status' });
     wrapper.append(trigger, problem, popup);
     field.after(wrapper);
@@ -94,6 +137,8 @@
       problem.textContent = field.validationMessage;
       trigger.focus();
     });
+    const position = () => positionPopup(popup, trigger, select);
+    repositioners.set(popup, position);
     popup.addEventListener('beforetoggle', event => {
       trigger.setAttribute('aria-expanded', String(event.newState === 'open'));
     });
@@ -123,22 +168,19 @@
           if (!time) commit(day);
         }, field.min.slice(0, 10), field.max.slice(0, 10));
         if (time) {
-          const [hour = '', minute = ''] = (clock || '').split(':');
-          const hours = make('input', '', { type: 'text', maxlength: '2', inputmode: 'numeric', 'aria-label': '시', placeholder: '시' });
-          const minutes = make('input', '', { type: 'text', maxlength: '2', inputmode: 'numeric', 'aria-label': '분', placeholder: '분' });
-          hours.value = hour;
-          minutes.value = minute;
-          const apply = button('선택 적용', { class: 'btn btn-primary' });
+          let [hour = '', minute = ''] = (clock || '').split(':');
+          const apply = button('선택 적용', { class: 'btn btn-secondary' });
           const error = make('p', '', { role: 'status' });
-          const row = make('div', '', { class: 'picker-month' });
-          row.append(hours, minutes, apply);
-          popup.append(row, error);
+          const row = make('div', '', { class: 'picker-clock' });
+          row.append(clockChoices('시', 24, hour, value => { hour = value; }),
+            clockChoices('분', 60, minute, value => { minute = value; }));
+          popup.append(row, apply, error);
           apply.addEventListener('click', () => {
-            if ((date && !day) || !/^\d{1,2}$/.test(hours.value) || !/^\d{1,2}$/.test(minutes.value) || Number(hours.value) > 23 || Number(minutes.value) > 59) {
-              error.textContent = '날짜와 시각을 확인해 주세요.';
+            if ((date && !day) || !hour || !minute) {
+              error.textContent = date ? '날짜와 시간을 골라 주세요.' : '시와 분을 골라 주세요.';
               return;
             }
-            const value = (date ? day + 'T' : '') + two(Number(hours.value)) + ':' + two(Number(minutes.value));
+            const value = (date ? day + 'T' : '') + hour + ':' + minute;
             const check = field.cloneNode();
             check.value = value;
             if (!check.checkValidity()) { error.textContent = '선택할 수 있는 시각을 확인해 주세요.'; return; }
@@ -147,7 +189,12 @@
         }
       }
       popup.showPopover({ source: trigger });
-      (popup.querySelector('[aria-pressed=true]:enabled') || popup.querySelector('button')).focus();
+      position();
+      for (const options of popup.querySelectorAll('.picker-clock-options')) {
+        const current = options.querySelector('[aria-pressed=true]');
+        if (current) options.scrollTop += current.getBoundingClientRect().top - options.getBoundingClientRect().top;
+      }
+      (popup.querySelector('[aria-pressed=true]:enabled') || popup.querySelector('button')).focus({ preventScroll: true });
     });
     refresh();
     if (document.activeElement === field) trigger.focus();

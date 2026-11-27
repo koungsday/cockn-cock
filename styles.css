@@ -635,11 +635,11 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .picker-trigger::after { content: ''; flex: none; width: 6px; height: 6px; border: solid var(--muted); border-width: 0 1.5px 1.5px 0; rotate: 45deg; }
 .picker-trigger[aria-invalid=true] { border-color: var(--accent-red); }
 .picker-popup {
+  position: fixed; inset: auto; margin: 0;
   width: min(360px, calc(100% - 28px)); max-height: min(70dvh, 460px); overflow: auto;
-  padding: 12px; border: 1px solid var(--field-line); border-radius: 15px; background: var(--surface); color: var(--ink);
+  padding: 12px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); color: var(--ink);
 }
 .picker-month { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.picker-month > input { min-width: 0; width: 4em; }
 .picker-month > button { min-width: var(--touch-target); }
 .picker-month > button:not(.btn), .picker-option, .picker-days button {
   border: 0; border-radius: 8px; background: var(--hint);
@@ -647,6 +647,27 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .picker-option { display: block; width: 100%; text-align: left; padding-inline: 10px; margin-top: 4px; }
 .picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-block: 8px; text-align: center; }
 .picker-days button { padding: 0; }
-.picker-popup [aria-pressed=true] { background: var(--court); color: var(--surface); }
+.picker-popup [aria-pressed=true] { background: var(--ink); color: var(--surface); }
 .picker-popup button:disabled, .picker-trigger:disabled { opacity: .5; cursor: default; }
 .picker-problem:not(:empty) { display: block; margin-top: 4px; color: var(--ink); font-size: var(--t4); }
+
+
+.picker-trigger[aria-expanded=true]::after { rotate: 225deg; }
+.picker-popup-clock { width: min(260px, calc(100% - 28px)); }
+.picker-clock { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 8px; }
+.picker-clock-group { min-width: 0; text-align: center; }
+.picker-clock-options { max-height: 132px; overflow-y: auto; overscroll-behavior: contain; }
+.picker-clock-options button {
+  display: block; width: 100%; min-height: var(--touch-target); padding: 0;
+  border: 0; border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
+}
+.picker-clock + .btn { width: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  .picker-popup:popover-open { animation: picker-reveal var(--dur-quick) var(--ease-settle); }
+  .picker-popup[data-side="above"] { transform-origin: bottom; }
+  .picker-popup[data-side="below"] { transform-origin: top; }
+  @keyframes picker-reveal {
+    from { opacity: 0; transform: scaleY(.92); }
+    to { opacity: 1; transform: scaleY(1); }
+  }
+}
