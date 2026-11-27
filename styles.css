@@ -131,7 +131,7 @@ p { line-height: 1.58; }
 .event-link strong { font-size: var(--t4); }
 .event-link small { color: var(--muted); font-size: var(--t4); line-height: 1.45; }
 .event-link > svg { flex: none; color: var(--muted); }
-.event-link:hover strong { color: var(--court); }
+.event-link:hover strong:not(.member-label) { color: var(--court); }
 .event-link strong, .event-link > svg { transition: color var(--dur-quick), translate var(--dur-quick) var(--ease-settle); }
 @media (hover: hover) { .event-link:hover > svg { color: var(--court); translate: 3px 0; } }
 /* A quiet line above a list on the page: what the list is (or how many), and one text action at its end. */
@@ -221,7 +221,7 @@ p { line-height: 1.58; }
 .att-row[aria-pressed="true"] .att-check { border-color: var(--court); }
 .att-foot { position: sticky; z-index: 2; bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; margin-top: 10px; padding: 4px 6px 4px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-variant-numeric: tabular-nums; }
 .att-foot .btn[aria-pressed="true"] { background: var(--accent-soft); }
-@media (hover: hover) { .att-row:not(:disabled):hover strong { color: var(--court); } }
+@media (hover: hover) { .att-row:not(:disabled):hover strong:not(.member-label) { color: var(--court); } }
 .att-actions { margin-top: 12px; }
 @media (max-width: 700px) { .att-foot { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 @media (min-width: 701px) {
@@ -331,6 +331,21 @@ p { line-height: 1.58; }
 .pill-green, .pill-good { background: var(--accent-soft); color: var(--court); }
 .pill-warm, .pill-amber { background: #f6efdf; color: #785228; }
 .pill-muted { background: var(--hint); color: var(--muted); }
+.member-label {
+  display: inline-block; justify-self: start; width: fit-content; max-width: 100%;
+  padding: 3px 9px; border-radius: 999px; background: var(--neutral-soft); color: var(--neutral-ink);
+  font-size: var(--t4); line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
+}
+.member-label[data-gender="male"] { background: var(--member-male-bg); color: var(--member-male-ink); }
+.member-label[data-gender="female"] { background: var(--member-female-bg); color: var(--member-female-ink); }
+.member-label[data-gender="other"] { background: var(--member-other-bg); color: var(--member-other-ink); }
+.member-label-category { margin-inline-start: 6px; font-weight: 400; white-space: nowrap; }
+.panel-actions:has(> .progress-filters) { width: min(100%, 20rem); }
+.progress-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(100%, 20rem); }
+.progress-filters > :is(label, .form-picker) { min-width: 0; }
+.progress-filters :is(select, .picker-trigger) { min-height: var(--touch-target); }
+.progress-filters .picker-trigger { margin-bottom: 0; }
+.progress-filters .search-field input[type="search"] { width: 100%; min-height: var(--touch-target); }
 
 .event-notes { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .back-link { align-self: start; }

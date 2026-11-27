@@ -92,6 +92,7 @@ const state = {
   eligible: false,
   period: { year: Number(date.slice(0, 4)), half: Number(date.slice(5, 7)) < 7 ? 1 : 2 },
   progress: [],
+  progressGender: 'all',
 };
 let busy = false;
 let messageTimer;
@@ -346,7 +347,7 @@ function sectionScreen(voteSaved) {
   if (section === 'home') return adminHome(state.admin, state.upcoming, state.last, state.listing);
   if (section === 'members') return membersScreen(state.admin.members, state.admin.organizers, state.user.id);
   if (section === 'notices') return noticesScreen(state.admin.notices);
-  if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
+  if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules, state.progressGender);
   if (section === 'rules') return rulesScreen(state.admin.rules);
   return eventScreen(state.admin.events, state.detail, {
     tab: state.eventTab, own: { vote: state.vote, eligible: state.eligible, saved: voteSaved }, month,
@@ -377,10 +378,9 @@ function render({ voteSaved = false, motion = '', arrive = '' } = {}) {
     }
   }
   const newSearch = main.querySelector('input[data-filter]');
-  if (newSearch && search?.dataset.filter === newSearch.dataset.filter) {
-    newSearch.value = search.value;
-    applyFilter(newSearch);
-  }
+  const sameFilter = newSearch && search?.dataset.filter === newSearch.dataset.filter;
+  if (sameFilter) newSearch.value = search.value;
+  if (sameFilter || newSearch?.dataset.filter === 'progress') applyFilter(newSearch);
 }
 
 function clearProtectedView() {
@@ -388,7 +388,7 @@ function clearProtectedView() {
   busy = false;
   Object.assign(state, {
     user: null, section: 'home', selectedEvent: null, selectedNotice: null, eventTab: null, admin: null, upcoming: null, last: null, listing: { events: [], notices: [] },
-    detail: null, event: null, notice: null, vote: null, eligible: false, progress: [], calendarMonth: null, calendarDate: '', memberCalendar: null,
+    detail: null, event: null, notice: null, vote: null, eligible: false, progress: [], progressGender: 'all', calendarMonth: null, calendarDate: '', memberCalendar: null,
   });
   eventSnapshot = null;
   Object.assign(signIn, { name: null, numberStep: false });
@@ -1468,12 +1468,25 @@ document.addEventListener('submit', event => {
 
 function applyFilter(control) {
   const term = control.value.trim().toLocaleLowerCase('ko-KR');
+  const gender = control.dataset.filter === 'progress' ? state.progressGender : 'all';
+  let matches = 0;
   for (const item of main.querySelectorAll('[data-search]')) {
-    item.hidden = !item.dataset.search.toLocaleLowerCase('ko-KR').includes(term);
+    const visible = (gender === 'all' || item.dataset.gender === gender)
+      && item.dataset.search.toLocaleLowerCase('ko-KR').includes(term);
+    item.hidden = !visible;
+    if (visible) matches++;
   }
+  const empty = main.querySelector('[data-progress-empty]');
+  if (empty) empty.hidden = matches > 0;
   // A name looked for may be among the folded 참석 예정이 아닌 회원.
   if (term) for (const fold of main.querySelectorAll('#attendance details')) fold.open = true;
 }
+
+main.addEventListener('change', event => {
+  if (!event.target.matches('[data-progress-gender]')) return;
+  state.progressGender = event.target.value;
+  applyFilter(main.querySelector('[data-filter="progress"]'));
+});
 
 // toggle does not bubble: the capture phase hears 내 응답 unfold, so a save redraws it as it was.
 main.addEventListener('toggle', event => {

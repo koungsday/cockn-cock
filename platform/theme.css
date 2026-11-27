@@ -50,6 +50,12 @@
   --neutral-muted: #626262;
   --neutral-soft: #e5e5e5;
   --calendar-selected: #ffdb79;
+  --member-male-bg: #e3eefb;
+  --member-male-ink: #254b7b;
+  --member-female-bg: #f8e5ec;
+  --member-female-ink: #793953;
+  --member-other-bg: #eee7f7;
+  --member-other-ink: #59427b;
   --edge: #b9c0ba;
   --field-line: #7b8f78;
   --dialog-scrim: #2d2d2d72;

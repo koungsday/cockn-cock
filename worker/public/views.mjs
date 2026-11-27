@@ -2,6 +2,7 @@ import { shuttlecockMark } from './shuttlecock.mjs';
 import { loadingCenter, shellSkeleton } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
 import { calendarBlock, calendarDayPanel, calendarPanel, calendarToggle } from './calendar.mjs';
+import { genderChoices, memberNameTag } from './member-label.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -959,7 +960,7 @@ export function voteSummary(roster, event = {}) {
 // folded. 응답 변경 on each name opens the organisers' 회원 응답 변경. foldOpen keeps the fold as it was on a redraw.
 export function voteRoster(event, roster, foldOpen = false, locked = false) {
   const byName = (a, b) => a.name.localeCompare(b.name, 'ko');
-  const row = (person, detail) => `<li><span><strong>${esc(person.name)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span>${button('응답 변경', 'vote-override', { id: person.id, css: 'text small', label: `${person.name} 응답 변경`, disabled: locked })}</li>`;
+  const row = (person, detail) => `<li><span>${memberNameTag(person, esc)}${detail ? `<small>${esc(detail)}</small>` : ''}</span>${button('응답 변경', 'vote-override', { id: person.id, css: 'text small', label: `${person.name} 응답 변경`, disabled: locked })}</li>`;
   const silent = roster.filter(person => person.active && !person.slot).sort(byName);
   const order = { early: 0, late: 1, no: 2 };
   const waiting = roster.filter(person => person.waitingPosition).sort((a, b) => a.waitingPosition - b.waitingPosition);
@@ -1003,7 +1004,7 @@ export function attendanceRow(event, person, confirmed) {
   const facts = [person.waitingPosition ? `대기 ${person.waitingPosition}번` : '', voteLabel(person.slot, event), person.lunch ? '점심' : '', person.present === false ? '불참 확인' : '', recognitionLabel[person.recognition] ?? ''].filter(Boolean).join(' · ');
   return `<li data-member="${esc(person.id)}" data-search="${esc(person.name)}" data-selected="${present}">
       <button type="button" class="att-row" data-action="mark-present" data-id="${esc(person.id)}" aria-pressed="${present}" aria-label="${esc(person.name)} 출석"${confirmed ? ' disabled' : ''}>
-        <span><strong>${esc(person.name)}</strong><small>${esc(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
+        <span>${memberNameTag(person, esc)}<small>${esc(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
       <button type="button" class="icon-button" data-action="attendance" data-id="${esc(person.id)}" aria-label="${esc(person.name)} 출석 상세" title="${esc(person.name)} 출석 상세"${confirmed ? ' disabled' : ''}>${icon('more', 20)}</button>
     </li>`;
 }
@@ -1159,7 +1160,7 @@ export function membersScreen(members, organizers = [], me = null) {
   const active = members.filter(member => member.active).length;
   const organizerIds = new Set(organizers.map(organizer => organizer.id));
   // One row a member, the whole row opens 회원 수정; what is not the usual (비활성, 운영진) is said under the name.
-  const rows = members.map(member => `<li data-search="${esc(member.name)}"><button type="button" class="event-link" data-action="edit-member" data-id="${esc(member.id)}" aria-label="${esc(member.name)} 회원 수정"><span><strong>${esc(member.name)}</strong>
+  const rows = members.map(member => `<li data-search="${esc(member.name)}"><button type="button" class="event-link" data-action="edit-member" data-id="${esc(member.id)}" aria-label="${esc(member.name)} 회원 수정"><span>${memberNameTag(member, esc)}
     ${member.active && !organizerIds.has(member.id) ? '' : `<small>${[member.active ? '' : '비활성', organizerIds.has(member.id) ? '운영진' : ''].filter(Boolean).join(' · ')}</small>`}</span>${icon('chevron-right', 18)}</button></li>`);
   return `<div class="plain-page">${pageHead('회원 관리', `전체 ${members.length}명 · 활동 중 ${active}명`, button(`${icon('plus', 17)} 회원 추가`, 'new-member', { css: 'secondary small' }))}
     <div class="list-search">${search('members')}</div>
@@ -1175,7 +1176,7 @@ export function memberForm(member = null) {
   });
   return form('member', `<div class="form-grid">${field('이름', 'name', member?.name, { wide: true, attrs: 'maxlength="60" required' })}
     ${birthday}
-    ${select('성별', 'gender', [['', '미기재'], ['male', '남성'], ['female', '여성'], ['other', '기타']], member?.gender)}
+    ${select('성별', 'gender', genderChoices(), member?.gender)}
     ${textarea('메모 (운영진만 볼 수 있어요)', 'memo', member?.memo, 'rows="3" maxlength="500"')}</div>`
     + (member ? check('활동 회원', 'active', member.active) : ''), member ? '회원 저장' : '회원 등록', member?.id);
 }
@@ -1243,23 +1244,27 @@ export function rulesScreen(rules) {
     ${panel('집계 기준', form('rules', body, '규칙 저장', '', 'rules-form'))}</div>`;
 }
 
-export function progressScreen(year, half, members, rules) {
+export function progressScreen(year, half, members, rules, gender) {
   const months = periodMonths(Number(half), rules.periods);
   const reward = row => row.rewarded ? pill('수령', 'green') : row.eligible ? pill('수령 대상', 'warm') : pill('미수령', 'muted');
   // Every 구간 sits in one cell as a box, green once its goal is met, so a month-by-month club does not push the table
   // past a phone's edge (live.css .period-counts).
   const counts = periods => `<ul class="period-counts">${periods.map((count, index) => `<li${count >= rules.goal ? ' class="period-met"' : ''}><span>${months[index]}</span><strong>${count}<small>/${rules.goal}</small></strong></li>`).join('')}</ul>`;
-  const rows = members.map(row => `<tr data-search="${esc(row.name)}"><td><div class="member-name"><strong>${esc(row.name)}</strong></div></td>
+  const rows = members.map(row => `<tr data-search="${esc(row.name)}" data-gender="${esc(row.gender)}"><td>${memberNameTag(row, esc)}</td>
     <td class="progress-periods">${counts(row.periods)}</td><td>${reward(row)}</td>
     <td class="table-actions">${button(row.rewarded ? '수령 취소' : '수령 기록', 'reward', { id: row.id, css: row.rewarded ? 'text small' : 'secondary small', label: `${row.name} ${row.rewarded ? '수령 취소' : '수령 기록'}` })}</td></tr>`);
   const period = form('progress', `<div class="form-grid">${field('연도', 'year', year, { type: 'number', attrs: 'min="2000" max="2100" step="1" required' })}
     ${select('기간', 'half', [[1, '상반기'], [2, '하반기']], half)}</div>`, '집계 조회', '', 'progress-form');
   const columns = ['회원', `구간별 인정 (목표 ${rules.goal}회)`, '콕 수령', '<span class="sr-only">기록</span>'];
+  const genderFilter = `<select data-progress-gender aria-label="성별 필터">
+    ${[['all', '전체 성별'], ...genderChoices()].map(([value, label]) => option(value, label, gender)).join('')}
+  </select>`;
+  const emptyFilter = rows.length ? '<p class="empty-state" role="status" data-progress-empty hidden>조건에 맞는 회원이 없어요.</p>' : '';
   return `<div class="plain-page">${pageHead('반기 집계', `구간마다 줄서기 인정 ${rules.goal}회가 목표예요.`,
     button(`${icon('sliders', 17)} 모임 규칙`, 'tab', { id: 'rules', css: 'secondary small' }))}
     ${panel('조회 기간', period)}
-    ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table'), {
-    actions: search('progress'),
+    ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table') + emptyFilter, {
+    actions: `<div class="progress-filters">${genderFilter}${search('progress')}</div>`,
   })}
     <p class="form-note">구간 목표와 구간 나누기는 모임 규칙에서 바꿔요. 지급은 운영진이 확인한 뒤 기록해 주세요.</p></div>`;
 }

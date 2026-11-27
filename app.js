@@ -9,7 +9,7 @@
   let menuClosing = null;
   const toast = document.querySelector('#toast');
   const state = model.load();
-  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}, calendarOpen:true, calendarDate:''};
+  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), statsGender:'all', publicReceipts:{}, calendarOpen:true, calendarDate:''};
   // The live menu names (ROLES.md 3단계: worker/public/views.mjs organizerSections) where the demo has the same screen;
   // 반복 설정 is the demo's own (the live club has 모임 규칙 instead).
   const pages = [
@@ -766,10 +766,15 @@
     if (['event','repeat'].includes(input.form?.dataset.form)) {
       for (const key of ['deadline','endTime','date','lateTime']) input.form.elements.namedItem(key)?.setCustomValidity('');
     }
-    if (input.dataset.filter === 'member-status' || input.dataset.filter === 'stats-month') {
-      ui[input.dataset.filter === 'member-status' ? 'memberStatus' : 'statsMonth'] = input.value;
+    const filter = {'member-status':'memberStatus', 'stats-month':'statsMonth', 'stats-gender':'statsGender'}[input.dataset.filter];
+    if (filter) {
+      ui[filter] = input.value;
       renderPage();
-      app.querySelector(`[data-filter="${input.dataset.filter}"]`)?.focus();
+      const next = app.querySelector(`[data-filter="${input.dataset.filter}"]`);
+      requestAnimationFrame(() => {
+        if (!next?.isConnected) return;
+        (next.nextElementSibling?.querySelector('.picker-trigger') ?? next).focus({preventScroll:true});
+      });
     }
   });
 

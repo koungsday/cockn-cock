@@ -27,6 +27,7 @@
       role: index < 2 ? '운영진' : '회원',
       status: index === 24 ? 'inactive' : 'active',
       joined: index === 23 ? '2026-11-22' : addDays('2026-02-07', index * 9),
+      gender: ['female', 'male', 'other', ''][index % 4],
       notes: ''
     }));
     const roster = members.filter(member => member.status === 'active').map(member => member.id);
@@ -315,17 +316,19 @@
     return total ? Math.round(100 * present / total) : 0;
   }
 
-  function stats(state, month) {
+  function stats(state, month, selected = null) {
     const events = state.events
       .filter(event => event.finalized && (!month || event.date.slice(0, 7) === month))
       .sort((a, b) => a.date.localeCompare(b.date));
 
+    const allowed = selected && new Set(selected.map(member => member.id));
     const byEvent = events.map(event => {
-      const { present, total } = attendanceCounts(event);
+      const roster = allowed ? event.roster.filter(id => allowed.has(id)) : event.roster;
+      const { present, total } = summarize(roster, event.attendance, 'present', 'absent');
       return { event, present, total, rate: rate(present, total) };
-    });
+    }).filter(row => !allowed || row.total > 0);
 
-    const byMember = state.members
+    const byMember = (selected ?? state.members)
       .map(member => {
         const memberEvents = events.filter(event => event.roster.includes(member.id));
         const present = memberEvents.filter(event => event.attendance[member.id] === 'present').length;
@@ -337,7 +340,7 @@
 
     const present = byEvent.reduce((sum, event) => sum + event.present, 0);
     const total = byEvent.reduce((sum, event) => sum + event.total, 0);
-    return { sessions: events.length, present, total, rate: rate(present, total), byEvent, byMember };
+    return { sessions: byEvent.length, present, total, rate: rate(present, total), byEvent, byMember };
   }
 
   window.clubModel = {load, save, counts, waitingPosition, saveResponse, attendanceCounts, stats, settlement, qualification, deadlinePassed,
