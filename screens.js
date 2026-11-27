@@ -71,7 +71,7 @@
       return `<li data-date="${e(event.date)}"><a class="event-link" href="#${path}" data-route="${path}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</a></li>`;
     }
 
-    // 일정 (the live eventList): a count line with 달력으로 보기 and 새 일정, the month's calendar when asked for, every
+    // 일정 (the live eventList): a count line with the calendar toggle and 새 일정, the month's calendar, every
     // unfinished event in the 운영 홈 order as rows on the page, then the finished ones folded under 끝난 일정.
     function eventList(state) {
       const flows = flowEvents();
@@ -222,7 +222,7 @@
       // last (공지 초안, 투표 마감, 응답 조정, 카톡 미리보기, 일정 취소 in actionsDialog); a cancelled event says so with the
       // way back.
       const cancelled = event.cancelled && !event.finalized
-        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${action('취소 풀기', 'restore-event', event.id)}</div>` : '';
+        ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 이 브라우저에서 취소 상태를 확인할 수 있어요.</p>${action('취소 안내 복사', 'copy-event-update', event.id)}${action('취소 풀기', 'restore-event', event.id, { tone: 'text' })}</div>` : '';
       // 상단 고정 and 일정 수정 as icons at the head's top-right, 더보기 last (the live 회차 박스); the pin shows the state.
       const open = !event.finalized && !event.cancelled;
       const tools = boxActions(
@@ -506,6 +506,7 @@
         if (open && !deadlinePassed(event)) buttons.push(action(event.pollOpen ? '투표 마감' : '투표 열기', 'toggle-poll', event.id));
         if (!event.finalized && event.roster.length) buttons.push(action('응답 조정', 'open-vote', event.id));
         buttons.push(action('카톡 미리보기', 'open-share', event.id, {symbol: 'share', extra: 'data-kind="vote"'}));
+        if (!event.cancelled) buttons.push(action('변경 안내 복사', 'copy-event-update', event.id));
         if (open) buttons.push(action('일정 취소', 'cancel-event', event.id, {tone: 'text'}));
       }
       return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '일정 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');

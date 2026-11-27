@@ -23,9 +23,9 @@ test('every kind has its own body, and the first paint is the bare shell', () =>
   const bodies = kinds.map(kind => /<div class="main-content admin-content">([\s\S]*?)<\/div>\s*<div class="tab-bar">/.exec(shellSkeleton(kind))[1]);
   for (const [index, body] of bodies.entries()) assert(body.trim(), `${kinds[index]} has a body`);
   assert.equal(new Set(bodies).size, kinds.length, 'no two screens share a skeleton');
-  // 일정 opens as a list with the calendar folded (단순화 2), and a member card has no coloured head.
+  // 일정 opens with the current month above the list, and a member card has no coloured head.
   assert.match(shellSkeleton('member-events'), /sk-tools/);
-  for (const kind of ['member-events', 'event-list']) assert.doesNotMatch(shellSkeleton(kind), /sk-calendar/);
+  for (const kind of ['member-events', 'event-list']) assert.match(shellSkeleton(kind), /sk-calendar/);
   assert.match(shellSkeleton('notice'), /sk-card-head/);
   assert.equal(/<div class="main-content admin-content">([\s\S]*?)<\/div>\s*<div class="tab-bar">/.exec(shellSkeleton())[1], '');
   // The menu bars follow the role: four for a member, seven with the 운영 권한.

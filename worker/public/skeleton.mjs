@@ -17,7 +17,8 @@ const card = (body, head = false) => `<div class="public-share-card sk-card">${h
   <div class="public-share-content">${body}</div></div>`;
 // A list on the page itself (views.mjs homeList, memberList, eventList): rows under a muted label, or under a count
 // line with its one action (tools).
-const list = (count, top = 'label') => `<div class="sk-list">${top === 'tools' ? `<div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>` : top ? bar('sk-meta sk-label') : ''}${rows(count)}</div>`;
+const list = (count, top = 'label', middle = '') => `<div class="sk-list">${top === 'tools' ? `<div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>` : top ? bar('sk-meta sk-label') : ''}${middle}${rows(count)}</div>`;
+const calendar = `<div class="sk-calendar">${bar('sk-h2')}<div class="sk-calendar-days">${bars(35, 'sk-day')}</div></div>`;
 const memberPage = (body, back = false) => `<div class="public-share-page member-page">${back ? bar('sk-back') : ''}${body}</div>`;
 
 const bodies = {
@@ -27,8 +28,8 @@ const bodies = {
   home: `<div class="home-page"><div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>
     <div class="panel sk-panel sk-now">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-fact')}<div class="sk-steps">${bars(4, 'sk-step')}</div>${bar('sk-line')}${bar('sk-meter')}${bar('sk-cta')}</div>
     ${list(4)}</div>`,
-  // 일정 (views.mjs eventList): the count line with 달력으로 보기 and 새 일정, then rows on the page.
-  'event-list': `<div class="event-page">${list(5, 'tools')}</div>`,
+  // 일정 (views.mjs eventList): the count line, month grid and rows on the page.
+  'event-list': `<div class="event-page">${list(5, 'tools', calendar)}</div>`,
   // 일정 하나 (views.mjs eventScreen): ← 일정, the title with its two lines, the three tabs, then the tab's numbers,
   // bar and button over a list of names.
   event: `<div class="event-page">${bar('sk-back')}<div class="sk-event-head">${bar('sk-card-title')}${bar('sk-fact')}${bar('sk-meta')}</div>
@@ -38,7 +39,7 @@ const bodies = {
   list: `<div class="plain-page">${list(6, 'tools')}</div>`,
   // 회원·로그인 전 (and 내 기록·공지 하나, the same screens for everyone): one card for the next event, lists as rows.
   'member-home': memberPage(card(facts(2) + counts + bar('sk-text') + bar('sk-cta'), true) + list(3)),
-  'member-events': memberPage(list(3, 'tools')),
+  'member-events': memberPage(list(3, 'tools', calendar)),
   'member-vote': memberPage(card(facts(3) + `<div class="sk-choices">${bars(3, 'sk-choice')}</div>` + bar('sk-cta') + counts, true), true),
   'member-notices': memberPage(list(4, '')),
   notice: memberPage(card(bars(2, 'sk-line') + bar('sk-text'), true), true),

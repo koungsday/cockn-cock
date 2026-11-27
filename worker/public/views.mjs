@@ -483,13 +483,12 @@ function calendarEvents(events, now) {
     regular: (event.kind ?? 'regular') === 'regular', done: event.date < now.day || finished(event, now) }));
 }
 
-// 달력으로 보기: the month grid is folded until asked for (단순화 2, docs/simplify): a club has five to seven events a month,
-// and the list is the screen. One button opens and folds it, in the member's and the organisers' 일정 alike.
+// The month grid starts open. One button folds or opens it in the member's and the organisers' 일정 alike.
 const calendarToggle = open => button(open ? '달력 접기' : '달력으로 보기', 'calendar-toggle', { css: 'text small calendar-toggle' });
 
 // 일정 (회원): every published upcoming event in the member order (FLOW.md 4), each opening its vote, with the month's
 // calendar above them when asked for. month: the calendar's 'YYYY-MM', this month when none was picked.
-export function memberEventsScreen({ events }, user = null, month = null, calendarOpen = false) {
+export function memberEventsScreen({ events }, user = null, month = null, calendarOpen = true) {
   const now = koreanNow();
   const rows = memberOrder(events, now).map(event => memberEventRow(event, Boolean(user)));
   const calendar = calendarOpen ? calendarBlock(calendarEvents(events, now), { month: month ?? now.day.slice(0, 7), today: now.day, icon }) : '';
@@ -862,7 +861,7 @@ function eventLink(event, title, detail) {
   return `<li data-date="${esc(event.date)}"><button type="button" class="event-link" data-action="open-event" data-id="${esc(event.id)}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
 }
 
-// 일정 (#event): a count line with 달력으로 보기 and 새 일정, the month's calendar when asked for, every unfinished event
+// 일정 (#event): a count line with the calendar toggle and 새 일정, the month's calendar, every unfinished event
 // in the 운영 홈 order as rows on the page, then the finished ones (마무리 확정 or 취소) folded under 끝난 일정, latest first.
 function eventList(events, month, calendarOpen) {
   const now = koreanNow();
@@ -888,17 +887,19 @@ function eventList(events, month, calendarOpen) {
 // month: the list's calendar month (calendar.mjs); calendarOpen: whether the list shows it.
 // view: tab (the tab picked), own (the organiser's own answer, below), month and calendarOpen (the list's calendar,
 // calendar.mjs), onlyUnmarked (당일 출석 shows only the members not yet checked), myVoteOpen (내 응답 is unfolded).
-export function eventScreen(events, detail, { tab = null, own = null, month = null, calendarOpen = false, onlyUnmarked = false, myVoteOpen = false } = {}) {
+export function eventScreen(events, detail, { tab = null, own = null, month = null, calendarOpen = true, onlyUnmarked = false, myVoteOpen = false } = {}) {
   const event = detail?.event;
   if (!event) {
-    return `<div class="event-page">${events.length ? eventList(events, month, calendarOpen)
-      : `<header class="list-tools"><h1 tabindex="-1" class="sr-only">일정</h1><p>일정을 만들면 참석 투표와 당일 출석을 시작할 수 있어요.</p>${button(`${icon('plus', 17)} 새 일정`, 'new-event', { css: 'secondary small' })}</header>`}</div>`;
+    return `<div class="event-page">${eventList(events, month, calendarOpen)}</div>`;
   }
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
   // A cancelled event says so with the way back in sight; 일정 취소 itself is in the 회차 메뉴 (eventMenu).
   const cancelled = event.cancelled && !settlement?.confirmed
-    ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${button('취소 풀기', 'restore-event', { id: event.id, css: 'secondary small' })}</div>` : '';
+    ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> ${event.published ? '같은 링크에서 취소 상태를 확인할 수 있어요.' : '회원에게 공개되지 않은 일정이에요.'}
+      받은 응답은 그대로 있어요.</p>
+      ${event.published ? button('취소 안내 복사', 'copy-event-update', { id: event.id, css: 'secondary small' }) : ''}
+      ${button('취소 풀기', 'restore-event', { id: event.id, css: 'text small' })}</div>` : '';
   const back = `<div class="back-link">${button(`${icon('arrow-left', 17)} 일정`, 'event-list', { css: 'text small' })}</div>`;
   // 박스 동작 (DESIGN.md 5, UX 점검표 15 힉): 상단 고정 and 회차 수정 as icons at the head's top-right, the rarely used rest
   // in 더보기 last. The pin icon shows whether the event is pinned; without it (마무리·취소) the title keeps its mark.
@@ -968,6 +969,7 @@ export function eventMenu({ event, settlement }) {
     button('다음 주 복제', 'clone-event', { css: 'secondary' }),
     // The KakaoTalk preview of the link the copy icon gives (worker/index.mjs shareTags).
     button(`${icon('share', 16)} 카톡 미리보기`, 'copy-vote', { id: event.id, css: 'secondary', disabled: !event.published }),
+    event.published && !event.cancelled ? button('변경 안내 복사', 'copy-event-update', { id: event.id, css: 'secondary' }) : '',
     // 일정 취소 (FLOW.md 10): asked once more in its own dialog.
     open ? button('일정 취소', 'cancel-event', { id: event.id, css: 'text' }) : '',
   ].join('')}</div>`;
