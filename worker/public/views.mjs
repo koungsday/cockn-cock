@@ -597,8 +597,8 @@ function adminTabBar(section, user) {
 }
 
 // Signed in: 번호 바꾸기 and 로그아웃 (in the ☰ menu on a phone). Before sign-in: 로그인, on every width.
-export function accountActions(user, css = '') {
-  return user ? button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: `text small ${css}`.trim() }) + button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: `text small ${css}`.trim() })
+export function accountActions(user) {
+  return user ? button(`${icon('lock', 17)} 번호 바꾸기`, 'pin', { css: 'text small' }) + button(`${icon('logout', 17)} 로그아웃`, 'logout', { css: 'text small' })
     : button('로그인', 'sign-in', { css: 'text small' });
 }
 
@@ -615,7 +615,10 @@ export function adminShell(section, contents, club, user) {
         <div class="breadcrumb">
           <span class="breadcrumb-parent">${esc(club.name)}</span><span class="breadcrumb-divider">/</span><strong>${title}</strong>
         </div>
-        <div class="topbar-actions">${accountActions(user, 'topbar-logout')}
+        <div class="topbar-actions">${user ? `<details class="profile-menu">
+          <summary class="btn btn-text" id="profile-toggle">${icon('user', 18)}<span>${esc(user.name)}</span></summary>
+          <div class="profile-actions">${accountActions(user)}</div>
+        </details>` : accountActions(user)}
           <button type="button" class="icon-button topbar-menu" data-action="admin-menu" aria-label="메뉴 열기" aria-haspopup="dialog" aria-controls="dialog">${menuIcon}</button></div>
       </header>
       <main class="main-content admin-content" id="main-content" tabindex="-1">${contents}</main>
