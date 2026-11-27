@@ -27,11 +27,11 @@ const memberPage = (body, back = false) => `<div class="public-share-page member
 
 const bodies = {
   // 운영 권한: 운영 홈, 일정 목록 (달력 + 진행 중인 일정), 회차 상세, 그 밖의 목록 (공지·회원 관리·반기 집계·모임 규칙).
-  home: `<div class="dashboard">
-    <div class="dashboard-heading sk-head"><div>${bar('sk-h1')}${bar('sk-text')}</div>${bar('sk-button')}</div>
-    <div class="dashboard-grid"><div class="sk-featured"></div>${panel(bar('sk-h2') + bar('sk-number') + bar('sk-meter') + counts.replace(bar('sk-h2'), ''))}</div>
-    <div class="dashboard-grid dashboard-bottom">${panel(bar('sk-h2') + rows(4))}${panel(bar('sk-h2') + bars(3, 'sk-line'))}</div>
-  </div>`,
+  // 운영 홈 (views.mjs adminHome): the count line with 새 일정, the 지금 할 일 card (when, title, fact, four steps, numbers,
+  // bar, button), then 다른 일정 as rows.
+  home: `<div class="home-page"><div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>
+    <div class="panel sk-panel sk-now">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-fact')}<div class="sk-steps">${bars(4, 'sk-step')}</div>${bar('sk-line')}${bar('sk-meter')}${bar('sk-cta')}</div>
+    ${list(4)}</div>`,
   'event-list': `<div class="secondary-page">${longHead}${panel(bar('sk-h2') + rows(4))}</div>`,
   // 회차 상세 (views.mjs eventScreen): ← 일정 목록, the head, the 개요 panel, the three tabs, then the tab's panel.
   event: `<div class="secondary-page">${bar('sk-back')}${longHead}

@@ -106,15 +106,19 @@ assert.match(joinedVote.html, /<h1 tabindex="-1">일요 정기 운동<\/h1>/);
 assert.match(joinedVote.html, /data-route="member-events">[^<]*<svg[\s\S]*?<\/svg> 일정<\/a>/);
 for (const label of ['홈', '일정', '공지', '내 기록']) assert.match(joinedVote.html, new RegExp(`<span>${label}<\/span>`), `the member menu has ${label}`);
 assert.doesNotMatch(joinedVote.html, /<span>회원 관리<\/span>/);
-assert.match(openDemo(() => '#home').html, /<h1>운영 홈<\/h1>/);
+assert.match(openDemo(() => '#home').html, /<h1 class="sr-only">운영 홈<\/h1>/);
 for (const label of ['홈', '일정', '공지', '회원 관리', '반기 집계']) {
   assert.match(openDemo(() => '#home').html, new RegExp(`<span>${label}<\/span>`), `the organiser menu has ${label} as the live club names it`);
 }
-// 일정 흐름 (FLOW.md): the demo home lists the 진행 중인 일정 in the live order (flow.js), the member home bundles the
-// votes still to answer.
+// 일정 흐름 (FLOW.md): the demo home holds the first of the 진행 중인 일정 in the 지금 할 일 card and lists the rest in
+// the live order (flow.js) as whole-row links (단순화 3); the member home bundles the votes still to answer.
 const demoHome = openDemo(() => '#home').html;
 assert.match(demoHome, /진행 중인 일정 \d+개/);
-assert.match(demoHome, /<h2 id="home-todo-title">진행 중인 일정<\/h2>/);
+assert.match(demoHome, /<section class="panel now-card" aria-labelledby="next-event-title"/);
+assert.match(demoHome, /<ol class="now-steps" aria-label="일정 진행 \d\/4단계: [^"]+">/);
+assert.match(demoHome, /<h2 id="home-todo-title">다른 일정<\/h2>/);
+assert.match(demoHome, /<a class="event-link" href="#event\/[^"]+\/(poll|attendance|settlement)"/);
+for (const gone of ['class="featured"', 'poll-dashboard', 'dashboard-metrics']) assert(!demoHome.includes(gone), `the home no longer draws ${gone}`);
 // The member home shares the live member home's markup and stylesheet (worker/public/views.mjs homeScreen).
 const memberHome = openDemo(() => '#member').html;
 assert.match(memberHome, /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/);
