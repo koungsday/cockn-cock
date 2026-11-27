@@ -37,7 +37,7 @@
     x:'<path d="m6 6 12 12M18 6 6 18"/>',
     'chevron-right':'<path d="m9 6 6 6-6 6"/>',
     'chevron-left':'<path d="m15 6-6 6 6 6"/>',
-    more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+    copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
     'arrow-left':'<path d="m12 19-7-7 7-7m-7 7h15"/>',
     edit:'<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
     megaphone:'<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
@@ -45,7 +45,7 @@
     // 상단 고정: a push pin, as the live views.mjs (the map marker above is `pin`, for places).
     pushpin:'<path d="M12 16v6M8 3h8l-1.5 6.5L18 13v3H6v-3l3.5-3.5z"/>',
     info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/>',
-    more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    more:'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
     mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
     'check-circle':'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
     plus:'<path d="M12 5v14M5 12h14"/>'
@@ -362,7 +362,7 @@
             <div class="home-notice-row">
               <a href="#public-notice/${escape(notice.id)}" data-route="public-notice/${escape(notice.id)}" class="notice-home-link">${pinMark(notice)}<span>${escape(notice.title)}</span></a>
               <time datetime="${escape(notice.date)}">${readPeriod(notice.date)}</time>
-              <button type="button" class="icon-button notice-share" data-action="open-share" data-id="${escape(notice.id)}" data-kind="notice" aria-label="${escape(notice.title)} 카톡 공유" title="카톡 공유">${icon('share',17)}</button>
+              <button type="button" class="icon-button box-action" data-action="copy-link" data-id="${escape(notice.id)}" data-kind="notice" aria-label="${escape(notice.title)} 링크 복사" title="${escape(notice.title)} 링크 복사">${icon('copy',20)}</button>
             </div>`).join('') : '<p class="muted">아직 등록한 공지가 없어요.</p>'}</div>
         </section>
       </div>
@@ -399,7 +399,7 @@
     const action = {
       draft:() => go('회차 보기', 'poll'),
       waiting:() => go('회차 보기', 'poll'),
-      voting:() => `<button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}" aria-label="${escape(named('카톡 공유'))}">${icon('share',16)} 카톡 공유</button>`,
+      voting:() => `<button class="icon-button box-action" type="button" data-action="copy-link" data-kind="vote" data-id="${escape(event.id)}" aria-label="${escape(named('투표 링크 복사'))}" title="${escape(named('투표 링크 복사'))}">${icon('copy',20)}</button>`,
       closed:() => go('명단 확인', 'poll'),
       today:() => go('출석 체크', 'attendance'),
       wrapup:() => go('마무리하기', 'settlement')
@@ -455,14 +455,14 @@
       <div class="poll-track" role="img" aria-label="응답률 ${percent}%"><span class="vote-yes" style="width:${branch(yes)}"></span><span class="vote-no" style="width:${branch(no)}"></span></div>
       <div class="poll-grid">${[['선발',early,'yes'],['후발',late,'yes'],['점심',lunch,'no']].map(([name,n,status])=>`<div><span><i class="vote-${status}"></i>${name}</span><strong>${n}<small>명</small></strong></div>`).join('')}</div>
       <p class="poll-subline">참석 예정 ${yes}명 · 불참 ${no}명 · 미응답 ${pending}명</p>
-      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? `${readPeriod(event.deadline)} ${escape(event.deadlineTime)} 마감` : '마감일 미설정'}</span><button class="btn btn-secondary btn-small" type="button" data-action="open-share" data-kind="vote" data-id="${escape(event.id)}">${icon('share',16)} 카톡 공유</button></div>
+      <div class="poll-footer"><span>${icon('clock',16)} ${event.deadline ? `${readPeriod(event.deadline)} ${escape(event.deadlineTime)} 마감` : '마감일 미설정'}</span><button class="icon-button box-action" type="button" data-action="copy-link" data-kind="vote" data-id="${escape(event.id)}" aria-label="${escape(event.title)} 투표 링크 복사" title="${escape(event.title)} 투표 링크 복사">${icon('copy',20)}</button></div>
     </section>`;
   }
   function metric(route, glyph, tone, label, value, unit) {
     return `<a class="panel metric" href="#${route}" data-route="${route}"><span class="metric-icon ${tone}">${icon(glyph,21)}</span><div><span class="metric-label">${label}</span><div class="metric-value">${value}<small>${unit}</small></div></div>${icon('chevron-right',16)}</a>`;
   }
 
-  // A step inside an open dialog (비밀번호 재설정 → 확인 → 접속 안내, or a 더보기 menu → 일정 수정) took the pressed button
+  // A step inside an open dialog (비밀번호 재설정 → 확인 → 접속 안내, or a 더보기 menu → 공지 초안) took the pressed button
   // away: focus starts again at ×.
   function showModal() {
     if (!modal.open) return modal.showModal();
@@ -610,6 +610,15 @@
     if (action === 'open-menu') openMobileMenu(control);
     if (action === 'close-menu') closeMobileMenu();
     if (action === 'generate-next') generateNext(control);
+    // 링크 복사 (the live copy-vote-link / copy-notice-link): the link the share dialog would show, copied at once.
+    if (action === 'copy-link') {
+      const item = kind === 'notice' ? state.notices.find(entry => entry.id === id) : event;
+      if (!item) return;
+      const {href, published} = window.clubShare.linkFor(kind === 'notice' ? 'notice' : 'vote', item);
+      const what = kind === 'notice' ? '공지' : '투표';
+      copy(href).then(result => notifyCopy(result, published ? `${what} 공개 예시 링크를 복사했어요.` : `${what} 링크(이 브라우저 미리보기)를 복사했어요.`));
+      return;
+    }
     if (action === 'copy-share') {
       const href = modal.querySelector('#share-link').value;
       const message = control.hasAttribute('data-published-link')

@@ -521,10 +521,11 @@ function credentialDialog(name, temporaryPin, organizer = false, title = '비밀
     ${button('접속 안내 복사', 'copy-invitation')}`);
 }
 
-async function copy(text) {
+// done: what the message says once copied (UX 점검표 10: the result in words).
+async function copy(text, done = '복사했어요.') {
   try {
     await navigator.clipboard.writeText(text);
-    showMessage('복사했어요.');
+    showMessage(done);
   } catch {
     openDialog('직접 복사하기', `<label class="form-field"><span>아래 내용을 선택해 복사해 주세요.</span>
       <textarea readonly rows="6">${esc(text)}</textarea></label>`);
@@ -786,8 +787,8 @@ async function doAction(action, itemId, tab) {
       openDialog('다음 주 회차', eventForm(eventDefaults(event, club.defaultPlace, { keepFuture: Boolean(itemId) })));
       break;
     }
-    // 더보기 (DESIGN.md 6 UX 점검표 15): the menus hold the same buttons as before. A save in them closes the menu with
-    // the redraw (showSaved); 수정·복제·취소·네 번째 고정 open their own dialog in its place.
+    // 더보기 (DESIGN.md 5 더보기 메뉴): what the box shows no icon for. A save in it closes the menu with the redraw
+    // (showSaved); 복제·카톡 미리보기·일정 취소 open their own dialog in its place.
     case 'event-menu':
       openDialog('회차 메뉴', eventMenu(state.detail), 'action-menu-dialog');
       break;
@@ -827,6 +828,13 @@ async function doAction(action, itemId, tab) {
       break;
     case 'copy-share-link':
       await copy(itemId);
+      break;
+    // 박스 동작 (DESIGN.md 5): 카톡 공유 is the link, copied at once; 카톡 미리보기 (copy-vote, copy-notice) is in 더보기.
+    case 'copy-vote-link':
+      await copy(shareLink('vote', itemId || state.selectedEvent), '투표 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
+      break;
+    case 'copy-notice-link':
+      await copy(shareLink('notice', itemId), '공지 링크를 복사했어요. 카톡 단체방에 붙여 넣으세요.');
       break;
     // 상단 고정 (FLOW.md 5): three events and three notices at most; a fourth asks before letting go of the oldest.
     case 'pin-event':
@@ -1216,8 +1224,12 @@ async function run(work, control) {
   } finally {
     finishPending();
     if (code) code.readOnly = false;
-    if (control.isConnected) control.disabled = saved;
-    else if (!dialog.open && version === navigationVersion &&
+    if (control.isConnected) {
+      control.disabled = saved;
+      // Disabling the pressed button while it worked dropped its focus; an action that redraws nothing (링크 복사) gives
+      // it back, so a keyboard keeps its place.
+      if (!saved && !dialog.open && initialFocus === control && document.activeElement === document.body) control.focus({ preventScroll: true });
+    } else if (!dialog.open && version === navigationVersion &&
       (document.activeElement === document.body || document.activeElement === initialFocus)) {
       matchingControl(control)?.focus({ preventScroll: true });
     }

@@ -90,10 +90,11 @@ const paths = {
   'chevron-right': '<path d="m9 6 6 6-6 6"/>',
   'chevron-left': '<path d="m15 6-6 6 6 6"/>',
   more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
   'arrow-left': '<path d="m12 19-7-7 7-7m-7 7h15"/>',
   edit: '<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
   megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
-  // 카톡 공유: a chat bubble, the same in the demo (app.js icons).
+  // 카톡 미리보기: a chat bubble, the same in the demo (app.js icons).
   share: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>',
   // 상단 고정: a push pin (the map marker above is `pin`, for places).
   pushpin: '<path d="M12 16v6M8 3h8l-1.5 6.5L18 13v3H6v-3l3.5-3.5z"/>',
@@ -131,6 +132,17 @@ export function button(text, action, { id = '', css = '', disabled = false, labe
   const tone = words.find(word => tones[word]) ?? 'primary';
   const extra = words.filter(word => !tones[word]).map(word => word === 'compact' || word === 'small' ? 'btn-small' : word);
   return `<button type="button" class="${['btn', tones[tone], ...extra].join(' ')}" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''}${tab ? ` data-tab="${tab}"` : ''}${label ? ` aria-label="${esc(label)}"` : ''}${label && words.includes('btn-icon') ? ` title="${esc(label)}"` : ''}${disabled ? ' disabled' : ''}>${text}</button>`;
+}
+
+// 박스 오른쪽 위 아이콘 (DESIGN.md 5 박스 동작): no border or fill at rest, a filled square on hover (.icon-button), the
+// name in aria-label and title. pressed: a toggle that is on (상단 고정), drawn filled in --court.
+export function iconAction(glyph, action, { id = '', label, pressed = null, disabled = false } = {}) {
+  return `<button type="button" class="icon-button box-action" data-action="${action}"${id ? ` data-id="${esc(id)}"` : ''} aria-label="${esc(label)}" title="${esc(label)}"${pressed === null ? '' : ` aria-pressed="${pressed}"`}${disabled ? ' disabled' : ''}>${icon(glyph, 20)}</button>`;
+}
+
+// The icons of one box at its top-right corner, 더보기 (점 세 개) last.
+function boxActions(...actions) {
+  return `<div class="box-actions">${actions.filter(Boolean).join('')}</div>`;
 }
 
 function pill(text, tone = 'muted') {
@@ -543,7 +555,7 @@ export function appSections(user) {
   return operating(user) ? organizerSections : memberSections;
 }
 
-// 카톡 공유 (운영 화면): the chat preview members will see, read from the share page's own tags (app.mjs
+// 카톡 미리보기 (운영 화면 더보기): the chat preview members will see, read from the share page's own tags (app.mjs
 // openSharePreview), then the link to paste. The same parts as the demo's share dialog (share.js renderShare).
 export function sharePreview(link, preview) {
   const chat = preview ? `<div class="share-chat"><div class="share-chat-head"><strong>카카오톡 미리보기</strong><span>단체방에 이렇게 보여요</span></div>
@@ -685,7 +697,7 @@ function pollPanel(detail) {
   const hidden = event.published ? 'data-home-published' : 'data-home-published hidden';
   return `<section class="panel poll-dashboard" aria-labelledby="home-vote-title"><div id="home-vote-counts">${homeVoteCounts(detail)}</div>
     <div class="poll-footer"><span>${icon('clock', 16)} ${esc(deadlineLabel(event.deadline))} 마감</span>
-      <span ${hidden}>${button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small' })}</span></div></section>`;
+      <span ${hidden}>${iconAction('copy', 'copy-vote-link', { id: event.id, label: `${event.title} 투표 링크 복사` })}</span></div></section>`;
 }
 
 function metric(section, glyph, tone, label, value, unit) {
@@ -743,7 +755,8 @@ function flowRow(event, now) {
   const action = {
     draft: () => go('회차 보기', 'poll'),
     waiting: () => go('회차 보기', 'poll'),
-    voting: () => button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { id: event.id, css: 'secondary small', label: named('카톡 공유') }),
+    // 카톡 공유 is copying the link (DESIGN.md 5 카톡 공유): the copy icon, as on the 회차 박스.
+    voting: () => iconAction('copy', 'copy-vote-link', { id: event.id, label: named('투표 링크 복사') }),
     closed: () => go('명단 확인', 'poll'),
     today: () => go('출석 체크', 'attendance'),
     wrapup: () => go('마무리하기', 'settlement'),
@@ -802,7 +815,7 @@ export function adminHome({ events, members, notices }, upcoming, last = null, l
   const recent = notices.slice(0, 3).map(notice => `<div class="home-notice-row">
     <button type="button" class="notice-home-link" data-action="edit-notice" data-id="${esc(notice.id)}">${notice.published ? '' : '<span class="notice-tag">비공개</span>'}${pinMark(notice)}<span>${esc(notice.title)}</span></button>
     <time datetime="${esc(notice.date)}">${esc(shortDate(notice.date))}</time>
-    ${notice.published ? `<button type="button" class="icon-button notice-share" data-action="copy-notice" data-id="${esc(notice.id)}" aria-label="${esc(notice.title)} 카톡 공유" title="카톡 공유">${icon('share', 17)}</button>` : ''}
+    ${notice.published ? iconAction('copy', 'copy-notice-link', { id: notice.id, label: `${notice.title} 링크 복사` }) : ''}
   </div>`);
   return `<div class="dashboard">
     <header class="dashboard-heading">
@@ -919,16 +932,21 @@ export function eventScreen(events, detail, tab = null, own = null, month = null
   const cancelled = event.cancelled && !settlement?.confirmed
     ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${button('취소 풀기', 'restore-event', { id: event.id, css: 'secondary small' })}</div>` : '';
   const back = `<div class="back-link">${button(`${icon('arrow-left', 17)} 일정 목록`, 'event-list', { css: 'text small' })}</div>`;
-  // 더보기 (DESIGN.md 6 UX 점검표 15 힉): the rarely used actions of a session wait in one menu by the title, so the screen
-  // shows the steps, 카톡 공유 and what the step needs. A pinned event keeps its mark by the title.
-  const more = button(icon('more', 22), 'event-menu', { id: event.id, css: 'btn-icon secondary event-more', label: `${event.title} 회차 메뉴` });
+  // 박스 동작 (DESIGN.md 5, UX 점검표 15 힉): 상단 고정 and 회차 수정 as icons at the box's top-right, the rarely used rest
+  // in 더보기 last. The pin icon shows whether the event is pinned; without it (마무리·취소) the title keeps its mark.
+  const open = !settlement?.confirmed && !event.cancelled;
+  const tools = boxActions(
+    open && iconAction('pushpin', 'pin-event', { id: event.id, label: `${event.title} 상단 고정`, pressed: Boolean(event.pinnedAt) }),
+    iconAction('edit', 'edit-event', { label: `${event.title} 회차 수정` }),
+    iconAction('more', 'event-menu', { id: event.id, label: `${event.title} 회차 메뉴` }));
   const overview = `<section class="panel event-overview" aria-labelledby="admin-event-title"><div class="panel-body">
-    <div class="event-overview-title"><h2 id="admin-event-title">${pinMark(event)}${esc(event.title)}</h2>${event.cancelled ? pill('취소', 'muted') : pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${more}</div>
+    <div class="box-top"><div class="event-overview-title"><h2 id="admin-event-title">${open ? '' : pinMark(event)}${esc(event.title)}</h2>${event.cancelled ? pill('취소', 'muted') : pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}</div>${tools}</div>
     <div class="event-facts"><span>${icon('calendar', 18)}${esc(kindPrefix(event))}${esc(dateLabel(event.date))}</span><span>${icon('clock', 18)}${esc(event.time)}–${esc(event.endTime)}</span>
       <span>${icon('pin', 18)}${esc(event.place)}</span></div>
     ${cancelled}
   </div></section>`;
-  const voteActions = button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
+  // 카톡 공유 is copying the vote link (DESIGN.md 5 박스 동작): one icon; the KakaoTalk preview waits in 더보기.
+  const voteActions = boxActions(iconAction('copy', 'copy-vote-link', { id: event.id, label: '투표 링크 복사', disabled: !event.published }));
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
   { subtitle: `${esc(deadlineLabel(event.deadline))} 마감`, actions: voteActions });
@@ -947,25 +965,24 @@ export function eventScreen(events, detail, tab = null, own = null, month = null
 }
 
 // 회차 메뉴 (eventScreen 더보기): the session's rarely used actions, the same ones and rules as before they moved here.
+// 상단 고정 and 회차 수정 are icons on the box.
 export function eventMenu({ event, settlement }) {
   const open = !settlement?.confirmed && !event.cancelled;
   return `<div class="menu-actions action-menu">${[
-    button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary' }),
     button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary' }),
     // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
     button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary', disabled: !event.published || event.cancelled || (!event.open && deadlinePassed(event)) }),
-    // 상단 고정 (FLOW.md 5): a confirmed 마무리 or a cancelled event has left the flow.
-    open ? button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event', { id: event.id, css: 'secondary' }) : '',
     button('다음 주 복제', 'clone-event', { css: 'secondary' }),
+    // The KakaoTalk preview of the link the copy icon gives (worker/index.mjs shareTags).
+    button(`${icon('share', 16)} 카톡 미리보기`, 'copy-vote', { id: event.id, css: 'secondary', disabled: !event.published }),
     // 일정 취소 (FLOW.md 10): asked once more in its own dialog.
     open ? button('일정 취소', 'cancel-event', { id: event.id, css: 'text' }) : '',
   ].join('')}</div>`;
 }
 
-// 공지 메뉴 (noticesScreen 더보기): 공지 수정 and 상단 고정 of one notice.
+// 공지 메뉴 (noticesScreen 더보기): the KakaoTalk preview of one notice; 복사·상단 고정·공지 수정 are icons on the notice.
 export function noticeMenu(notice) {
-  return `<div class="menu-actions action-menu">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary' })}
-    ${button(`${icon('pushpin', 16)} ${notice.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-notice', { id: notice.id, css: 'secondary' })}</div>`;
+  return `<div class="menu-actions action-menu">${button(`${icon('share', 16)} 카톡 미리보기`, 'copy-notice', { id: notice.id, css: 'secondary', disabled: !notice.published })}</div>`;
 }
 
 const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정', approved: '별도 승인' };
@@ -1139,12 +1156,18 @@ export function noticeForm(notice = null) {
 }
 
 export function noticesScreen(notices) {
+  // 박스 동작 (DESIGN.md 5): 링크 복사 · 상단 고정 · 공지 수정 as icons at the notice's top-right, 더보기 last; the pin icon
+  // shows whether it is pinned.
   const items = notices.map(notice => `<article class="notice-item">
-    <div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}${pinMark(notice)}</div>
-    <h3>${esc(notice.title)}</h3>
+    <div class="box-top"><div><div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}</div>
+      <h3>${esc(notice.title)}</h3></div>
+      ${boxActions(
+        iconAction('copy', 'copy-notice-link', { id: notice.id, label: `${notice.title} 링크 복사`, disabled: !notice.published }),
+        iconAction('pushpin', 'pin-notice', { id: notice.id, label: `${notice.title} 상단 고정`, pressed: Boolean(notice.pinnedAt) }),
+        iconAction('edit', 'edit-notice', { id: notice.id, label: `${notice.title} 공지 수정` }),
+        // 더보기 holds only 카톡 미리보기, which a notice not yet public cannot use: no empty menu for it.
+        notice.published && iconAction('more', 'notice-menu', { id: notice.id, label: `${notice.title} 공지 메뉴` }))}</div>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
-    <div class="notice-actions">${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'secondary small', disabled: !notice.published })}
-      ${button(icon('more', 20), 'notice-menu', { id: notice.id, css: 'btn-icon text', label: `${notice.title} 공지 메뉴` })}</div>
   </article>`);
   return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
