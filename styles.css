@@ -54,6 +54,8 @@ p { line-height: 1.58; }
 .operator-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--menu-text-2); background: var(--menu-line); flex: none; }
 .main-shell { margin-left: var(--sidebar-width); }
 .topbar { background: var(--paper); border-bottom: 1px solid var(--line); }
+:root:has(.calendar-surface), .calendar-surface, .calendar-surface > .topbar { background-color: var(--surface); }
+.calendar-surface { min-height: 100dvh; }
 .topbar-inner { display: flex; align-items: center; gap: 8px; min-height: 56px; }
 .topbar-inner .breadcrumb { flex: 1; }
 .schedule-shell :is(.topbar-inner, .main-content) { max-width: 760px; margin-inline: auto; padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
@@ -739,6 +741,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 /* 일정 모달: empty text fields carry their hints, and each picker names itself next to its current value. */
 .dialog [data-form="event"] { --focus: var(--neutral-ink); }
 .dialog [data-form="event"] .form-group > legend, .dialog [data-form="event"] .form-group .form-note { color: var(--neutral-muted); }
+.dialog [data-form="event"] :is(.form-field, legend, .form-note, .picker-caption, .picker-value, .picker-heading strong, .picker-clock-group strong) { font-weight: 400; }
 .dialog [data-form="event"] .form-field:has(> :is(input, textarea)[placeholder], > .form-picker) > span:first-child {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
@@ -759,7 +762,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button, .picker-clock-options) { background: var(--neutral-soft); }
 .dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { min-height: var(--touch-target); }
 .dialog [data-form="event"] .picker-popup .picker-clock-options button { font-size: var(--t2); }
-.dialog [data-form="event"] .picker-popup [aria-pressed="true"] { background: var(--neutral-ink); color: var(--surface); font-weight: 600; }
+.dialog [data-form="event"] .picker-popup [aria-pressed="true"] { background: var(--neutral-ink); color: var(--surface); }
 .dialog [data-form="event"] .picker-popup .picker-clock + .btn { min-height: var(--touch-target); background: var(--neutral-ink); border-color: var(--neutral-ink); color: var(--surface); }
 @media (forced-colors: active) {
   .picker-trigger:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }

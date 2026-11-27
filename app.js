@@ -219,6 +219,7 @@
     const member = memberView(currentRoute);
     const schedule = !member && menuPage() === 'events';
     const eventDetail = schedule && currentRoute.page === 'event';
+    const calendarList = currentRoute.page === 'events' || currentRoute.page === 'member-events';
     app.innerHTML = `
       <aside class="sidebar">
         ${brand()}
@@ -232,7 +233,7 @@
           ${viewSwitch(member)}
         </div>
       </aside>
-      <div class="main-shell${schedule ? ' schedule-shell' : ''}">
+      <div class="main-shell${schedule ? ' schedule-shell' : ''}${calendarList ? ' calendar-surface' : ''}">
         <header class="topbar"><div class="topbar-inner">
           ${eventDetail ? `<a class="btn btn-text schedule-back" href="#events" data-route="events">${icon('arrow-left',20)} 뒤로</a>` : ''}
           <div class="breadcrumb">
