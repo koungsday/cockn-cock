@@ -784,8 +784,17 @@
       }
       const capacity = value('capacity') === '' ? null : Number(value('capacity'));
       if (capacity != null && (!Number.isInteger(capacity) || capacity < 1 || capacity > 10000)) return fieldError(form, 'capacity', '정원을 확인해 주세요.');
-      if (event && capacity !== (event.capacity ?? null) && (event.finalized || (capacity && capacity < counts(event).yes))) {
-        return fieldError(form, 'capacity', '확정 인원보다 정원을 줄이거나 마무리한 일정의 정원을 바꿀 수 없어요.');
+      const date = value('date');
+      const inactiveSignups = event && capacity != null && date >= today && (!event.capacity || event.date < today)
+        ? state.members.filter(member => member.status === 'inactive' && event.votes[member.id] && event.votes[member.id] !== 'no')
+        : [];
+      if (event && capacity !== (event.capacity ?? null)) {
+        const confirmed = inactiveSignups.length
+          ? Math.min(event.capacity ?? Infinity, counts({...event, capacity:null}).yes - inactiveSignups.length)
+          : counts(event).yes;
+        if (event.finalized || (capacity && capacity < confirmed)) {
+          return fieldError(form, 'capacity', '확정 인원보다 정원을 줄이거나 마무리한 일정의 정원을 바꿀 수 없어요.');
+        }
       }
       if (event?.finalized && value('date') > today) return fieldError(form,'date','출석을 확정한 모임은 미래 날짜로 옮길 수 없어요.');
       if (!event) {
@@ -794,6 +803,10 @@
         state.events.push(event);
       }
       Object.assign(event, Object.fromEntries(['title','date','time','endTime','earlyTime','lateTime','place','deadline','deadlineTime','notes'].map(key => [key,value(key)])));
+      for (const member of inactiveSignups) {
+        saveResponse(event, member.id, null);
+        delete event.lunch[member.id];
+      }
       event.capacity = capacity;
       event.kind = kindLabels[value('kind')] ? value('kind') : 'regular';
       const open = formData.has('pollOpen') && !event.finalized && !event.cancelled;
@@ -812,6 +825,14 @@
       const member = state.members.find(item => item.id === id) || {id:idFor('member'),joined:today};
       if (isNew) state.members.push(member);
       Object.assign(member,{name:value('name'),role:value('role'),status:value('status'),joined:value('joined'),notes:value('notes')});
+      if (member.status === 'inactive') {
+        for (const event of state.events) {
+          if (event.capacity && event.date >= today && !event.finalized && event.votes[member.id] && event.votes[member.id] !== 'no') {
+            saveResponse(event, member.id, null);
+            delete event.lunch[member.id];
+          }
+        }
+      }
       ui.memberQuery = '';
       ui.memberStatus = member.status;
       target = 'members';

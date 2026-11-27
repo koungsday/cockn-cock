@@ -587,6 +587,7 @@ async function updateEvent(db, club, id, body) {
   if (data.open && previous.cancelled) throw new ApiError(409, '취소한 일정은 투표를 열 수 없어요. 먼저 취소를 풀어 주세요.');
   ensureVoteStartsBeforeDeadline(data, previous);
   const changedCapacity = data.capacity !== (previous.capacity ?? null);
+  const today = kstToday();
   const updates = await sql(db, `
     UPDATE events SET title=?, date=?, time=?, end_time=?, place=?, deadline=?, deadline_at=?,
       early_time=?, late_time=?, notes=?, open=?, published=?, kind=?, capacity=?,
@@ -596,13 +597,13 @@ async function updateEvent(db, club, id, body) {
       AND early_time=? AND late_time=? AND notes=? AND open=? AND published=? AND kind=? AND capacity IS ?
       AND (? IS NULL OR ? >= capacity OR ? >= (
         SELECT COUNT(*) FROM votes v JOIN members m ON m.id=v.member_id
-        WHERE v.event_id=events.id AND v.slot<>'no' AND (events.capacity IS NOT NULL OR ? < ? OR m.active=1)
+        WHERE v.event_id=events.id AND v.slot<>'no' AND (m.active=1 OR ? < ? OR (events.capacity IS NOT NULL AND events.date>=?))
       ))
       AND (
         (date=? AND ?=0 AND ?=0) OR NOT EXISTS (SELECT 1 FROM settlements WHERE event_id=? AND confirmed=1)
       )
       AND (?=0 OR cancelled_at IS NULL)
-  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.capacity, data.capacity, data.capacity, data.date, kstToday(), data.date, +data.open, +changedCapacity, id, +data.open).run();
+  `, ...eventParams(data), +data.open, id, club, ...eventParams(previous), data.capacity, data.capacity, data.capacity, data.date, today, today, data.date, +data.open, +changedCapacity, id, +data.open).run();
   if (!updates.meta.changes) {
     if (changedCapacity) {
       const current = await fetchEvent(db, club, id);

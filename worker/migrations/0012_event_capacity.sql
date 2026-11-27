@@ -20,9 +20,10 @@ BEGIN
   ) WHERE event_id = NEW.event_id AND member_id = NEW.member_id;
 END;
 
--- A formerly unlimited event can still have votes from members who are no longer active.
-CREATE TRIGGER remove_inactive_signups_at_capacity AFTER UPDATE OF capacity ON events
-WHEN OLD.capacity IS NULL AND NEW.capacity IS NOT NULL AND NEW.date >= date('now', '+9 hours')
+-- Adding a limit or bringing a past event back into the schedule can expose inactive signups.
+CREATE TRIGGER remove_inactive_signups_at_capacity AFTER UPDATE OF capacity, date ON events
+WHEN NEW.capacity IS NOT NULL AND NEW.date >= date('now', '+9 hours')
+  AND (OLD.capacity IS NULL OR OLD.date < date('now', '+9 hours'))
 BEGIN
   DELETE FROM votes WHERE event_id = NEW.id AND slot <> 'no'
     AND EXISTS (SELECT 1 FROM members m WHERE m.id = votes.member_id AND m.club_id = NEW.club_id AND m.active = 0);

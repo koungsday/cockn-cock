@@ -1019,7 +1019,7 @@ test('guest payments and shuttle stock carry from the preceding confirmed sessio
 });
 
 test('optional capacity admits in order and promotes the first waiting member without exceeding the cap', async t => {
-  const {client} = setup(t);
+  const {DB, client} = setup(t);
   const admin = client();
   await admin.adminLogin();
   const invites = [];
@@ -1083,4 +1083,15 @@ test('optional capacity admits in order and promotes the first waiting member wi
   await admin.request('/api/admin/events/' + unlimited.id, {method:'PATCH', body:{capacity:1}});
   const admitted = await two.request(unlimitedVote, {method:'PUT', body:{slot:'early', lunch:false}});
   assert.equal(admitted.vote.waitingPosition, undefined, 'a previously inactive member does not hold a newly limited spot');
+
+  const rescheduled = (await admin.request('/api/admin/events', {method:'POST', expect:201, body:{...futureEvent(), capacity:1}})).event;
+  const rescheduledVote = '/api/votes/' + rescheduled.id;
+  const rescheduledPath = '/api/admin/events/' + rescheduled.id;
+  await two.request(rescheduledVote, {method:'PUT', body:{slot:'late', lunch:false}});
+  await DB.prepare("UPDATE events SET date=date('now','-2 days'), open=0 WHERE id=?").bind(rescheduled.id).run();
+  await admin.request('/api/admin/members/' + ids[1], {method:'PATCH', body:{active:false}});
+  assert.equal((await admin.request(rescheduledPath)).roster.find(row => row.id === ids[1]).slot, 'late');
+  await admin.request(rescheduledPath, {method:'PATCH', body:{date:rescheduled.date, open:true}});
+  const newlyAdmitted = await three.request(rescheduledVote, {method:'PUT', body:{slot:'early', lunch:false}});
+  assert.equal(newlyAdmitted.vote.waitingPosition, undefined, 'a rescheduled event releases an inactive member’s spot');
 });
