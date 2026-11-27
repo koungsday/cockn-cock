@@ -636,7 +636,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .picker-trigger[aria-invalid=true] { border-color: var(--accent-red); }
 .picker-popup {
   position: fixed; inset: auto; margin: 0;
-  width: min(360px, calc(100% - 28px)); max-height: min(70dvh, 460px); overflow: auto;
+  max-height: min(70dvh, 460px); overflow: auto;
   padding: 12px; border: 1px solid var(--field-line); border-radius: 8px; background: var(--surface); color: var(--ink);
 }
 .picker-month { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -653,7 +653,11 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 
 
 .picker-trigger[aria-expanded=true]::after { rotate: 225deg; }
-.picker-popup-clock { width: min(260px, calc(100% - 28px)); }
+/* Keep one continuous frame across the field and its list. */
+.form-picker[data-side="below"] .picker-trigger[aria-expanded=true] { border-end-start-radius: 0; border-end-end-radius: 0; }
+.form-picker[data-side="below"] .picker-popup { border-top: 0; border-start-start-radius: 0; border-start-end-radius: 0; }
+.form-picker[data-side="above"] .picker-trigger[aria-expanded=true] { border-start-start-radius: 0; border-start-end-radius: 0; }
+.form-picker[data-side="above"] .picker-popup { border-bottom: 0; border-end-start-radius: 0; border-end-end-radius: 0; }
 .picker-clock { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 8px; }
 .picker-clock-group { min-width: 0; text-align: center; }
 .picker-clock-options { max-height: 132px; overflow-y: auto; overscroll-behavior: contain; }
@@ -664,8 +668,8 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
 .picker-clock + .btn { width: 100%; }
 @media (prefers-reduced-motion: no-preference) {
   .picker-popup:popover-open { animation: picker-reveal var(--dur-quick) var(--ease-settle); }
-  .picker-popup[data-side="above"] { transform-origin: bottom; }
-  .picker-popup[data-side="below"] { transform-origin: top; }
+  .form-picker[data-side="above"] .picker-popup { transform-origin: bottom; }
+  .form-picker[data-side="below"] .picker-popup { transform-origin: top; }
   @keyframes picker-reveal {
     from { opacity: 0; transform: scaleY(.92); }
     to { opacity: 1; transform: scaleY(1); }

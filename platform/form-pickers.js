@@ -62,12 +62,12 @@
     render();
   }
 
-  function clockChoices(label, count, selected, onPick) {
+  function clockChoices(label, count, step, selected, onPick) {
     const group = make('div', '', { class: 'picker-clock-group' });
     const options = make('div', '', { class: 'picker-clock-options', role: 'group', 'aria-label': label });
     group.append(make('strong', label), options);
     for (let index = 0; index < count; index++) {
-      const value = two(index);
+      const value = two(index * step);
       const choice = button(value, { 'aria-label': value + label, 'aria-pressed': String(value === selected) });
       choice.addEventListener('click', () => {
         options.querySelector('[aria-pressed=true]')?.setAttribute('aria-pressed', 'false');
@@ -79,20 +79,19 @@
     return group;
   }
 
-  function positionPopup(popup, trigger, select) {
+  function positionPopup(popup, trigger, wrapper) {
     const field = trigger.getBoundingClientRect();
     const viewport = document.documentElement;
-    const width = viewport.clientWidth;
     const height = viewport.clientHeight;
     const below = height - field.bottom - 8;
     const above = field.top - 8;
-    if (select) popup.style.width = Math.min(width - 16, Math.max(field.width, 180)) + 'px';
+    popup.style.width = field.width + 'px';
     popup.style.maxHeight = '';
     const naturalHeight = popup.offsetHeight;
     const flip = below < naturalHeight && above > below;
-    popup.dataset.side = flip ? 'above' : 'below';
+    wrapper.dataset.side = flip ? 'above' : 'below';
     popup.style.maxHeight = Math.max(0, Math.min(naturalHeight, flip ? above : below)) + 'px';
-    popup.style.left = Math.max(8, Math.min(field.left, width - popup.offsetWidth - 8)) + 'px';
+    popup.style.left = field.left + 'px';
     popup.style.top = (flip ? field.top - popup.offsetHeight : field.bottom) + 'px';
   }
 
@@ -105,7 +104,6 @@
     const trigger = button('', { class: 'picker-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
     const popup = make('div', '', { class: 'picker-popup', popover: 'auto', role: 'dialog', 'aria-label': name });
     const wrapper = make('span', '', { class: 'form-picker' });
-    if (!select && !date) popup.classList.add('picker-popup-clock');
     const problem = make('span', '', { class: 'picker-problem', role: 'status' });
     wrapper.append(trigger, problem, popup);
     field.after(wrapper);
@@ -137,7 +135,7 @@
       problem.textContent = field.validationMessage;
       trigger.focus();
     });
-    const position = () => positionPopup(popup, trigger, select);
+    const position = () => positionPopup(popup, trigger, wrapper);
     repositioners.set(popup, position);
     popup.addEventListener('beforetoggle', event => {
       trigger.setAttribute('aria-expanded', String(event.newState === 'open'));
@@ -169,11 +167,12 @@
         }, field.min.slice(0, 10), field.max.slice(0, 10));
         if (time) {
           let [hour = '', minute = ''] = (clock || '').split(':');
+          if (minute && Number(minute) % 10 !== 0) minute = '';
           const apply = button('선택 적용', { class: 'btn btn-secondary' });
           const error = make('p', '', { role: 'status' });
           const row = make('div', '', { class: 'picker-clock' });
-          row.append(clockChoices('시', 24, hour, value => { hour = value; }),
-            clockChoices('분', 60, minute, value => { minute = value; }));
+          row.append(clockChoices('시', 24, 1, hour, value => { hour = value; }),
+            clockChoices('분', 6, 10, minute, value => { minute = value; }));
           popup.append(row, apply, error);
           apply.addEventListener('click', () => {
             if ((date && !day) || !hour || !minute) {
