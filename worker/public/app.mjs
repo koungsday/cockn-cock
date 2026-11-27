@@ -1,6 +1,6 @@
 import {
   accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceSubtitle, brand, button,
-  countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventScreen, homeFlows, homeSteps,
+  countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeSteps, noticeMenu,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
@@ -784,6 +784,17 @@ async function doAction(action, itemId, tab) {
       openDialog('다음 주 회차', eventForm(eventDefaults(event, club.defaultPlace, { keepFuture: Boolean(itemId) })));
       break;
     }
+    // 더보기 (DESIGN.md 6 UX 점검표 15): the menus hold the same buttons as before. A save in them closes the menu with
+    // the redraw (showSaved); 수정·복제·취소·네 번째 고정 open their own dialog in its place.
+    case 'event-menu':
+      openDialog('회차 메뉴', eventMenu(state.detail), 'action-menu-dialog');
+      break;
+    case 'notice-menu': {
+      const notice = state.admin.notices.find(entry => entry.id === itemId);
+      if (!notice) return showSaved('목록이 바뀌어 새로 불러왔어요.');
+      openDialog('공지 메뉴', noticeMenu(notice), 'action-menu-dialog');
+      break;
+    }
     case 'edit-event':
       eventSnapshot = { ...state.detail.event };
       openDialog('회차 수정', eventForm(eventSnapshot, state.selectedEvent));
@@ -797,6 +808,7 @@ async function doAction(action, itemId, tab) {
     case 'toggle-vote': {
       const open = !state.detail.event.open;
       if (open && deadlinePassed(state.detail.event)) {
+        closeDialog();
         render();
         showMessage('투표 마감 시각이 지났어요. 회차 수정에서 마감 시각을 먼저 바꿔 주세요.', true);
         break;

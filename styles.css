@@ -212,9 +212,7 @@ p { line-height: 1.58; }
 .member-list .calendar { margin: 12px 0 10px; }
 :is(.event-list li, .member-record)[data-date] { transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
 :is(.event-list li, .member-record).is-picked { border-radius: 4px; background: #f1f7e6; box-shadow: 0 0 0 6px #f1f7e6; }
-/* 일정 취소 on the 회차 화면: a quiet action under the facts; a cancelled event says so with the way back. */
-.event-cancel { margin-top: -4px; }
-.event-cancel .btn { padding-left: 0; }
+/* A cancelled event says so on the 회차 화면 with the way back; 일정 취소 itself is in the 회차 메뉴. */
 .event-cancelled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; border-top: 1px solid #edf0ec; color: var(--muted); font-size: .9rem; word-break: keep-all; }
 .event-cancelled p { flex: 1 1 14rem; }
 .event-cancelled strong { color: var(--ink); }
@@ -360,6 +358,14 @@ textarea { min-height: 100px; resize: vertical; }
 .guest-form .form-field { flex: 1 1 165px; }
 .settlement-form { margin-top: 18px; }
 .form-check { display: flex; align-items: center; gap: 6px; font-size: .90rem; }
+/* A labelled group of a form (DESIGN.md 5 폼, UX 점검표 16): a small heading and space between groups, no box. */
+.form-group { min-width: 0; margin: 0; padding: 0; border: 0; }
+.form-grid > .form-group { grid-column: 1 / -1; }
+.form-group + .form-group { margin-top: 18px; }
+.form-group > legend { margin-bottom: 10px; padding: 0; color: var(--court); font-size: .95rem; font-weight: 800; }
+.form-group > .form-check { margin-top: 4px; }
+/* 더보기 menus (회차 메뉴, 공지 메뉴) and the login menu: one full-width button per line. */
+.menu-actions { display: grid; gap: 8px; }
 /* 모임 규칙 (worker/public/views.mjs rulesScreen): a group of checks or radios under a label like .form-field's. */
 .rule-choices { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .rule-choices legend { margin-bottom: 4px; padding: 0; font-size: .90rem; font-weight: 700; }

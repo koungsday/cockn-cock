@@ -28,7 +28,7 @@
   --ease-settle: cubic-bezier(.22, 1, .36, 1);
   --dur-quick: 160ms;
   --dur-arrive: 220ms;
-  --dur-nudge: 520ms;
+  --dur-nudge: 300ms;
   --shuttle-turn: 3s;
   --paper: #f3f2ec;
   --surface: #ffffff;

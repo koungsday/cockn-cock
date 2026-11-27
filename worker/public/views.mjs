@@ -89,6 +89,7 @@ const paths = {
   x: '<path d="m6 6 12 12M18 6 6 18"/>',
   'chevron-right': '<path d="m9 6 6 6-6 6"/>',
   'chevron-left': '<path d="m15 6-6 6 6 6"/>',
+  more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
   'arrow-left': '<path d="m12 19-7-7 7-7m-7 7h15"/>',
   edit: '<path d="m14 5 5 5M4 20l4.5-1 12-12-3.5-3.5-12 12z"/>',
   megaphone: '<path d="m3 11 15-6v14L3 15v-4Zm3 5 2.5 5h3l-2-4m11-6 1-1m-1 5 1 1"/>',
@@ -287,10 +288,12 @@ export function memberVoteScreen(event, vote, eligible, voteSaved = false, signe
   const facts = `<dl class="public-event-facts">
     <div><dt>일시</dt><dd>${esc(dateLabel(event.date))} <span class="nowrap">${esc(event.time)}–${esc(event.endTime)}</span></dd></div>
     <div><dt>장소</dt><dd>${placeText(event)}</dd></div>
-    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>${countsBlock(event.counts, event)}`;
+    <div><dt>투표 마감</dt><dd>${esc(deadlineLabel(event.deadline))}</dd></div></dl>`;
   const notes = event.notes ? `<p class="public-share-body">${esc(event.notes)}</p>` : '';
+  // The answer comes before the 응답 현황 (DESIGN.md 6 UX 점검표 13 피츠): on a phone the choices and 응답 저장 sit in the
+  // first screen above the tab bar instead of below it.
   return memberPage(memberCard('vote', event.cancelled ? '취소된 일정' : '참석 투표', event.title, '', facts + notes
-    + voteResponse(event, vote, eligible, voteSaved, signedIn)), { back: ['event', '일정'] });
+    + voteResponse(event, vote, eligible, voteSaved, signedIn) + countsBlock(event.counts, event)), { back: ['event', '일정'] });
 }
 
 // The answer part of a vote: the member's own form (or why there is none). The organisers' 일정 상세 shows the same
@@ -841,24 +844,35 @@ export function voteMetrics(counts, { includeAttendance = true } = {}) {
   return summary(items);
 }
 
+// One labelled group of a form (.form-group): a small heading and space, no box (DESIGN.md 5 폼).
+function formGroup(legend, body) {
+  return `<fieldset class="form-group"><legend>${legend}</legend>${body}</fieldset>`;
+}
+
+// Three groups instead of ten fields in a row (DESIGN.md 6 UX 점검표 16 밀러): what and where, when, what members see.
 export function eventForm(event, id = '') {
   const time = { type: 'time', attrs: 'required' };
   return form('event',
-    (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 회차는 준비 상태로 저장할 수 있어요.') : '') + `<div class="form-grid">
+    (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 회차는 준비 상태로 저장할 수 있어요.') : '')
+    + formGroup('무엇을, 어디서', `<div class="form-grid">
       ${field('모임 이름', 'title', event.title, { attrs: 'required maxlength="120"' })}
       ${select('종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
-      ${field('날짜', 'date', event.date, { type: 'date', attrs: 'required' })}
-      ${field('장소', 'place', event.place, { attrs: 'required maxlength="120"' })}
+      ${field('장소', 'place', event.place, { wide: true, attrs: 'required maxlength="120"' })}
+    </div>`)
+    + formGroup('언제', `<div class="form-grid">
+      ${field('날짜', 'date', event.date, { type: 'date', wide: true, attrs: 'required' })}
       ${field('시작 시간', 'time', event.time, time)}
       ${field('종료 시간', 'endTime', event.endTime, time)}
       ${field('선발 모임', 'earlyTime', event.earlyTime, time)}
       ${field('후발 모임', 'lateTime', event.lateTime, time)}
       ${field('투표 마감 (한국 시간)', 'deadline', event.deadline, { type: 'datetime-local', wide: true, attrs: 'required' })}
+    </div>`)
+    + formGroup('회원에게 보이기', `<div class="form-grid">
       ${textarea('공개 안내', 'notes', event.notes, 'maxlength="3000" placeholder="날짜별 준비물이나 안내를 적어 주세요."')}
     </div>`
-    + note('로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.')
-    + check('카톡 공유 링크 공개', 'published', event.published)
-    + check('웹 투표 열기', 'open', event.open),
+      + note('로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.')
+      + check('카톡 공유 링크 공개', 'published', event.published)
+      + check('웹 투표 열기', 'open', event.open)),
     id ? '회차 저장' : '회차 만들기', id);
 }
 
@@ -893,7 +907,7 @@ function eventList(events, month) {
 // month: the list's calendar month (calendar.mjs).
 export function eventScreen(events, detail, tab = null, own = null, month = null) {
   const event = detail?.event;
-  const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' }) + (event ? button('다음 주 복제', 'clone-event', { css: 'secondary' }) : '');
+  const actions = button(icon('plus', 22), 'new-event', { css: 'btn-icon', label: '새 회차' });
   const head = pageHead('일정', event ? '투표 응답, 당일 출석, 마무리를 기록하세요.' : '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', actions);
   if (!event) {
     return `<div class="secondary-page">${head}${events.length ? eventList(events, month)
@@ -901,25 +915,20 @@ export function eventScreen(events, detail, tab = null, own = null, month = null
   }
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
-  // 상단 고정 lives here (and in the 공지 list), not on every 운영 홈 row; a confirmed 마무리 has left the flow.
-  const pinControl = settlement?.confirmed || event.cancelled ? '' : button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event',
-    { id: event.id, css: 'secondary small event-pin', label: `${event.title} ${event.pinnedAt ? '상단 고정 해제' : '상단 고정'}` });
-  // 일정 취소 (FLOW.md 10): rarely needed, so a quiet button at the end of the facts; a cancelled event says so instead.
-  const cancelControl = settlement?.confirmed ? '' : event.cancelled
-    ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${button('취소 풀기', 'restore-event', { id: event.id, css: 'secondary small' })}</div>`
-    : `<div class="event-cancel">${button('일정 취소', 'cancel-event', { id: event.id, css: 'text small' })}</div>`;
+  // A cancelled event says so with the way back in sight; 일정 취소 itself is in the 회차 메뉴 (eventMenu).
+  const cancelled = event.cancelled && !settlement?.confirmed
+    ? `<div class="event-cancelled"><p><strong>취소한 일정이에요.</strong> 회원에게 "취소됐어요"로 보이고, 받은 응답은 그대로 있어요.</p>${button('취소 풀기', 'restore-event', { id: event.id, css: 'secondary small' })}</div>` : '';
   const back = `<div class="back-link">${button(`${icon('arrow-left', 17)} 일정 목록`, 'event-list', { css: 'text small' })}</div>`;
+  // 더보기 (DESIGN.md 6 UX 점검표 15 힉): the rarely used actions of a session wait in one menu by the title, so the screen
+  // shows the steps, 카톡 공유 and what the step needs. A pinned event keeps its mark by the title.
+  const more = button(icon('more', 22), 'event-menu', { id: event.id, css: 'btn-icon secondary event-more', label: `${event.title} 회차 메뉴` });
   const overview = `<section class="panel event-overview" aria-labelledby="admin-event-title"><div class="panel-body">
-    <div class="event-overview-title"><h2 id="admin-event-title">${esc(event.title)}</h2>${event.cancelled ? pill('취소', 'muted') : pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${pinControl}</div>
+    <div class="event-overview-title"><h2 id="admin-event-title">${pinMark(event)}${esc(event.title)}</h2>${event.cancelled ? pill('취소', 'muted') : pill(event.published ? '공개 중' : '비공개 준비', event.published ? 'green' : 'muted')}${more}</div>
     <div class="event-facts"><span>${icon('calendar', 18)}${esc(kindPrefix(event))}${esc(dateLabel(event.date))}</span><span>${icon('clock', 18)}${esc(event.time)}–${esc(event.endTime)}</span>
       <span>${icon('pin', 18)}${esc(event.place)}</span></div>
-    ${cancelControl}
+    ${cancelled}
   </div></section>`;
-  const voteActions = button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary small' })
-    + button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary small' })
-    // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
-    + button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary small', disabled: !event.published || event.cancelled || (!event.open && deadlinePassed(event)) })
-    + button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
+  const voteActions = button(`${icon('share', 16)} 카톡 공유`, 'copy-vote', { css: 'primary small', disabled: !event.published });
   const vote = panel('웹 참석 투표', `<div id="vote-counts">${voteMetrics(counts)}</div>
     ${!event.canVote && deadlinePassed(event) && (event.open || event.date >= today()) ? '<p class="form-note">투표 마감 시각이 지났습니다. 다시 받으려면 마감 시각을 먼저 변경해 주세요.</p>' : ''}`,
   { subtitle: `${esc(deadlineLabel(event.deadline))} 마감`, actions: voteActions });
@@ -935,6 +944,28 @@ export function eventScreen(events, detail, tab = null, own = null, month = null
   const content = current === 'attendance' ? attendancePanel(event, roster, counts, settlement?.confirmed) + guestList
     : current === 'settlement' ? settlementPanel(settlement, counts) : poll + guestList;
   return `<div class="secondary-page">${back}${head}${overview}${nav}${content}</div>`;
+}
+
+// 회차 메뉴 (eventScreen 더보기): the session's rarely used actions, the same ones and rules as before they moved here.
+export function eventMenu({ event, settlement }) {
+  const open = !settlement?.confirmed && !event.cancelled;
+  return `<div class="menu-actions action-menu">${[
+    button(`${icon('edit', 17)} 회차 수정`, 'edit-event', { css: 'secondary' }),
+    button(event.published ? '공개 내리기' : '링크 공개', 'publish-event', { css: 'secondary' }),
+    // Opening a vote whose deadline has passed would say "열었어요" while members still cannot answer, so it waits for a new deadline.
+    button(event.open ? '투표 닫기' : '투표 열기', 'toggle-vote', { css: 'secondary', disabled: !event.published || event.cancelled || (!event.open && deadlinePassed(event)) }),
+    // 상단 고정 (FLOW.md 5): a confirmed 마무리 or a cancelled event has left the flow.
+    open ? button(`${icon('pushpin', 16)} ${event.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-event', { id: event.id, css: 'secondary' }) : '',
+    button('다음 주 복제', 'clone-event', { css: 'secondary' }),
+    // 일정 취소 (FLOW.md 10): asked once more in its own dialog.
+    open ? button('일정 취소', 'cancel-event', { id: event.id, css: 'text' }) : '',
+  ].join('')}</div>`;
+}
+
+// 공지 메뉴 (noticesScreen 더보기): 공지 수정 and 상단 고정 of one notice.
+export function noticeMenu(notice) {
+  return `<div class="menu-actions action-menu">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary' })}
+    ${button(`${icon('pushpin', 16)} ${notice.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-notice', { id: notice.id, css: 'secondary' })}</div>`;
 }
 
 const recognitionLabel = { direct: '직접 인정', substitute: '대타 인정', approved: '별도 승인' };
@@ -1109,9 +1140,8 @@ export function noticesScreen(notices) {
     <div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}${pinMark(notice)}</div>
     <h3>${esc(notice.title)}</h3>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
-    <div class="notice-actions">${button(`${icon('edit', 17)} 공지 수정`, 'edit-notice', { id: notice.id, css: 'secondary small' })}
-      ${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'text small', disabled: !notice.published })}
-      ${button(`${icon('pushpin', 17)} ${notice.pinnedAt ? '고정 해제' : '상단 고정'}`, 'pin-notice', { id: notice.id, css: 'text small', label: `${notice.title} ${notice.pinnedAt ? '상단 고정 해제' : '상단 고정'}` })}</div>
+    <div class="notice-actions">${button(`${icon('share', 17)} 카톡 공유`, 'copy-notice', { id: notice.id, css: 'secondary small', disabled: !notice.published })}
+      ${button(icon('more', 20), 'notice-menu', { id: notice.id, css: 'btn-icon text', label: `${notice.title} 공지 메뉴` })}</div>
   </article>`);
   return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
     ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
