@@ -21,17 +21,19 @@
       return `<div class="box-actions">${actions.filter(Boolean).join('')}</div>`;
     }
 
-    // Icon-only control (DESIGN.md 5): + for the one create action in a page head.
+    // The one create action at the end of a screen's head line (the live pageHead): + and its name.
     function addButton(label, name) {
-      return `<button class="btn btn-primary btn-icon" type="button" data-action="${name}" aria-label="${e(label)}" title="${e(label)}">${icon('plus', 22)}</button>`;
+      return `<button class="btn btn-secondary btn-small" type="button" data-action="${name}">${icon('plus', 17)} ${e(label)}</button>`;
     }
 
     function routeLink(text, route, tone = 'text', symbol = '') {
       return `<a class="btn btn-${tone}" href="#${e(route)}" data-route="${e(route)}">${symbol ? icon(symbol) : ''}${text}</a>`;
     }
 
+    // The head of a screen (the live pageHead): the top bar already names it, so the h1 is for reading programs; what
+    // shows is one quiet line and one action.
     function heading(title, description, actions = '') {
-      return `<header class="page-head"><div><h1>${title}</h1>${description ? `<div class="page-description">${description}</div>` : ''}</div>${actions ? `<div class="page-actions">${actions}</div>` : ''}</header>`;
+      return `<header class="list-tools"><h1 class="sr-only">${title}</h1><p>${description}</p>${actions}</header>`;
     }
 
     function panel(title, content, options = {}) {
@@ -88,7 +90,7 @@
 
     function eventDetail(route, state) {
       const event = state.events.find(item => item.id === route.id);
-      if (!event) return heading('일정을 찾을 수 없어요', '', routeLink('일정 목록', 'events', 'secondary'));
+      if (!event) return heading('일정', '일정을 찾을 수 없어요.', routeLink('일정 목록', 'events', 'secondary btn-small'));
       const pollAvailable = event.pollOpen && !event.finalized && !deadlinePassed(event);
       const nav = `<nav class="tabs" aria-label="일정 단계">${[['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']].map(([tab, label]) => {
         const path = eventPath(event, tab);
@@ -209,7 +211,7 @@
       const tools = boxActions(
         open && iconAction('pushpin', 'toggle-pin', event.id, `${event.title} 상단 고정`, {kind: 'event', pressed: Boolean(event.pinnedAt)}),
         iconAction('edit', 'open-event', event.id, `${event.title} 일정 수정`),
-        iconAction('more', 'open-actions', event.id, `${event.title} 회차 메뉴`, {kind: 'event'}));
+        iconAction('more', 'open-actions', event.id, `${event.title} 일정 메뉴`, {kind: 'event'}));
       const stands = event.cancelled ? '취소한 일정' : event.finalized ? '마무리 완료'
         : pollAvailable ? `공개 중 · ${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : `공개 중 · ${event.pollOpen || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
       // The event names the screen (the live event head): its title, one line of when and where, one of where it stands.
@@ -227,7 +229,7 @@
       // 링크 복사 · 상단 고정 · 수정 as icons at the notice's top-right, 더보기 last (the live noticesScreen).
       const items = ordered.map(notice => `<article class="notice-item">
         <div class="box-top"><div><div class="notice-date"><time datetime="${e(notice.date)}">${e(dateLabel(notice.date))}</time></div>
-          <h3>${e(notice.title)}</h3></div>
+          <h2>${e(notice.title)}</h2></div>
           ${boxActions(
             iconAction('copy', 'copy-link', notice.id, `${notice.title} 링크 복사`, {kind: 'notice'}),
             iconAction('pushpin', 'toggle-pin', notice.id, `${notice.title} 상단 고정`, {kind: 'notice', pressed: Boolean(notice.pinnedAt)}),
@@ -235,8 +237,8 @@
             iconAction('more', 'open-actions', notice.id, `${notice.title} 공지 메뉴`, {kind: 'notice'}))}</div>
         <p class="preserve-lines">${e(notice.body)}</p>
       </article>`);
-      return heading('공지', '일정 변경이나 모임 소식을 올리세요.', addButton('새 공지', 'open-notice'))
-        + panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : empty('등록된 공지가 없어요.'));
+      return heading('공지', `공지 ${items.length}개`, addButton('새 공지', 'open-notice'))
+        + (items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="muted home-empty">등록된 공지가 없어요.</p>');
     }
 
     function option(value, label, selected) {
@@ -252,17 +254,15 @@
         <label class="search-field">${icon('search')}<input type="search" data-filter="member-query" aria-label="이름 검색" placeholder="이름 검색" value="${e(ui.memberQuery)}"></label>
         <select data-filter="member-status" aria-label="활동 상태">${[['all', '전체 상태'], ['active', '활동 중'], ['inactive', '활동 중지']].map(([value, label]) => option(value, label, ui.memberStatus)).join('')}</select>
       </div>`;
-      // The live 회원 명단 (views.mjs membersScreen): name, state with 운영진 beside it, the 연필. On a phone each row is one
-      // line (.stack-table.member-table); 가입일 stays in 회원 수정.
-      const rows = filtered.map(member => `<tr>
-        <td><div class="member-name"><span class="avatar" aria-hidden="true">${e(member.name.slice(0, 1))}</span><strong>${e(member.name)}</strong></div></td>
-        <td>${member.status === 'active' ? pill('활동 중', 'green') : pill('활동 중지')}${member.role === '운영진' ? ` ${pill('운영진', 'green')}` : ''}</td>
-        <td class="table-actions"><button class="btn btn-secondary btn-icon" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정" title="${e(member.name)} 회원 수정">${icon('edit')}</button></td>
-      </tr>`);
-      return heading('회원 관리', '새 회원을 추가하고 활동 상태를 관리하세요.', addButton('회원 추가', 'open-member'))
-        + panel('회원 명단', rows.length ? table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, 'stack-table member-table') : empty('조건에 맞는 멤버가 없어요.'), {
-          subtitle: `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, actions: controls
-        });
+      // The live 회원 명단 (views.mjs membersScreen): one row a member, the whole row opens 회원 수정; what is not the usual
+      // (활동 중지, 운영진) is said under the name. 가입일 stays in 회원 수정.
+      const rows = filtered.map(member => {
+        const marks = [member.status === 'active' ? '' : '활동 중지', member.role === '운영진' ? '운영진' : ''].filter(Boolean).join(' · ');
+        return `<li><button class="event-link" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정"><span><strong>${e(member.name)}</strong>${marks ? `<small>${marks}</small>` : ''}</span>${icon('chevron-right', 18)}</button></li>`;
+      });
+      return heading('회원 관리', `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, addButton('회원 추가', 'open-member'))
+        + `<div class="list-search">${controls}</div>`
+        + `<div class="member-rows">${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">조건에 맞는 멤버가 없어요.</p>'}</div>`;
     }
 
     function statistics(state, ui) {
@@ -285,7 +285,7 @@
       return heading('반기 집계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.', selector)
         + summary([['일정 횟수', `${report.sessions}회`], ['누적 출석', `${report.present}회`], ['전체 출석률', report.total ? `${report.rate}%` : '—', 'green']])
         + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
-          subtitle: '확정한 회차에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
+          subtitle: '확정한 일정에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
         })
         + panel('일정별 출석', bars.length ? `<div class="bar-chart">${bars.join('')}</div>` : empty('이 기간에 확정된 출석 기록이 없어요.'), {subtitle: '일정 참여 대상 중 실제 출석한 인원이에요.'})
         + panel('멤버별 출석', rows.length ? table(['멤버', '출석', '참여 대상 일정', '출석률'], rows) : empty('집계할 출석 기록이 없어요.'));
@@ -491,7 +491,7 @@
         buttons.push(action('카톡 미리보기', 'open-share', event.id, {symbol: 'share', extra: 'data-kind="vote"'}));
         if (open) buttons.push(action('일정 취소', 'cancel-event', event.id, {tone: 'text'}));
       }
-      return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '회차 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');
+      return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '일정 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');
     }
 
     return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, attendanceDialog, pinDialog, cancelDialog,
@@ -509,8 +509,8 @@
         stats: () => view.statistics(state, ui),
         repeat: () => view.repeat(state)
       }[route.page]?.();
-      // 일정 (the list and one event) is a single column, as the 운영 홈 (styles.css .event-page).
-      return content ? `<div class="${['events', 'event'].includes(route.page) ? 'event-page' : 'secondary-page'}">${content}</div>` : '';
+      // Every screen is a single column, as the 운영 홈 (styles.css .event-page, .plain-page).
+      return content ? `<div class="${['events', 'event'].includes(route.page) ? 'event-page' : 'plain-page'}">${content}</div>` : '';
     },
     renderDialog(dialog, state, helpers) {
       const view = makeView(helpers);
