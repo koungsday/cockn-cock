@@ -121,7 +121,7 @@ UI 값은 이 문서와 아래 세 파일에서만 가져온다. 추측한 값�
 | 역할 | 클래스 | 규칙 |
 | --- | --- | --- |
 | 주요 동작 | `.btn.btn-primary` | 화면 머리마다 하나. 머리의 만들기 동작은 `+` 아이콘 버튼(`.btn-icon`), 폼 안 주요 동작은 결과 문구("응답 저장") |
-| 아이콘 버튼 동작 | `.btn.btn-icon` | 44px 정사각, 글자 없음. 이름은 `aria-label`과 `title`. `+`는 머리의 만들기("새 회차" 등), 돋보기는 목록 줄 열기("○○ 보기") |
+| 아이콘 버튼 동작 | `.btn.btn-icon` | 44px 정사각, 글자 없음. 이름은 `aria-label`과 `title`. `+`는 머리의 만들기("새 회차" 등), 돋보기는 목록 줄 열기("○○ 보기"), 연필(`.btn-secondary`)은 목록 줄 수정("○○ 회원 수정", 표 안에서도 마우스 화면 44px). 휴대폰 회원 명단에서는 이름 줄 오른쪽 |
 | 보조 동작 | `.btn.btn-secondary` / `.btn.btn-text` | 같은 패널 안 여러 개 가능 |
 | 코트 장면 위 동작 | `.btn.btn-lime` / `.btn.btn-glass` | `.featured` 안에서만 |
 | 작은 동작 | `.btn-small` | 표 행, 패널 머리 |
@@ -150,7 +150,8 @@ UI 값은 이 문서와 아래 세 파일에서만 가져온다. 추측한 값�
 | 숫자 요약 | `.summary-grid` > `.summary-item` | 집계 화면 상단 |
 | 폼 | `.form-grid` > `.form-field`(`-full`), `.form-check` | 라벨은 입력 위 |
 | 체크박스 | `input[type=checkbox]` (공용 `styles.css`) | vw-k.com `.vk-check`의 동그란 체크. 22px 원, 꺼짐은 2px `--field-line` 테두리, 켜면 `--court`로 차오르고 흰 체크(사용자 결정 2026-11-27, 짙은 초록). 누르는 영역은 라벨 전체(44px). 점심·회차 공개·투표 열기·모임 규칙 모두 같은 모양. 라디오는 그대로 |
-| 대화상자 | `dialog.dialog` > `.dialog-head` + `.dialog-body` | ×·배경·Esc로 닫고 포커스 복귀. 본문 문단은 단어 안에서 끊지 않는다(`keep-all`) |
+| 대화상자 | `dialog.dialog` > `.dialog-head` + `.dialog-body` | ×·배경·Esc로 닫고 포커스 복귀(저장 뒤 다시 그려도 같은 동작·같은 줄의 버튼으로). 본문은 14px 간격으로 쌓고, 문단은 단어 안에서 끊지 않는다(`keep-all`) |
+| 접속 재설정 | 회원 수정 대화상자 안 `.member-access` > `h3` + `dl.member-access-facts` + 보조 버튼 | 회원 저장 아래 구분선·제목으로 떼어 두고, 언제 쓰나요 / 누르면 / 그 뒤 회원은 / 되돌리기를 서버 동작(`worker/api.mjs` `resetMember`) 그대로 적는다. 버튼은 보조(`.btn-secondary`), 누르면 확인 한 번("새 임시 번호 만들기") 뒤 접속 안내. 빨강은 쓰지 않는다. 활동 중지 회원은 버튼을 잠그고 이유 한 줄 |
 | 알림 | `.message` | 아래 가운데, 5초 |
 | 회원 카드 | `.public-share-card` > `.public-story-head` | 투표·공지·회원 홈 공통 |
 | 회원 선택지 | `.public-choices` > `.public-choice` | 회원 투표는 선발·후발 두 칸 한 줄(카톡 투표처럼 불참 없음). 이미 응답했으면 저장 버튼 아래 "응답 취소"(보조 버튼)로 응답을 지운다. 운영진의 회원 응답 변경은 선발·후발·불참 세 칸(`.public-choice-slots`) |

@@ -1065,10 +1065,10 @@ export function membersScreen(members, organizers = [], me = null) {
   const rows = members.map(member => `<tr data-search="${esc(member.name)}">
     <td><div class="member-name">${avatar(member.name)}<strong>${esc(member.name)}</strong></div></td>
     <td>${pill(member.active ? '활동 중' : '비활성', member.active ? 'green' : 'muted')}${organizerIds.has(member.id) ? ` ${pill('운영진', 'green')}` : ''}</td>
-    <td class="table-actions">${button('회원 수정', 'edit-member', { id: member.id, css: 'text small', label: `${member.name} 회원 수정` })}${button('접속 재설정', 'reset-member', { id: member.id, css: 'text small', disabled: !member.active, label: `${member.name} 접속 재설정` })}</td>
+    <td class="table-actions">${button(icon('edit'), 'edit-member', { id: member.id, css: 'secondary btn-icon', label: `${member.name} 회원 수정` })}</td>
   </tr>`);
   return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}
-    ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.', 'stack-table'), {
+    ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.', 'stack-table member-table'), {
     subtitle: `전체 ${members.length}명 · 활동 중 ${active}명`, actions: search('members'),
   })}
     ${organizersPanel(organizers, me)}</div>`;
@@ -1080,6 +1080,21 @@ export function memberForm(member = null) {
       type: 'password', wide: true, attrs: 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required',
       help: '회원이 첫 로그인에 입력합니다. 가입 처리 후에는 이 화면에서 조회할 수 없어요.',
     })}</div>`), member ? '회원 저장' : '회원 등록', member?.id);
+}
+
+// 접속 재설정 under 회원 수정, apart from 회원 저장: what it does as worker/api.mjs resetMember does it (a new temporary
+// number shown once, the old number and every sign-in ended, records kept, no undo). It still asks once more
+// (app.mjs reset-member). The demo's 회원 수정 (screens.js memberDialog) has the same section.
+export function memberAccess(member) {
+  return `<section class="member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">접속 재설정</h3>
+    <dl class="member-access-facts">
+      <div><dt>언제 쓰나요</dt><dd>번호를 잊었거나 휴대폰을 잃어버렸을 때, 같은 이름·번호가 겹쳐 로그인이 안 될 때</dd></div>
+      <div><dt>누르면</dt><dd>새 임시 번호 6자리가 한 번만 보여요. 쓰던 번호(생년월일이나 PIN)는 바로 막히고, 모든 휴대폰의 로그인이 끊겨요. 투표·출석 기록은 그대로예요.</dd></div>
+      <div><dt>그 뒤 회원은</dt><dd>성함과 임시 번호로 다시 로그인해요. 원하면 내 기록에서 나만 아는 PIN으로 바꾸고, 운영 권한이 있으면 자기 번호를 정해야 운영 메뉴가 열려요.</dd></div>
+      <div><dt>되돌리기</dt><dd>할 수 없어요. 예전 번호는 다시 살릴 수 없고, 임시 번호를 놓치면 다시 재설정해요.</dd></div>
+    </dl>
+    ${button('접속 재설정', 'reset-member', { id: member.id, css: 'secondary', disabled: !member.active, label: `${member.name} 접속 재설정` })}
+    ${member.active ? '' : note('활동 중지한 회원은 재설정할 수 없어요. 활동 회원으로 저장한 뒤에 할 수 있어요.')}</section>`;
 }
 
 export function noticeForm(notice = null) {

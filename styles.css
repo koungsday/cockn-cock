@@ -81,7 +81,8 @@ p { line-height: 1.58; }
 .icon-button, .icon-btn { width: 38px; height: 38px; display: inline-grid; place-items: center; border: 0; background: transparent; border-radius: 8px; color: #43654f; flex: none; padding: 0; }
 .tab-bar { display: none; }
 .topbar-actions { display: flex; align-items: center; gap: 4px; min-width: 0; }
-/* Icon-only buttons: + for the one create action in a page head, a magnifier for opening a row. Names are aria-label + title. */
+/* Icon-only buttons: + for the one create action in a page head, a magnifier for opening a row, a pencil for editing one.
+   Names are aria-label + title. */
 .btn.btn-icon, :is(.heading-actions, .page-actions, .table-actions) .btn.btn-icon { width: var(--touch-target); min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; }
 .btn-icon svg { flex: none; }
 .topbar-menu { display: none; }
@@ -251,6 +252,8 @@ p { line-height: 1.58; }
 .data-table .table-actions { text-align: right; white-space: nowrap; }
 .data-table .table-actions .btn { min-height: 35px; padding-inline: 9px; }
 .data-table .table-actions .btn+.btn { margin-left: 5px; }
+/* A row's 연필 (회원 수정) keeps the 44px square on mouse screens too; the row's text buttons stay compact. */
+.data-table .table-actions .btn.btn-icon { min-height: var(--touch-target); padding: 0; }
 .data-table [aria-pressed="true"] { border-color: #3b7553; background: #edf7ea; color: #234a36; }
 .record-title { font-weight: 780; }
 .record-title:hover { text-decoration: underline; }
@@ -331,7 +334,8 @@ textarea { min-height: 100px; resize: vertical; }
 .dialog::backdrop { background: #19352772; }
 .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 9px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line); }
 .dialog-head h2 { font-size: 1.27rem; }
-.dialog-body { padding: 17px 18px; }
+/* Paragraphs, notes and the one button of a confirm stack 14px apart (the live dialogs and the demo's confirm()). */
+.dialog-body { display: grid; gap: 14px; padding: 17px 18px; }
 .dialog-body > p { word-break: keep-all; }
 .dialog-footer { padding: 12px 18px 16px; border-top: 1px solid var(--line); justify-content: flex-end; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 12px; }
@@ -347,6 +351,16 @@ textarea { min-height: 100px; resize: vertical; }
 .rule-choices legend { margin-bottom: 4px; padding: 0; font-size: .90rem; font-weight: 700; }
 .rule-choices .form-check, .rules-form .form-note { word-break: keep-all; }
 .form-note { font-size: .86rem; color: var(--muted); }
+/* 접속 재설정 in 회원 수정 (worker/public/views.mjs memberAccess, screens.js memberDialog): under its own line and heading,
+   apart from 회원 저장, with a secondary button that still asks once more. */
+.member-access { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+.member-access h3 { font-size: 1.02rem; }
+.member-access-facts { display: grid; gap: 9px; }
+.member-access-facts dt { font-size: .84rem; font-weight: 750; }
+.member-access-facts dd { margin-top: 2px; color: var(--muted); font-size: .86rem; line-height: 1.55; word-break: keep-all; }
+.member-access > .btn { justify-self: start; }
+/* The 접속 안내 to copy (live credentialDialog, the demo's credentialDialog). */
+.copy-text { width: 100%; }
 .form-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toast { display: none; position: fixed; inset: auto 18px 18px auto; z-index: 20; max-width: calc(100vw - 36px); padding: 12px 15px; border-radius: 10px; background: #1f5039; color: #fff; font-weight: 650; font-size: .91rem; box-shadow: 0 8px 25px #15362630; }
 .toast.visible { display: block; }

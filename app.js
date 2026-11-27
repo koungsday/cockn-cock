@@ -18,7 +18,8 @@
   ];
   // 회원 보기: the live member menus (memberSections). The demo has no sign-in, so the top bar switches between views.
   const memberPages = [['member','홈','home'], ['member-events','일정','calendar'], ['member-notices','공지','megaphone'], ['member-record','내 기록','user']];
-  const memberView = route => route.page.startsWith('member') || route.page.startsWith('public-');
+  // 'members' (회원 관리) is an organiser page: only 'member' and 'member-…' are the member view.
+  const memberView = route => route.page === 'member' || route.page.startsWith('member-') || route.page.startsWith('public-');
   const paths = {
     home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
     calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18m-13 5h2m4 0h2"/>',
@@ -468,6 +469,8 @@
     if (!modal.innerHTML.trim()) return;
     dialogTrigger = trigger;
     if (!modal.open) modal.showModal();
+    // A step inside an open dialog (접속 재설정 → 확인 → 접속 안내) took the pressed button away: focus starts again at ×.
+    else modal.querySelector('[data-action="close-dialog"]')?.focus();
   }
   function openEventNotice(event,trigger) {
     const draft = {
@@ -582,6 +585,17 @@
       return;
     }
     if (action === 'close-dialog') modal.close();
+    // 접속 재설정 (the live reset-member): asked once more, then a made-up temporary number. The 연필 that opened 회원 수정
+    // gets the focus back however the dialog closes.
+    if (action === 'reset-member') return openDialog('reset', id, dialogTrigger);
+    if (action === 'confirm-reset-member') {
+      const temporary = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+      return openDialog('credential', id, dialogTrigger, temporary);
+    }
+    if (action === 'copy-invitation') {
+      copy(modal.querySelector('.copy-text').value).then(result => notifyCopy(result, '접속 안내를 복사했어요.'));
+      return;
+    }
     if (action === 'open-menu') openMobileMenu(control);
     if (action === 'close-menu') closeMobileMenu();
     if (action === 'generate-next') generateNext(control);
@@ -824,7 +838,12 @@
     if (ev.clientX < bounds.left || ev.clientX > bounds.right || ev.clientY < bounds.top || ev.clientY > bounds.bottom) modal.close();
   });
   modal.addEventListener('close', () => {
-    if (dialogTrigger?.isConnected) dialogTrigger.focus({preventScroll:true});
+    // A save redraws the page: the opener's twin (same action and id, like the 연필 of the row just saved) takes the focus,
+    // as the live matchingControl does.
+    const {action, id} = dialogTrigger?.dataset ?? {};
+    const twin = !dialogTrigger?.isConnected && action && id
+      ? app.querySelector(`[data-action="${CSS.escape(action)}"][data-id="${CSS.escape(id)}"]`) : null;
+    (dialogTrigger?.isConnected ? dialogTrigger : twin)?.focus({preventScroll:true});
   });
   window.addEventListener('hashchange', () => {
     if (location.hash === '#main-content') return;

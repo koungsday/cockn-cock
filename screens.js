@@ -241,7 +241,7 @@
         <td>${e(member.role)}</td>
         <td>${member.status === 'active' ? pill('활동 중', 'green') : pill('활동 중지')}</td>
         <td>${e(dateLabel(member.joined))}</td>
-        <td class="table-actions">${action('수정', 'open-member', member.id, {tone: 'text', extra: `aria-label="${e(member.name)} 정보 수정"`})}</td>
+        <td class="table-actions"><button class="btn btn-secondary btn-icon" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정" title="${e(member.name)} 회원 수정">${icon('edit')}</button></td>
       </tr>`);
       return heading('회원 관리', '새 회원을 추가하고 활동 상태를 관리하세요.', addButton('회원 추가', 'open-member'))
         + panel('회원 명단', rows.length ? table(['이름', '역할', '상태', '가입일', '<span class="sr-only">멤버 수정</span>'], rows) : empty('조건에 맞는 멤버가 없어요.'), {
@@ -337,14 +337,31 @@
         + check('pollOpen', '참석 투표 열기', event.cancelled ? false : event.pollOpen ?? true));
     }
 
+    // 접속 재설정 (the live memberAccess, worker/public/views.mjs): the same section and words under 회원 수정. Here it is a
+    // .dialog-body of its own below the form's 취소 · 저장 footer, so its line runs the dialog's width like the footer's.
+    function memberAccess(member) {
+      const active = member.status === 'active';
+      return `<section class="dialog-body member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">접속 재설정</h3>
+        <dl class="member-access-facts">
+          <div><dt>언제 쓰나요</dt><dd>번호를 잊었거나 휴대폰을 잃어버렸을 때, 같은 이름·번호가 겹쳐 로그인이 안 될 때</dd></div>
+          <div><dt>누르면</dt><dd>새 임시 번호 6자리가 한 번만 보여요. 쓰던 번호(생년월일이나 PIN)는 바로 막히고, 모든 휴대폰의 로그인이 끊겨요. 투표·출석 기록은 그대로예요.</dd></div>
+          <div><dt>그 뒤 회원은</dt><dd>성함과 임시 번호로 다시 로그인해요. 원하면 내 기록에서 나만 아는 PIN으로 바꾸고, 운영 권한이 있으면 자기 번호를 정해야 운영 메뉴가 열려요.</dd></div>
+          <div><dt>되돌리기</dt><dd>할 수 없어요. 예전 번호는 다시 살릴 수 없고, 임시 번호를 놓치면 다시 재설정해요.</dd></div>
+        </dl>
+        <button class="btn btn-secondary" type="button" data-action="reset-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 접속 재설정"${active ? '' : ' disabled'}>접속 재설정</button>
+        ${active ? '' : '<p class="form-note">활동 중지한 회원은 재설정할 수 없어요. 활동 회원으로 저장한 뒤에 할 수 있어요.</p>'}</section>`;
+    }
+
     function memberDialog(dialog, state) {
-      const member = state.members.find(member => member.id === dialog.id) || {role: '회원', status: 'active'};
+      const found = state.members.find(member => member.id === dialog.id);
+      const member = found || {role: '회원', status: 'active'};
       return form(dialog, dialog.id ? '멤버 수정' : '멤버 추가',
         field('이름', input('name', member.name, 'required maxlength="40"'), true)
         + field('역할', `<select name="role">${['회원', '운영진'].map(role => option(role, role, member.role)).join('')}</select>`)
         + field('활동 상태', `<select name="status">${option('active', '활동 중', member.status)}${option('inactive', '활동 중지', member.status)}</select>`)
         + field('가입일', input('joined', member.joined || today, 'type="date" required'), true)
-        + field('메모', `<textarea name="notes" rows="3" maxlength="500">${e(member.notes || '')}</textarea>`, true));
+        + field('메모', `<textarea name="notes" rows="3" maxlength="500">${e(member.notes || '')}</textarea>`, true))
+        + (found ? memberAccess(found) : '');
     }
 
     function noticeDialog(dialog, state) {
@@ -395,6 +412,24 @@
         action('바꿔서 고정하기', 'confirm-pin', dialog.id, { tone: 'primary', extra: `data-kind="${notice ? 'notice' : 'event'}"` }));
     }
 
+    // 접속 재설정's second ask and its 접속 안내 (the live reset-member, credentialDialog). dialog.kind carries the made-up
+    // temporary number; the 가상 체험 saves nothing and nobody's number changes.
+    function resetDialog(dialog, state) {
+      const member = state.members.find(item => item.id === dialog.id);
+      if (!member || member.status !== 'active') return '';
+      return confirm('회원 접속 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>',
+        action('새 임시 번호 만들기', 'confirm-reset-member', member.id, { tone: 'primary' }));
+    }
+
+    function credentialDialog(dialog, state) {
+      const member = state.members.find(item => item.id === dialog.id);
+      if (!member || !dialog.kind) return '';
+      const text = `썬콕19 접속 안내\n성함 ${member.name}\n임시 번호 ${dialog.kind}\n성함을 입력하고 임시 번호 6자리를 입력해 주세요.\n새 PIN을 설정할 때까지 임시 번호로 로그인할 수 있어요.\n${location.href.split('#')[0]}`;
+      return confirm('회원에게 보낼 접속 안내', `<p>${e(member.name)} 회원에게 이 내용을 개인 메시지로 전달해 주세요. 임시 번호는 이 창을 닫으면 다시 볼 수 없어요.</p>
+        <p class="form-note">가상 체험이라 실제 번호는 바뀌지 않아요.</p>
+        <textarea class="copy-text" readonly rows="6" aria-label="회원 접속 안내">${e(text)}</textarea>`, action('접속 안내 복사', 'copy-invitation', '', { tone: 'primary' }));
+    }
+
     function cancelDialog(dialog, state) {
       const event = state.events.find(item => item.id === dialog.id);
       if (!event) return '';
@@ -402,7 +437,8 @@
         <p>취소 사유는 일정 수정의 안내 메모에 적으면 회원에게 보여요.</p>`, action('일정 취소하기', 'confirm-cancel-event', event.id, { tone: 'primary' }));
     }
 
-    return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, pinDialog, cancelDialog};
+    return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, pinDialog, cancelDialog,
+      resetDialog, credentialDialog};
   }
 
   window.clubScreens = {
@@ -427,7 +463,9 @@
         repeat: view.repeatDialog,
         vote: view.voteDialog,
         pin: view.pinDialog,
-        cancel: view.cancelDialog
+        cancel: view.cancelDialog,
+        reset: view.resetDialog,
+        credential: view.credentialDialog
       }[dialog.type];
       return render ? render(dialog, state) : '';
     }

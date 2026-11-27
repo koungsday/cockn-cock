@@ -2,7 +2,7 @@ import {
   accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceSubtitle, brand, button,
   countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventScreen, homeFlows, homeSteps,
   homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
-  guestForm, homeScreen, loginHelp, loginScreen, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
+  guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
   rulesScreen, sharePreview, today, voteMetrics,
 } from './views.mjs';
@@ -894,9 +894,14 @@ async function doAction(action, itemId, tab) {
     case 'new-member':
       openDialog('회원 등록', memberForm());
       break;
-    case 'edit-member':
-      openDialog('회원 수정', memberForm(state.admin.members.find(member => member.id === itemId)));
+    case 'edit-member': {
+      // 접속 재설정 lives here (memberAccess); its confirm and the 접속 안내 replace this dialog, and closing any of them
+      // returns to the row's 연필.
+      const member = state.admin.members.find(person => person.id === itemId);
+      if (!member) return showSaved('회원 목록이 바뀌어 새로 불러왔어요.');
+      openDialog('회원 수정', memberForm(member) + memberAccess(member));
       break;
+    }
     case 'reset-member':
       openDialog('회원 접속 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>'
         + button('새 임시 번호 만들기', 'confirm-reset-member', { id: itemId }));
