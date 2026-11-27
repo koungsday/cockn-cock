@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calendarBlock, calendarTarget, shiftMonth } from './public/calendar.mjs';
+import { calendarBlock, calendarDayPanel, calendarTarget, shiftMonth } from './public/calendar.mjs';
 
 const icon = name => `<svg data-icon="${name}"></svg>`;
 const cells = html => [...html.matchAll(/<li class="(calendar-day[^"]*)"[^>]*>([\s\S]*?)<\/li>/g)].map(([, css, body]) => ({ css, body }));
@@ -23,6 +23,7 @@ test('a month starts on its weekday under 일 and fills whole weeks', () => {
   assert.equal(december.length, 35);
   assert.match(december[0].css, /is-other/);
   assert.match(december[0].body, />29</);
+  assert.match(december[0].body, /data-id="2026-11-29".*aria-label="11월 29일 일요일"/);
   assert.match(december[2].body, />1</);
 });
 
@@ -42,11 +43,22 @@ test('event dates use number buttons, quiet when done, with event names in their
   assert.match(day(29).body, /aria-pressed="true" aria-label="11월 29일 일요일 · 정기 일요 정기 운동, 번개 저녁 번개"/);
   assert.doesNotMatch(day(29).body, /calendar-kind|calendar-name/);
   assert.match(day(27).css, /is-today/);
-  assert.doesNotMatch(day(27).body, /<button/);
+  assert.match(day(27).body, /data-id="2026-11-27".*일정 없음/);
+  assert.match(day(27).body, /aria-current="date"/);
+  assert.doesNotMatch(day(27).css, /has-events|is-done/);
   assert.match(day(27).css, /calendar-day is-today/);
   // Another month's event is not drawn on this month's spill-over days.
-  assert.doesNotMatch(html, /2026-12-02/);
+  assert.doesNotMatch(html, /수요 번개/);
   for (const step of ['prev', 'next']) assert.match(html, new RegExp(`data-action="calendar-month" data-id="${step}"`));
+});
+
+test('selected dates with and without events have a heading and preserve available actions', () => {
+  const date = '2026-11-27';
+  assert.match(calendarDayPanel(date, []), /11월 27일 금요일[\s\S]*이 날짜에 일정이 없어요\./);
+  const html = calendarDayPanel(date, ['<li>첫 일정</li>', '<li>다음 일정</li>'], { action: '<button>일정 추가</button>' });
+  assert.match(html, /일정 추가[\s\S]*첫 일정[\s\S]*다음 일정/);
+  assert.doesNotMatch(html, /일정이 없어요/);
+  assert.equal(calendarDayPanel('', []), '');
 });
 
 test('titles are escaped in the labels', () => {

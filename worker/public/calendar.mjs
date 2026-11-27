@@ -5,6 +5,7 @@
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapeText = value => String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+const dayLabel = date => `${date.getUTCMonth() + 1}월 ${date.getUTCDate()}일 ${weekdays[date.getUTCDay()]}요일`;
 
 // month 'YYYY-MM' moved by step months.
 export function shiftMonth(month, step) {
@@ -14,7 +15,7 @@ export function shiftMonth(month, step) {
 }
 
 // events: [{ date 'YYYY-MM-DD', title, kind (its label), done }]. done (지난 일정, 마무리 확정, 취소) is drawn quiet.
-// A date with events is a button (calendar-day): it marks that date's rows in the list below (pickCalendarDay).
+// Every visible date is a button, including spillover days. Only the shown month has event markers.
 export function calendarBlock(events, { month, today, selected = '', icon }) {
   const [year, index] = month.split('-').map(Number);
   const lead = new Date(Date.UTC(year, index - 1, 1)).getUTCDay();
@@ -28,16 +29,13 @@ export function calendarBlock(events, { month, today, selected = '', icon }) {
     const other = date.getUTCMonth() !== index - 1;
     const day = date.getUTCDate();
     const list = other ? [] : byDate.get(iso) ?? [];
-    const css = `calendar-day${other ? ' is-other' : ''}${iso === today ? ' is-today' : ''}`;
-    if (!list.length) {
-      cells.push(`<li class="${css}" aria-hidden="true"><span class="calendar-slot"><span class="calendar-number">${day}</span></span></li>`);
-      continue;
-    }
-    const label = `${index}월 ${day}일 ${weekdays[date.getUTCDay()]}요일${iso === today ? ' 오늘' : ''} · ${list.map(event => `${event.kind} ${event.title}`).join(', ')}`;
-    cells.push(`<li class="${css}${list.every(event => event.done) ? ' is-done' : ''}"><button type="button" class="calendar-date" data-action="calendar-day" data-id="${iso}" aria-pressed="${iso === selected}" aria-label="${escapeText(label)}">
+    const css = `calendar-day${other ? ' is-other' : ''}${iso === today ? ' is-today' : ''}${list.length ? ' has-events' : ''}${list.length && list.every(event => event.done) ? ' is-done' : ''}`;
+    const description = list.length ? ` · ${list.map(event => `${event.kind} ${event.title}`).join(', ')}` : other ? '' : ' · 일정 없음';
+    const label = `${dayLabel(date)}${iso === today ? ' 오늘' : ''}${description}`;
+    cells.push(`<li class="${css}"><button type="button" class="calendar-date" data-action="calendar-day" data-id="${iso}" aria-pressed="${iso === selected}" aria-label="${escapeText(label)}"${iso === today ? ' aria-current="date"' : ''}>
       <span class="calendar-number">${day}</span></button></li>`);
   }
-  return `<div class="calendar" data-month="${month}">
+  return `<div class="calendar" data-month="${month}"${selected ? ' data-selected' : ''}>
     <div class="calendar-head">
       <button type="button" class="icon-button calendar-step" data-action="calendar-month" data-id="prev" aria-label="이전 달">${icon('chevron-left', 18)}</button>
       <h2 class="calendar-title" id="calendar-title">${year}년 ${index}월</h2>
@@ -53,15 +51,12 @@ export function calendarTarget(month, step) {
   return shiftMonth(month, step === 'next' ? 1 : -1);
 }
 
-// A date picked on the calendar: its button pressed, its rows in the list below marked and brought into view (a
-// finished one folded under 끝난 일정 opens it). The list is not redrawn, so nothing else moves.
-export function pickCalendarDay(root, date, smooth) {
-  for (const button of root.querySelectorAll('.calendar-date')) button.setAttribute('aria-pressed', String(button.dataset.id === date));
-  const rows = [...root.querySelectorAll('[data-date]')];
-  for (const row of rows) row.classList.toggle('is-picked', row.dataset.date === date);
-  const first = rows.find(row => row.dataset.date === date);
-  if (!first) return;
-  const folded = first.closest('details:not([open])');
-  if (folded) folded.open = true;
-  first.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
+export function calendarDayPanel(date, rows, { listClass = 'event-list', action = '' } = {}) {
+  if (!date) return '';
+  const label = dayLabel(new Date(`${date}T00:00:00Z`));
+  return `<section class="calendar-selection" aria-labelledby="calendar-selected-title">
+    <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time></h3>
+      ${rows.length ? '' : '<p>이 날짜에 일정이 없어요.</p>'}</div>${action}</div>
+    ${rows.length ? `<ul class="${listClass}">${rows.join('')}</ul>` : ''}
+  </section>`;
 }

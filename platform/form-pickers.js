@@ -106,6 +106,18 @@
     popup.style.top = (flip ? field.top - popup.offsetHeight : field.bottom) + 'px';
   }
 
+  function scheduleValue(value, type) {
+    if (!value) return '선택하세요';
+    const [day, clock] = value.split('T');
+    const [year, month, date] = type === 'time' ? [] : day.split('-');
+    const dateText = year ? `${year}년 ${Number(month)}월 ${Number(date)}일` : '';
+    const time = type === 'time' ? day : clock;
+    if (!time) return dateText;
+    const [hour, minute] = time.split(':');
+    const timeText = `${Number(hour) < 12 ? '오전' : '오후'} ${Number(hour) % 12 || 12}시 ${minute}분`;
+    return dateText ? `${dateText} · ${timeText}` : timeText;
+  }
+
   function enhance(field) {
     if (field.nextElementSibling?.classList.contains('form-picker')) return;
     const select = field instanceof HTMLSelectElement;
@@ -113,6 +125,9 @@
     const time = field.type !== 'date';
     const name = field.getAttribute('aria-label') || field.labels?.[0]?.querySelector('span')?.textContent || '값 선택';
     const trigger = button('', { class: 'picker-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
+    const schedule = field.form?.dataset.form === 'event';
+    const display = schedule ? make('strong', '', { class: 'picker-value' }) : trigger;
+    if (schedule) trigger.append(make('span', name, { class: 'picker-caption' }), display);
     const popup = make('div', '', { class: 'picker-popup', popover: 'auto', role: 'dialog', 'aria-label': name });
     const wrapper = make('span', '', { class: 'form-picker' });
     const problem = make('span', '', { class: 'picker-problem', role: 'status' });
@@ -123,8 +138,8 @@
     field.setAttribute('aria-hidden', 'true');
 
     function refresh() {
-      const value = (select ? field.selectedOptions[0]?.label : field.value.replace('T', ' ')) || '선택하세요';
-      trigger.textContent = value;
+      const value = (select ? field.selectedOptions[0]?.label : schedule ? scheduleValue(field.value, field.type) : field.value.replace('T', ' ')) || '선택하세요';
+      display.textContent = value;
       trigger.setAttribute('aria-label', name + ' ' + value);
       trigger.disabled = field.matches(':disabled') || field.readOnly;
     }

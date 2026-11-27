@@ -5,7 +5,7 @@
 
   function makeView(helpers) {
     const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats, deadlinePassed, settlement, qualification,
-      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle } = helpers;
+      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle, selectedCalendarDate } = helpers;
 
     function action(text, name, id, options = {}) {
       const { tone = 'secondary', symbol, extra = '' } = options;
@@ -75,17 +75,24 @@
     // unfinished event in the 운영 홈 order as rows on the page, then the finished ones folded under 끝난 일정.
     function eventList(state) {
       const flows = flowEvents();
-      const rows = flows.map(event => {
+      const selected = selectedCalendarDate();
+      const flowRow = event => {
         const { title, detail } = flowFacts(event);
         return eventLink(event, title, detail);
-      });
-      const past = finishedEvents().map(event => eventLink(event, e(event.title),
-        e(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`)));
+      };
+      const pastRow = event => eventLink(event, e(event.title), e(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`));
+      const rows = flows.filter(event => event.date !== selected).map(flowRow);
+      const past = finishedEvents();
+      const pastRows = past.filter(event => event.date !== selected).map(pastRow);
+      const dayRows = selected ? state.events.filter(event => event.date === selected).sort((a, b) => a.time.localeCompare(b.time))
+        .map(event => past.includes(event) ? pastRow(event) : flowRow(event)) : [];
+      const add = selected ? action(`${icon('plus', 16)} 일정 추가`, 'new-event', selected, {tone:'text btn-small'}) : '';
       return `<header class="list-tools"><h1 class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
           ${calendarToggle()}</header>`
         + (calendarOpen() ? calendar(state.events) : '')
-        + (rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>')
-        + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : '');
+        + window.clubCalendar.calendarDayPanel(selected, dayRows, {action:add})
+        + `<div class="calendar-other-dates">${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
+        ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;
     }
 
     function eventDetail(route, state) {
@@ -345,8 +352,7 @@
 
     function slotFields(event) {
       return field('선발 시간', input('earlyTime', event.earlyTime, 'type="time" required'))
-        + field('후발 시간', input('lateTime', event.lateTime, 'type="time" required'))
-        + field('투표 마감 시간', input('deadlineTime', event.deadlineTime, 'type="time" required'));
+        + field('후발 시간', input('lateTime', event.lateTime, 'type="time" required'));
     }
 
     function form(dialog, title, content, submit = '저장') {
@@ -358,20 +364,23 @@
     }
 
     function eventDialog(dialog, state) {
-      const event = state.events.find(event => event.id === dialog.id) || state.repeat;
+      const event = state.events.find(event => event.id === dialog.id) || {
+        ...state.repeat, title:'', ...(dialog.onDate && {date:dialog.onDate, deadline:helpers.addDays(dialog.onDate, -1), pollOpen:false})
+      };
       // Three groups, as the live eventForm (DESIGN.md 6 UX 점검표 16): what and where, when, what members see.
       const group = (legend, body) => `<fieldset class="form-group"><legend>${legend}</legend><div class="form-grid">${body}</div></fieldset>`;
       return form(dialog, dialog.id ? '일정 수정' : '새 일정',
-        group('무엇을, 어디서', field('일정 이름', input('title', event.title, 'required maxlength="80"'))
-          + field('종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
-          + field('장소', input('place', event.place, 'required maxlength="100"'), true)
-          + field('신청 정원 (선택)', input('capacity', event.capacity, 'type="number" min="1" max="10000" step="1" inputmode="numeric"'), true))
-        + group('언제', field('날짜', input('date', event.date || today, 'type="date" required'))
-          + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
+        group('기본 정보', field('일정 제목', input('title', event.title, 'required maxlength="80" placeholder="제목을 입력해 주세요"'), true)
+          + field('장소', input('place', event.place, 'required maxlength="100" placeholder="장소를 입력해 주세요"'), true)
+          + field('일정 종류', `<select name="kind">${Object.entries(kindLabels).map(([value, label]) => option(value, label, event.kind ?? 'regular')).join('')}</select>`)
+          + field('신청 정원 (선택)', input('capacity', event.capacity, 'type="number" min="1" max="10000" step="1" inputmode="numeric" placeholder="신청 정원 (선택)"')))
+        + group('날짜와 시간', field('날짜', input('date', event.date || today, 'type="date" required'), true)
           + field('시작 시간', input('time', event.time, 'type="time" required'))
           + field('종료 시간', input('endTime', event.endTime, 'type="time" required'))
-          + slotFields(event))
-        + group('회원에게 보이기', field('안내 메모', `<textarea name="notes" rows="3" maxlength="500">${e(event.notes || '')}</textarea>`, true)
+          + slotFields(event)
+          + field('투표 마감일', input('deadline', event.deadline || today, 'type="date" required'))
+          + field('투표 마감 시간', input('deadlineTime', event.deadlineTime, 'type="time" required')))
+        + group('공개 설정', field('안내 메모', `<textarea name="notes" rows="3" maxlength="500" placeholder="준비물이나 안내를 적어 주세요">${e(event.notes || '')}</textarea>`, true)
           + check('pollOpen', '참석 투표 열기', event.cancelled ? false : event.pollOpen ?? true)));
     }
 
@@ -421,6 +430,7 @@
         + field('시작 시간', input('time', rule.time, 'type="time" required'))
         + field('종료 시간', input('endTime', rule.endTime, 'type="time" required'))
         + slotFields(rule)
+        + field('투표 마감 시간', input('deadlineTime', rule.deadlineTime, 'type="time" required'))
         + field('장소', input('place', rule.place, 'required maxlength="100"'), true));
     }
 

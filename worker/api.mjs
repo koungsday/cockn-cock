@@ -332,17 +332,35 @@ export async function shareSummary(db, club, kind, id) {
 // event, and 내 기록: this member's row of this half's 반기 집계. Every pinned event, today's events and every open vote
 // come (FLOW.md 6); only the rest are cut to the next 12. The screen orders them (flow.mjs memberOrder).
 // memberId is null before sign-in: no place, no own answer and no 내 기록 (fetchPublic says what stays open).
-async function listPublic(db, club, memberId) {
+async function listPublic(db, club, memberId, month = null) {
   const now = kstNow();
   const date = now.slice(0, 10);
   const time = now.slice(11, 16);
   const seconds = currentSeconds();
   const columns = `e.id, e.title, e.date, e.time, e.end_time, e.place, e.deadline, e.deadline_at, e.open, e.kind, e.pinned_at, e.cancelled_at, e.vote_closed_at,
         e.early_time, e.late_time, e.capacity, ${waitingPosition('v', 'e')} AS my_waiting_position, r.member_id IS NOT NULL AS eligible, v.slot AS my_slot, ${countColumns('e')}`;
-  const upcoming = `FROM events e
+  const published = `FROM events e
       LEFT JOIN roster r ON r.event_id = e.id AND r.member_id = ?
       LEFT JOIN votes v ON v.event_id = e.id AND v.member_id = ?
-      WHERE e.club_id = ? AND e.date >= ? AND e.published = 1 AND (e.date > ? OR e.end_time > ?)`;
+      WHERE e.club_id = ? AND e.published = 1`;
+  const summary = row => ({
+    id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
+    place: memberId ? row.place : null, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
+    canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
+    ...(row.vote_closed_at != null && { voteClosed: true }),
+    open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row),
+    ...(row.capacity != null && { capacity: row.capacity }),
+    ...(row.my_waiting_position != null && { myWaitingPosition: row.my_waiting_position })
+  });
+  if (month !== null) {
+    // The schedule browses one month at a time. Its past events follow the same public fields as upcoming events.
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month)) bad('달력에서 볼 달을 확인해 주세요.');
+    const { results } = await sql(db, `SELECT ${columns} ${published}
+      AND e.date BETWEEN ? AND ? ORDER BY e.date, e.time, e.id`,
+    memberId, memberId, club, `${month}-01`, `${month}-31`).all();
+    return { events: results.map(summary) };
+  }
+  const upcoming = `${published} AND e.date >= ? AND (e.date > ? OR e.end_time > ?)`;
   const flowing = '(e.pinned_at IS NOT NULL OR e.date = ? OR (e.open = 1 AND e.deadline_at > ?))';
   const binds = [memberId, memberId, club, date, date, time];
   const [current, later, notices] = await db.batch([
@@ -358,15 +376,7 @@ async function listPublic(db, club, memberId) {
   const rows = [...current.results, ...later.results]
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
   return {
-    events: rows.map(row => ({
-      id: row.id, title: row.title, date: row.date, time: row.time, endTime: row.end_time,
-      place: memberId ? row.place : null, deadline: row.deadline, earlyTime: row.early_time, lateTime: row.late_time,
-      canVote: Boolean(row.open) && row.deadline_at > seconds, kind: row.kind, pinnedAt: row.pinned_at ?? null, cancelled: Boolean(row.cancelled_at),
-      ...(row.vote_closed_at != null && { voteClosed: true }),
-      open: Boolean(row.open), eligible: Boolean(row.eligible), mySlot: row.my_slot ?? null, counts: readCounts(row),
-      ...(row.capacity != null && { capacity: row.capacity }),
-      ...(row.my_waiting_position != null && { myWaitingPosition: row.my_waiting_position })
-    })),
+    events: rows.map(summary),
     notices: notices.results.map(row => ({ id: row.id, title: row.title, date: row.date, pinnedAt: row.pinned_at ?? null })),
     record: memberId ? await memberRecord(db, club, memberId, date) : null
   };
@@ -1166,7 +1176,7 @@ async function route(request, env) {
     const member = await readSession(request, env);
     const publicData = exposed
       ? await fetchPublic(env.DB, env.CLUB_SCOPE, exposed[1], exposed[2], Boolean(member))
-      : await listPublic(env.DB, env.CLUB_SCOPE, member ? member.id : null);
+      : await listPublic(env.DB, env.CLUB_SCOPE, member?.id ?? null, url.searchParams.get('month'));
     return json(publicData);
   }
 

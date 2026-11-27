@@ -398,10 +398,23 @@ test('member overview opens without sign-in for when and deadlines, and limits r
   assert.equal(before.events.length, 15);
   assert.ok(before.events.every(event => event.place === null && event.eligible === false && event.mySlot === null));
   assert.equal(before.record, null);
+  const month = previous.date.slice(0, 7);
+  const monthPath = `/public?month=${month}`;
+  const calendar = await request(first, monthPath);
+  assert.equal(calendar.status, 200);
+  const monthListing = await calendar.json();
+  assert.deepEqual(Object.keys(monthListing), ['events']);
+  assert.deepEqual(monthListing.events.map(event => event.id), [previous, ...published]
+    .filter(event => event.date.startsWith(month)).map(event => event.id));
+  assert.ok(monthListing.events.every(event => event.place === null && !event.eligible && event.mySlot === null));
+  assert.deepEqual(await (await request(second, monthPath)).json(), {events:[]});
+  assert.equal((await request(first, `/public?month=${month.slice(0, 4)}-13`)).status, 400);
   const profile = {name:'가상 첫 모임 회원', birthday:'19900517'};
   const added = await request(first, '/admin/members', {method:'POST', cookie, body:profile});
   assert.equal(added.status, 201);
   const {cookie: memberCookie} = await login(first, profile.name, profile.birthday);
+  const signedMonth = await (await request(first, monthPath, {cookie:memberCookie})).json();
+  assert.equal(signedMonth.events[0].place, '가상 운동장');
   const list = await request(first, '/public', {cookie:memberCookie});
   assert.equal(list.status, 200);
   assert.match(list.headers.get('Cache-Control'), /no-store/);

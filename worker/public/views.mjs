@@ -1,7 +1,7 @@
 import { shuttlecockMark } from './shuttlecock.mjs';
 import { loadingCenter, shellSkeleton } from './skeleton.mjs';
 import { awaitingVote, eventStage, finished, flowOrder, koreanNow, memberOrder } from './flow.mjs';
-import { calendarBlock } from './calendar.mjs';
+import { calendarBlock, calendarDayPanel } from './calendar.mjs';
 
 // Markup follows the demo (app.js, screens.js, share.js) so both share styles.css and share.css. See DESIGN.md.
 const escapeChars = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -50,7 +50,7 @@ function addDays(date, daysToAdd) {
   return value.toISOString().slice(0, 10);
 }
 
-export function eventDefaults(previous = null, defaultPlace = '', { keepFuture = false } = {}) {
+export function eventDefaults(previous = null, defaultPlace = '', { keepFuture = false, onDate = null } = {}) {
   if (previous) {
     const weeks = keepFuture ? Math.max(1, Math.floor((Date.parse(today()) - Date.parse(previous.date)) / 604800000) + 1) : 1;
     const daysToAdd = weeks * 7;
@@ -65,9 +65,9 @@ export function eventDefaults(previous = null, defaultPlace = '', { keepFuture =
   }
   const base = today();
   const day = new Date(`${base}T00:00:00Z`).getUTCDay();
-  const date = addDays(base, (7 - day) % 7);
+  const date = onDate ?? addDays(base, (7 - day) % 7);
   return {
-    title: '정기 운동', date, time: '10:00', endTime: '13:00',
+    title: '', date, time: '10:00', endTime: '13:00',
     earlyTime: '09:30', lateTime: '09:50', place: defaultPlace,
     deadline: `${addDays(date, -1)}T15:30`, notes: '', open: false, published: false, kind: 'regular',
   };
@@ -493,7 +493,7 @@ export function homeScreen({ events, notices }, club, user = null) {
 // 일정 달력 (calendar.mjs): every event on its date; the past, the finished and the cancelled ones quiet.
 function calendarEvents(events, now) {
   return events.map(event => ({ date: event.date, title: event.title, kind: eventKindLabels[event.kind] ?? eventKindLabels.regular,
-    done: event.date < now.day || finished(event, now) }));
+    done: `${event.date}T${event.endTime}` <= now.minute || finished(event, now) }));
 }
 
 // The month grid starts open. One button folds or opens it in the member's and the organisers' 일정 alike.
@@ -501,12 +501,17 @@ const calendarToggle = open => button(open ? '달력 접기' : '달력으로 보
 
 // 일정 (회원): every published upcoming event in the member order (FLOW.md 4), each opening its vote, with the month's
 // calendar above them when asked for. month: the calendar's 'YYYY-MM', this month when none was picked.
-export function memberEventsScreen({ events }, user = null, month = null, calendarOpen = true) {
+export function memberEventsScreen({ events }, monthEvents, user, { month, selected, calendarOpen }) {
   const now = koreanNow();
-  const rows = memberOrder(events, now).map(event => memberEventRow(event, Boolean(user)));
-  const calendar = calendarOpen ? calendarBlock(calendarEvents(events, now), { month: month ?? now.day.slice(0, 7), today: now.day, icon }) : '';
+  const row = event => memberEventRow(event, Boolean(user));
+  const rows = memberOrder(events, now).filter(event => event.date !== selected).map(row);
+  const dayRows = selected ? monthEvents.filter(event => event.date === selected).map(row) : [];
+  const calendar = calendarOpen ? calendarBlock(calendarEvents(monthEvents, now), { month, selected, today: now.day, icon }) : '';
   return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
-    <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${rows.length}개</span>${calendarToggle(calendarOpen)}</div>${calendar}${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`);
+    <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${calendarToggle(calendarOpen)}</div>
+    ${calendar}${calendarDayPanel(selected, dayRows, { listClass: 'member-records' })}
+    <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div>
+    </div></section>`);
 }
 
 export function memberNoticesScreen({ notices }) {
@@ -844,15 +849,14 @@ function formGroup(legend, body) {
 export function eventForm(event, id = '') {
   const time = { type: 'time', attrs: 'required' };
   return form('event',
-    (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 일정은 준비 상태로 저장할 수 있어요.') : '')
-    + formGroup('무엇을, 어디서', `<div class="form-grid">
-      ${field('모임 이름', 'title', event.title, { attrs: 'required maxlength="120"' })}
-      ${select('종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
-      ${field('장소', 'place', event.place, { wide: true, attrs: 'required maxlength="120"' })}
-      ${field('신청 정원 (선택)', 'capacity', event.capacity ?? '', { type: 'number', wide: true,
-        attrs: 'min="1" max="10000" step="1" inputmode="numeric"', help: '회원 참석에 적용해요. 비워 두면 제한 없이 받고, 정원이 차면 대기로 등록돼요.' })}
+    formGroup('기본 정보', `<div class="form-grid">
+      ${field('일정 제목', 'title', event.title, { wide: true, attrs: 'required maxlength="120" placeholder="제목을 입력해 주세요"' })}
+      ${field('장소', 'place', event.place, { wide: true, attrs: 'required maxlength="120" placeholder="장소를 입력해 주세요"' })}
+      ${select('일정 종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
+      ${field('신청 정원 (선택)', 'capacity', event.capacity ?? '', { type: 'number',
+        attrs: 'min="1" max="10000" step="1" inputmode="numeric" placeholder="신청 정원 (선택)"', help: '정원이 차면 대기로 등록돼요.' })}
     </div>`)
-    + formGroup('언제', `<div class="form-grid">
+    + formGroup('날짜와 시간', `<div class="form-grid">
       ${field('날짜', 'date', event.date, { type: 'date', wide: true, attrs: 'required' })}
       ${field('시작 시간', 'time', event.time, time)}
       ${field('종료 시간', 'endTime', event.endTime, time)}
@@ -860,7 +864,7 @@ export function eventForm(event, id = '') {
       ${field('후발 모임', 'lateTime', event.lateTime, time)}
       ${field('투표 마감 (한국 시간)', 'deadline', event.deadline, { type: 'datetime-local', wide: true, attrs: 'required' })}
     </div>`)
-    + formGroup('회원에게 보이기', `<div class="form-grid">
+    + formGroup('공개 설정', `<div class="form-grid">
       ${textarea('공개 안내', 'notes', event.notes, 'maxlength="3000" placeholder="날짜별 준비물이나 안내를 적어 주세요."')}
     </div>`
       + note('로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.')
@@ -878,34 +882,40 @@ function eventLink(event, title, detail) {
 
 // 일정 (#event): a count line with the calendar toggle and 새 일정, the month's calendar, every unfinished event
 // in the 운영 홈 order as rows on the page, then the finished ones (마무리 확정 or 취소) folded under 끝난 일정, latest first.
-function eventList(events, month, calendarOpen) {
+function eventList(events, month, calendarOpen, selected) {
   const now = koreanNow();
   const calendar = calendarOpen ? calendarBlock(calendarEvents(events, now),
-    { month: month ?? now.day.slice(0, 7), today: now.day, icon }) : '';
+    { month, selected, today: now.day, icon }) : '';
   const flows = flowOrder(events, now);
   const past = events.filter(event => finished(event, now))
     .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-  const rows = flows.map(event => {
+  const flowRow = event => {
     const { title, detail } = flowFacts(event, now);
     return eventLink(event, title, detail);
-  });
-  const pastRows = past.map(event => eventLink(event, esc(event.title),
-    esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`)));
+  };
+  const pastRow = event => eventLink(event, esc(event.title),
+    esc(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`));
+  const rows = flows.filter(event => event.date !== selected).map(flowRow);
+  const pastRows = past.filter(event => event.date !== selected).map(pastRow);
+  const dayRows = selected ? events.filter(event => event.date === selected).sort((a, b) => a.time.localeCompare(b.time))
+    .map(event => finished(event, now) ? pastRow(event) : flowRow(event)) : [];
+  const add = selected ? button(`${icon('plus', 16)} 일정 추가`, 'new-event', { id: selected, css: 'text small' }) : '';
   return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
       ${calendarToggle(calendarOpen)}</header>
-    ${calendar}
-    ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
-    ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}`;
+    ${calendar}${calendarDayPanel(selected, dayRows, { action: add })}
+    <div class="calendar-other-dates">
+    ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
+    ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;
 }
 
 // own: the organiser's own answer ({ vote, eligible, saved }); 내 응답 shows when they are on the roster or answered.
 // month: the list's calendar month (calendar.mjs); calendarOpen: whether the list shows it.
 // view: tab (the tab picked), own (the organiser's own answer, below), month and calendarOpen (the list's calendar,
 // calendar.mjs), onlyUnmarked (당일 출석 shows only the members not yet checked), myVoteOpen (내 응답 is unfolded).
-export function eventScreen(events, detail, { tab = null, own = null, month = null, calendarOpen = true, onlyUnmarked = false, myVoteOpen = false } = {}) {
+export function eventScreen(events, detail, { tab = null, own = null, month = koreanNow().day.slice(0, 7), selected = '', calendarOpen = true, onlyUnmarked = false, myVoteOpen = false } = {}) {
   const event = detail?.event;
   if (!event) {
-    return `<div class="event-page">${eventList(events, month, calendarOpen)}</div>`;
+    return `<div class="event-page">${eventList(events, month, calendarOpen, selected)}</div>`;
   }
   const { roster, guests, settlement } = detail;
   const counts = countEvent(roster, guests);
