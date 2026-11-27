@@ -1113,18 +1113,20 @@ export function memberForm(member = null) {
     })}</div>`), member ? '회원 저장' : '회원 등록', member?.id);
 }
 
-// 접속 재설정 under 회원 수정, apart from 회원 저장: what it does as worker/api.mjs resetMember does it (a new temporary
-// number shown once, the old number and every sign-in ended, records kept, no undo). It still asks once more
-// (app.mjs reset-member). The demo's 회원 수정 (screens.js memberDialog) has the same section.
+// 비밀번호 재설정 under 회원 수정, apart from 회원 저장, in the words the user chose (2026-11-27). Each line holds for
+// worker/api.mjs resetMember: a new six-digit temporary number shown once, the old number replaced and every sign-in
+// ended, votes and attendance kept; the member signs in with it and sets a PIN (내 기록 PIN 만들기 / 번호 바꾸기). It still
+// asks once more (app.mjs reset-member). The demo's 회원 수정 (screens.js memberDialog) has the same section.
 export function memberAccess(member) {
-  return `<section class="member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">접속 재설정</h3>
-    <dl class="member-access-facts">
-      <div><dt>언제 쓰나요</dt><dd>번호를 잊었거나 휴대폰을 잃어버렸을 때, 같은 이름·번호가 겹쳐 로그인이 안 될 때</dd></div>
-      <div><dt>누르면</dt><dd>새 임시 번호 6자리가 한 번만 보여요. 쓰던 번호(생년월일이나 PIN)는 바로 막히고, 모든 휴대폰의 로그인이 끊겨요. 투표·출석 기록은 그대로예요.</dd></div>
-      <div><dt>그 뒤 회원은</dt><dd>성함과 임시 번호로 다시 로그인해요. 원하면 내 기록에서 나만 아는 PIN으로 바꾸고, 운영 권한이 있으면 자기 번호를 정해야 운영 메뉴가 열려요.</dd></div>
-      <div><dt>되돌리기</dt><dd>할 수 없어요. 예전 번호는 다시 살릴 수 없고, 임시 번호를 놓치면 다시 재설정해요.</dd></div>
-    </dl>
-    ${button('접속 재설정', 'reset-member', { id: member.id, css: 'secondary', disabled: !member.active, label: `${member.name} 접속 재설정` })}
+  return `<section class="member-access" aria-labelledby="member-access-title"><h3 id="member-access-title">비밀번호 재설정</h3>
+    <p class="member-access-lead">비밀번호를 잊었거나 로그인이 안 될 때 임시 번호 6자리를 새로 발급받습니다.</p>
+    <ol class="member-access-steps">
+      <li>기존 비밀번호는 즉시 삭제되고, 모든 기기에서 로그아웃됩니다.</li>
+      <li>화면에 뜨는 임시 번호 6자리를 꼭 기억해 주세요. (창을 닫으면 다시 안 보입니다.)</li>
+      <li>이름과 임시 번호로 로그인 후, 새 비밀번호로 변경해 주세요.</li>
+    </ol>
+    <p class="form-note">※ 기존 투표 및 출석 기록은 그대로 유지됩니다.</p>
+    ${button('비밀번호 재설정', 'reset-member', { id: member.id, css: 'secondary', disabled: !member.active, label: `${member.name} 비밀번호 재설정` })}
     ${member.active ? '' : note('활동 중지한 회원은 재설정할 수 없어요. 활동 회원으로 저장한 뒤에 할 수 있어요.')}</section>`;
 }
 

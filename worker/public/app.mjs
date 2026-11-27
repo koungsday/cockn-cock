@@ -907,7 +907,7 @@ async function doAction(action, itemId, tab) {
       openDialog('회원 등록', memberForm());
       break;
     case 'edit-member': {
-      // 접속 재설정 lives here (memberAccess); its confirm and the 접속 안내 replace this dialog, and closing any of them
+      // 비밀번호 재설정 lives here (memberAccess); its confirm and the 접속 안내 replace this dialog, and closing any of them
       // returns to the row's 연필.
       const member = state.admin.members.find(person => person.id === itemId);
       if (!member) return showSaved('회원 목록이 바뀌어 새로 불러왔어요.');
@@ -915,7 +915,7 @@ async function doAction(action, itemId, tab) {
       break;
     }
     case 'reset-member':
-      openDialog('회원 접속 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>'
+      openDialog('회원 비밀번호 재설정', '<p>재설정하면 기존 비밀번호와 로그인 상태가 만료됩니다. 임시 번호를 받을 회원이 맞는지 확인해 주세요.</p>'
         + button('새 임시 번호 만들기', 'confirm-reset-member', { id: itemId }));
       break;
     case 'confirm-reset-member': {

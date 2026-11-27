@@ -371,13 +371,13 @@ textarea { min-height: 100px; resize: vertical; }
 .rule-choices legend { margin-bottom: 4px; padding: 0; font-size: .90rem; font-weight: 700; }
 .rule-choices .form-check, .rules-form .form-note { word-break: keep-all; }
 .form-note { font-size: .86rem; color: var(--muted); }
-/* 접속 재설정 in 회원 수정 (worker/public/views.mjs memberAccess, screens.js memberDialog): under its own line and heading,
-   apart from 회원 저장, with a secondary button that still asks once more. */
+/* 비밀번호 재설정 in 회원 수정 (worker/public/views.mjs memberAccess, screens.js memberDialog): under its own line and
+   heading, apart from 회원 저장: one line, three numbered steps and a ※ note, then a secondary button that still asks once more. */
 .member-access { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
 .member-access h3 { font-size: 1.02rem; }
-.member-access-facts { display: grid; gap: 9px; }
-.member-access-facts dt { font-size: .84rem; font-weight: 750; }
-.member-access-facts dd { margin-top: 2px; color: var(--muted); font-size: .86rem; line-height: 1.55; word-break: keep-all; }
+.member-access p { word-break: keep-all; }
+.member-access-lead { font-size: .9rem; line-height: 1.55; }
+.member-access-steps { display: grid; gap: 6px; margin: 0; padding-left: 1.3em; color: var(--muted); font-size: .86rem; line-height: 1.55; word-break: keep-all; }
 .member-access > .btn { justify-self: start; }
 /* The 접속 안내 to copy (live credentialDialog, the demo's credentialDialog). */
 .copy-text { width: 100%; }
