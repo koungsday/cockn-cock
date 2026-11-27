@@ -97,7 +97,7 @@ assert.equal(privateApi.headers.get('cache-control'), 'private, no-store');
 // Every module app.mjs imports must be served from the same release folder, or the screen never leaves its skeleton.
 // A file can still come from an edge without this release (404 for a moment), so a failed round fetches the page again
 // and checks its release once more, for at most 60 s; what still fails then is reported.
-const assets = page => Promise.all([page.style, page.script, ...['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs', 'calendar.mjs']
+const assets = page => Promise.all([page.style, page.script, ...['views.mjs', 'skeleton.mjs', 'shuttlecock.mjs', 'flow.mjs', 'calendar.mjs', 'form-pickers.js']
   .map(file => page.script.replace('app.mjs', file))].map(async path => {
   const asset = await get(path);
   assert.equal(asset.status, 200, path);

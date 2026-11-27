@@ -124,6 +124,8 @@ for (const source of staticFiles) {
 }
 await cp(join(root, 'assets/fonts'), join(dist, 'assets/fonts'), { recursive: true });
 const theme = (await readFile(join(root, 'platform/theme.css'), 'utf8')).replaceAll('../assets/fonts/', 'assets/fonts/');
+await copyFile(join(root, 'platform/form-pickers.js'), join(dist, 'form-pickers.js'));
+
 for (const [source, output] of [['styles.css', 'styles.css'], ['platform/platform.css', 'platform.css']]) {
   const css = await readFile(join(root, source), 'utf8');
   await writeFile(join(dist, output), theme + '\n' + css);
@@ -155,6 +157,7 @@ const appScript = '<script defer src="app.js"></script>';
 const index = await readFile(join(root, 'index.html'), 'utf8');
 if (!index.includes(appScript)) throw new Error('The demo entry script is missing.');
 const clubIndex = index
+  .replace('src="platform/form-pickers.js"', 'src="form-pickers.js"')
   .replace('  <link rel="stylesheet" href="platform/theme.css">\n', '')
   .replace(appScript, `<script defer src="published-shares.js"></script>
   ${appScript}`)

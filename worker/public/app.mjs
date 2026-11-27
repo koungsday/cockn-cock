@@ -1,3 +1,4 @@
+import './form-pickers.js';
 import {
   accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceCount, brand, button,
   countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeNow, noticeMenu,

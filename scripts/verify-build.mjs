@@ -49,7 +49,7 @@ assert.equal(redirect, basePath + clubPath + oldHash);
 redirect = undefined;
 runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
 assert.equal(redirect, undefined);
-const required = ['styles.css', 'share.css', 'flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
+const required = ['styles.css', 'share.css', 'flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'form-pickers.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
   assert(home.includes(`="${basePath}${file}"`), `${file} is referenced by the demo`);
@@ -57,6 +57,7 @@ for (const file of required) {
   assert(content.length > 0, `${file} is available`);
   if (file.endsWith('.js')) runtime.set(file, content.toString());
 }
+assert(home.includes(`src="${basePath}form-pickers.js"`));
 assert(home.indexOf(`src="${basePath}published-shares.js"`) < home.indexOf(`src="${basePath}app.js"`));
 assert((await read('assets/court.webp')).length > 0);
 for (const file of ['styles.css', 'platform.css']) {
