@@ -610,12 +610,11 @@ async function refreshVoteCounts() {
     ]);
     if (target.isConnected && !busy) {
       if (onHome) {
-        // The card and 다른 일정 change with the counts (미응답 n명 stays true for every event listed). Both sit inside
-        // #home-now and #home-flows, which stay, so the page's arriving motion does not replay.
+        // The card and the schedule count refresh inside #home-now and #home-flows without replaying the arrival.
         state.upcoming = detail;
         state.admin = admin;
         replaceKeepingFocus('.now-card', homeNow(detail, state.listing));
-        replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id, state.listing));
+        replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id));
       } else {
         // The names follow the numbers, so the list under them never disagrees; the fold stays as it was.
         state.detail = detail;
@@ -827,22 +826,30 @@ async function doAction(action, itemId, tab) {
     // 달력으로 보기 / 달력 접기: the list stays, the month grid comes and goes above it; focus stays on the button.
     case 'calendar-toggle': {
       const panel = main.querySelector('#calendar-panel');
+      if (panel.hasAttribute('data-folding')) break;
       const version = navigationVersion;
       const opening = !state.calendarOpen;
       main.querySelector('.calendar-toggle').focus({ preventScroll: true });
+      const redraw = () => {
+        if (!panel.isConnected || version !== navigationVersion || state.section !== 'event' || state.selectedEvent) return;
+        state.calendarOpen = opening;
+        state.calendarDate = '';
+        redrawCalendar(main, render);
+        if (opening) void animateCalendarFold(main.querySelector('#calendar-panel'), true);
+      };
       if (!opening) {
-        await animateCalendarFold(panel, false);
-      } else if (!operating(state.user)) {
+        const animation = animateCalendarFold(panel, false);
+        if (animation) void animation.then(redraw);
+        else redraw();
+        break;
+      }
+      if (!operating(state.user)) {
         const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
         const listing = await memberMonth(month);
         if (!panel.isConnected) break;
         state.memberCalendar = listing;
       }
-      if (!panel.isConnected || version !== navigationVersion) break;
-      state.calendarOpen = opening;
-      state.calendarDate = '';
-      redrawCalendar(main, render);
-      if (opening) await animateCalendarFold(main.querySelector('#calendar-panel'), true);
+      redraw();
       break;
     }
     case 'calendar-day':
@@ -1028,9 +1035,8 @@ async function doAction(action, itemId, tab) {
         + button('새 임시 번호 만들기', 'confirm-reset-member', { id: itemId }));
       break;
     case 'confirm-reset-member': {
-      const member = state.admin.members.find(person => person.id === itemId);
-      const result = await request(`/api/admin/members/${id(itemId)}/reset`, 'POST', {});
-      credentialDialog(member.name, result.temporaryPin);
+      const { name, temporaryPin } = await request(`/api/admin/members/${id(itemId)}/reset`, 'POST', {});
+      credentialDialog(name, temporaryPin);
       break;
     }
     case 'new-organizer': {
@@ -1096,7 +1102,7 @@ function buildEvent(data) {
   return event;
 }
 
-async function doSubmit(kind, itemId, data) {
+async function doSubmit(kind, itemId, data, form) {
   switch (kind) {
     case 'login-name': {
       const name = read(data, 'name');
@@ -1215,7 +1221,16 @@ async function doSubmit(kind, itemId, data) {
     case 'member': {
       const profile = { name: read(data, 'name'), gender: read(data, 'gender'), memo: read(data, 'memo') };
       if (itemId) {
-        await update(`/api/admin/members/${id(itemId)}`, 'PATCH', { ...profile, active: data.has('active') }, '회원 정보를 저장했어요.');
+        const original = {
+          name: form.elements.namedItem('name').defaultValue.trim(),
+          active: form.elements.namedItem('active').defaultChecked,
+          gender: form.querySelector('select[name="gender"] option[selected]').value,
+          memo: form.elements.namedItem('memo').defaultValue.trim(),
+        };
+        const updated = { ...profile, active: data.has('active') };
+        const changes = Object.fromEntries(Object.entries(updated).filter(([key, value]) => value !== original[key]));
+        if (Object.keys(changes).length) await update(`/api/admin/members/${id(itemId)}`, 'PATCH', changes, '회원 정보를 저장했어요.');
+        else closeDialog();
       } else {
         await request('/api/admin/members', 'POST', { ...profile, birthday: read(data, 'birthday') });
         await showSaved('회원을 등록했어요.');
@@ -1448,7 +1463,7 @@ document.addEventListener('submit', event => {
   const { form: kind, id: itemId } = form.dataset;
   const data = new FormData(form);
   const control = event.submitter || form.querySelector('button[type=submit]');
-  void run(() => doSubmit(kind, itemId, data), control);
+  void run(() => doSubmit(kind, itemId, data, form), control);
 });
 
 function applyFilter(control) {

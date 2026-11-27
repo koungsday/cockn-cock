@@ -57,7 +57,7 @@ p { line-height: 1.58; }
 .topbar-inner { display: flex; align-items: center; gap: 8px; min-height: 56px; }
 .topbar-inner .breadcrumb { flex: 1; }
 .schedule-shell :is(.topbar-inner, .main-content) { max-width: 760px; margin-inline: auto; padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
-.schedule-shell .main-content { padding-top: 20px; }
+.schedule-shell .main-content { --content-top: 20px; }
 .schedule-shell .topbar-inner :is(.schedule-back, .box-action) { min-height: var(--touch-target); color: var(--neutral-ink); }
 .schedule-shell .topbar-inner .schedule-back { gap: 4px; margin-left: -6px; padding-inline: 6px 10px; font-size: var(--t3); font-weight: 400; }
 .schedule-shell .topbar-inner :is(.schedule-back, .box-action):hover { background: var(--neutral-soft); }
@@ -77,7 +77,7 @@ p { line-height: 1.58; }
 @media (max-width: 520px) { .topbar .demo-label { display: none; } }
 .demo-label { display: inline-flex; align-items: center; gap: 7px; color: #435e4c; background: #edf3e8; border: 1px solid #e2ebdf; padding: 6px 10px; border-radius: 99px; font-size: var(--t4); font-weight: 600; white-space: nowrap; }
 .demo-label i { width: 6px; height: 6px; border-radius: 50%; background: #619c66; }
-.main-content { max-width: 1400px; margin: 0 auto; padding: 33px clamp(20px,3.2vw,50px) 44px; }
+.main-content { --content-top: 33px; max-width: 1400px; margin: 0 auto; padding: var(--content-top) clamp(20px,3.2vw,50px) 44px; }
 .page-head { display: flex; gap: 18px; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
 .page-head h1 { font-size: var(--t1); font-weight: 600; }
 .page-description { color: var(--muted); margin-top: 8px; font-size: var(--t3); word-break: keep-all; }
@@ -140,6 +140,7 @@ p { line-height: 1.58; }
 /* 운영 홈 (DESIGN.md 4, 단순화 3): one column: the 지금 할 일 card, then lists as rows on the page itself. */
 .home-page, .event-page, .plain-page { display: grid; gap: 4px; max-width: 760px; margin-inline: auto; }
 .home-list { margin-top: 14px; }
+.home-flows .event-link { border-bottom: 1px solid var(--line); }
 :is(.home-list, .event-page, .plain-page) .event-list { border-block: 1px solid var(--line); }
 :is(.home-list, .event-page) .event-link { min-height: 64px; }
 .plain-page .event-link { min-height: 56px; }
@@ -233,8 +234,12 @@ p { line-height: 1.58; }
 .event-past summary::-webkit-details-marker { display: none; }
 .event-past[open] summary svg { transform: rotate(90deg); }
 /* 일정 달력 (DESIGN.md 5): the white band reaches both page edges without widening the grid. */
+.main-content:has(.calendar-toggle, .sk-calendar) { padding-top: 0; }
+.event-page:has(.calendar-toggle) { row-gap: 0; }
+.event-page > .calendar-other-dates { margin-top: 4px; }
+.list-tools:has(.calendar-toggle), .sk-tools:has(+ .sk-calendar) { padding-top: var(--content-top); min-height: calc(var(--touch-target) + var(--content-top)); }
 .calendar-fold { display: flow-root; }
-.calendar, .sk-calendar {
+.calendar, .sk-calendar, .list-tools:has(.calendar-toggle), .sk-tools:has(+ .sk-calendar) {
   background: var(--surface);
   border-image: linear-gradient(var(--surface), var(--surface)) fill 0 // 0 100vw;
 }
@@ -261,10 +266,17 @@ p { line-height: 1.58; }
   content: ''; position: absolute; inset: 1px 1px auto auto; width: 7px; height: 7px;
   border-radius: 50%; background: var(--accent-red); box-shadow: 0 0 0 1px var(--surface);
 }
-.calendar-day.is-done .calendar-number, .calendar[data-selected] .has-events .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
+.calendar[data-selected] .has-events .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
+.calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number::after { opacity: .72; }
+.calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number {
+  background: color-mix(in srgb, var(--neutral-soft) 58%, var(--surface)); color: var(--neutral-muted); font-weight: 400;
+}
+.calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number::after {
+  width: 5px; height: 5px; background: color-mix(in srgb, var(--accent-red) 58%, var(--surface));
+}
 .calendar .calendar-date[aria-pressed="true"] .calendar-number { background: var(--calendar-selected); color: var(--neutral-ink); font-weight: 600; }
 @media (hover: hover) {
-  .calendar-date[aria-pressed="false"]:hover .calendar-number { background: var(--neutral-ink); color: var(--surface); }
+  .calendar-date[aria-pressed="false"]:hover .calendar-number { background: var(--neutral-soft); color: var(--neutral-ink); }
 }
 @media (prefers-contrast: more), (forced-colors: active) {
   .calendar-date[aria-pressed="true"] .calendar-number { outline: 2px solid currentColor; outline-offset: -2px; }
@@ -488,7 +500,7 @@ textarea { min-height: 100px; resize: vertical; }
   :root:has(.tab-bar) .toast { bottom: calc(86px + env(safe-area-inset-bottom)); }
   /* 당일 출석: the toast (출석을 기록했어요) sits above the count that stays in sight, never on it. */
   :root:has(.att-foot) .toast { bottom: calc(144px + env(safe-area-inset-bottom)); }
-  .main-content { padding: 22px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .main-content { --content-top: 22px; padding: var(--content-top) 14px calc(96px + env(safe-area-inset-bottom)); }
 
   .page-head { gap: 9px; margin-bottom: 17px; align-items: flex-start; }
 

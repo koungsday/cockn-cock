@@ -585,7 +585,7 @@ async function resetMember(env, id) {
     `, 'pin-member:' + id, id, version)
   ]);
   if (!updated.meta.changes) throw new ApiError(409, '회원 정보가 변경됐어요. 다시 시도해 주세요.');
-  return { temporaryPin: temporary };
+  return { name: target.name, temporaryPin: temporary };
 }
 
 function ensureVoteStartsBeforeDeadline(event, previous) {
@@ -1123,7 +1123,7 @@ async function routeAdmin(db, env, url, method, body, user) {
     }
     if (method === 'POST' && member[2]) {
       const result = await resetMember(env, member[1]);
-      await record('member.reset', member[1], () => memberLabel(db, club, member[1]));
+      await record('member.reset', member[1], () => result.name);
       return json(result);
     }
     methodNotAllowed();

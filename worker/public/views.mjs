@@ -752,30 +752,19 @@ function flowFacts(event, now) {
 }
 
 // A list on the page itself: a quiet label with one action, then whole rows (.event-link), no box around them.
-function homeList(title, titleId, rows, empty, action = '', css = '') {
-  return `<section class="home-list${css ? ` ${css}` : ''}" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
+function homeList(title, titleId, rows, empty, action = '') {
+  return `<section class="home-list" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
     ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : `<p class="muted home-empty">${empty}</p>`}</section>`;
 }
 
-function homeRow(action, id, title, detail, { tab = '', glyph = 'chevron-right' } = {}) {
-  return `<li><button type="button" class="event-link" data-action="${action}" data-id="${esc(id)}"${tab ? ` data-tab="${tab}"` : ''}><span><strong>${title}</strong><small>${detail}</small></span>${icon(glyph, 18)}</button></li>`;
+function homeRow(action, id, title, detail, { tab = '' } = {}) {
+  return `<li><button type="button" class="event-link" data-action="${action}" data-id="${esc(id)}"${tab ? ` data-tab="${tab}"` : ''}><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</button></li>`;
 }
 
-// 다른 일정 (FLOW.md): every unfinished event but the one in the card, in the 운영 홈 order (flow.mjs). The whole row
-// opens the event on the tab its stage needs. Redrawn with the vote counts.
-export function homeFlows(events, featuredId, listing = null, now = koreanNow()) {
-  const awaiting = new Set((listing?.events ?? []).filter(awaitingVote).map(event => event.id));
-  const rows = flowOrder(events, now).filter(event => event.id !== featuredId).map(event => {
-    const { stage, title, detail } = flowFacts(event, now);
-    return homeRow('open-event', event.id, title, `${detail}${awaiting.has(event.id) ? ' · 내 응답 전' : ''}`,
-      { tab: { today: 'attendance', wrapup: 'settlement' }[stage] ?? 'poll' });
-  });
-  if (events.length && !events.some(event => event.date >= now.day)) {
-    const latest = [...events].sort((a, b) => b.date.localeCompare(a.date))[0];
-    rows.push(homeRow('clone-event', latest.id, '다음 주 일정 만들기', '예정된 일정이 없어요. 지난 일정을 복제해요.', { glyph: 'plus' }));
-  }
-  return homeList('다른 일정', 'home-todo-title', rows, featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.',
-    button('전체 보기', 'tab', { id: 'event', css: 'text small' }), 'home-flows');
+// The count excludes the featured event and links to the full schedule (DESIGN.md 4).
+export function homeFlows(events, featuredId, now = koreanNow()) {
+  const count = flowOrder(events, now).filter(event => event.id !== featuredId).length;
+  return `<div class="home-flows"><button type="button" class="event-link" data-action="event-list"><span><strong>다른 일정</strong></span><small>${count}개</small>${icon('chevron-right', 18)}</button></div>`;
 }
 
 // 지난 일정: the latest event whose 마무리 is confirmed (unfinished ones are among the 진행 중인 일정), with its counts
@@ -807,7 +796,7 @@ export function adminHome({ events, notices }, upcoming, last = null, listing = 
   return `<div class="home-page">
     <header class="list-tools"><h1 tabindex="-1" class="sr-only">운영 홈</h1><p>${esc(flowSummary(events))}</p>${button(`${icon('plus', 17)} 새 일정`, 'new-event', { css: 'secondary small' })}</header>
     <div id="home-now">${homeNow(upcoming, listing, true)}</div>
-    <div id="home-flows">${homeFlows(events, upcoming?.event.id, listing)}</div>
+    <div id="home-flows">${homeFlows(events, upcoming?.event.id)}</div>
     ${homeList('최근 공지', 'home-notices-title', recent, '아직 등록한 공지가 없어요.', button('전체 보기', 'tab', { id: 'notices', css: 'text small' }))}
     ${homeLast(last)}
   </div>`;

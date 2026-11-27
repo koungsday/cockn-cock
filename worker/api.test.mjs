@@ -192,7 +192,8 @@ test('birthday sign-in opens the vote and PIN or reset rotates the member creden
 
   const reset = await admin.request('/api/admin/members/' + member.member.id + '/reset', {method:'POST', body:{}});
   await visitor.request('/api/votes/' + event.id, {expect:401});
-  assert.deepEqual(Object.keys(reset), ['temporaryPin']);
+  assert.deepEqual(Object.keys(reset), ['name', 'temporaryPin']);
+  assert.equal(reset.name, member.member.name);
   assert.match(reset.temporaryPin, /^\d{6}$/);
   assert.notEqual(reset.temporaryPin, '684270');
   await visitor.login(name, '684270', 401);
@@ -512,6 +513,8 @@ test('only an organiser can read or edit a member profile', async t => {
 
   await admin.request(profile, { method: 'PATCH', body: { gender: '', memo: '' } });
   assert.deepEqual(await fields(), ['', '']);
+  const reset = await admin.request(profile + '/reset', { method: 'POST', body: {} });
+  assert.equal(reset.name, '가상 수정 회원');
   const records = await DB.prepare('SELECT summary FROM audit_log WHERE target_id = ?').bind(member.id).all();
   assert(records.results.some(row => row.summary.includes('메모')));
   assert.doesNotMatch(JSON.stringify(records.results), /<검증>/, 'only the field name is in the audit log');

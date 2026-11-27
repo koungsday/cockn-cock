@@ -325,7 +325,7 @@
   // cancelled quiet. ui.calendarMonth is the month picked, this month when none was.
   function calendar(events) {
     const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
-      regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
+      regular:(event.kind ?? 'regular') === 'regular', done:`${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), selected:ui.calendarDate, today, icon});
   }
   function selectedCalendarDate() { return ui.calendarDate; }
@@ -413,8 +413,8 @@
       <a class="btn btn-text now-own" href="#public-vote/${id}" data-route="public-vote/${id}">회원 화면 체험</a></section>`;
   }
   // A list on the page itself (the live homeList and homeRow): a quiet label with one action, then whole rows.
-  function homeList(title, titleId, rows, empty, action = '', css = '') {
-    return `<section class="home-list${css ? ` ${css}` : ''}" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
+  function homeList(title, titleId, rows, empty, action = '') {
+    return `<section class="home-list" aria-labelledby="${titleId}"><header class="list-tools"><h2 id="${titleId}">${title}</h2>${action}</header>
       ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : `<p class="muted home-empty">${empty}</p>`}</section>`;
   }
   function homeRow(path, title, detail) {
@@ -423,18 +423,10 @@
   function moreLink(route) {
     return `<a class="btn btn-text btn-small" href="#${route}" data-route="${route}">전체 보기</a>`;
   }
-  // 다른 일정 (the live homeFlows): every unfinished event but the one in the card, in the same order; the whole row
-  // opens the event on the tab its stage needs.
+  // The live homeFlows count and schedule shortcut, with the demo's schedule hash.
   function renderFlows(flows, featuredId) {
-    const rows = flows.filter(event => event.id !== featuredId).map(event => {
-      const {stage, title, detail} = flowFacts(event);
-      return homeRow(`event/${event.id}/${{today:'attendance', wrapup:'settlement'}[stage] ?? 'poll'}`, title, detail);
-    });
-    if (state.events.length && !state.events.some(event => event.date >= today)) {
-      rows.push(`<li><button class="event-link" type="button" data-action="${state.repeat.enabled ? 'generate-next' : 'open-event'}"><span><strong>${state.repeat.enabled ? '다음 일정 만들기' : '새 일정 만들기'}</strong>
-        <small>예정된 일정이 없어요. ${state.repeat.enabled ? '반복 일정으로 만들 수 있어요.' : '새 일정을 만들어 투표를 시작하세요.'}</small></span>${icon('plus',18)}</button></li>`);
-    }
-    return homeList('다른 일정', 'home-todo-title', rows, featuredId ? '다른 진행 중인 일정이 없어요.' : '지금 챙길 일이 없어요.', moreLink('events'), 'home-flows');
+    const count = flows.filter(event => event.id !== featuredId).length;
+    return `<div class="home-flows"><a class="event-link" href="#events" data-route="events"><span><strong>다른 일정</strong></span><small>${count}개</small>${icon('chevron-right',18)}</a></div>`;
   }
   // 지난 일정 (the live homeLast): the latest session whose 출석·게스트 확정 is done.
   function renderLast(event) {
