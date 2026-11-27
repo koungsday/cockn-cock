@@ -5,26 +5,23 @@
 
 const bar = css => `<span class="sk ${css}"></span>`;
 const bars = (count, css) => Array.from({ length: count }, () => bar(css)).join('');
-const panel = body => `<section class="panel sk-panel">${body}</section>`;
-// plain: a member row (a title over its date line, the answer on the right) instead of an organiser row with its dot.
-const rows = (count, plain = false) => `<div class="sk-rows">${Array.from({ length: count }, () => plain
-  ? `<div class="sk-row sk-row--plain"><span class="sk-stack">${bar('sk-line')}${bar('sk-meta')}</span>${bar('sk-chip')}</div>`
-  : `<div class="sk-row">${bar('sk-dot')}${bar('sk-line')}${bar('sk-chip')}</div>`).join('')}</div>`;
+// A row of a list on the page: a title over its quiet line, and what stands at its end.
+const rows = count => `<div class="sk-rows">${Array.from({ length: count }, () =>
+  `<div class="sk-row"><span class="sk-stack">${bar('sk-line')}${bar('sk-meta')}</span>${bar('sk-chip')}</div>`).join('')}</div>`;
 // The 장소·마감 lines and the 응답 현황 bars of a member's event card (views.mjs nextEventCard, memberVoteScreen).
 const facts = count => `<div class="sk-facts">${bars(count, 'sk-fact')}</div>`;
 const counts = `<div class="sk-counts">${bar('sk-h2')}${Array.from({ length: 3 }, () => `<span class="sk-count">${bar('sk-line')}${bar('sk-meter')}</span>`).join('')}${bar('sk-meta')}</div>`;
-const head = `<div class="page-head sk-head"><div>${bar('sk-h1')}${bar('sk-text')}</div>${bar('sk-button')}</div>`;
 // A member card (worker/public/views.mjs memberCard): one white surface, its label·title·date head (or none), then its
 // content (단순화 2: no green or sand head).
 const card = (body, head = false) => `<div class="public-share-card sk-card">${head ? `<div class="sk-card-head">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-card-date')}</div>` : ''}
   <div class="public-share-content">${body}</div></div>`;
-// A member list (views.mjs memberList): rows on the page itself under a muted label, or under the 일정 count and its
-// 달력으로 보기 (tools).
-const list = (count, top = 'label') => `<div class="sk-list">${top === 'tools' ? `<div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>` : top ? bar('sk-meta sk-label') : ''}${rows(count, true)}</div>`;
+// A list on the page itself (views.mjs homeList, memberList, eventList): rows under a muted label, or under a count
+// line with its one action (tools).
+const list = (count, top = 'label') => `<div class="sk-list">${top === 'tools' ? `<div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>` : top ? bar('sk-meta sk-label') : ''}${rows(count)}</div>`;
 const memberPage = (body, back = false) => `<div class="public-share-page member-page">${back ? bar('sk-back') : ''}${body}</div>`;
 
 const bodies = {
-  // 운영 권한: 운영 홈, 일정 목록 (달력 + 진행 중인 일정), 회차 상세, 그 밖의 목록 (공지·회원 관리·반기 집계·모임 규칙).
+  // 운영 권한: 운영 홈, 일정 목록, 일정 하나, 그 밖의 목록 (공지·회원 관리·반기 집계·모임 규칙).
   // 운영 홈 (views.mjs adminHome): the count line with 새 일정, the 지금 할 일 card (when, title, fact, four steps, numbers,
   // bar, button), then 다른 일정 as rows.
   home: `<div class="home-page"><div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>
@@ -37,7 +34,8 @@ const bodies = {
   event: `<div class="event-page">${bar('sk-back')}<div class="sk-event-head">${bar('sk-card-title')}${bar('sk-fact')}${bar('sk-meta')}</div>
     <div class="sk-tabs">${bars(3, 'sk-tab')}</div>
     <div class="sk-event-body">${bar('sk-h2')}${bar('sk-meter')}${bar('sk-cta')}</div>${list(4)}</div>`,
-  list: `<div class="secondary-page">${head}${panel(bar('sk-h2') + rows(6))}</div>`,
+  // 공지·회원 관리·반기 집계·모임 규칙 (views.mjs pageHead): the count line with its action, then rows.
+  list: `<div class="plain-page">${list(6, 'tools')}</div>`,
   // 회원·로그인 전 (and 내 기록·공지 하나, the same screens for everyone): one card for the next event, lists as rows.
   'member-home': memberPage(card(facts(2) + counts + bar('sk-text') + bar('sk-cta'), true) + list(3)),
   'member-events': memberPage(list(3, 'tools')),

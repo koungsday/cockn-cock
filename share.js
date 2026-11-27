@@ -260,7 +260,7 @@
     // No event yet: the big card keeps its place (the live noNextCard).
     const noNextCard = () => `<article class="public-share-card member-next" aria-labelledby="member-next-title">
         <header class="public-story-head share-art--vote">${decoration()}<span class="public-share-type">다음 일정</span>
-          <h2 id="member-next-title" class="public-title">예정된 회차가 없어요.</h2></header>
+          <h2 id="member-next-title" class="public-title">예정된 일정이 없어요.</h2></header>
         <div class="public-share-content"><p class="member-answer">운영진이 일정을 올리면 여기에 보여요.</p></div></article>`;
     return { eventRow, noticeRow, listCard, nextCard, noNextCard };
   }

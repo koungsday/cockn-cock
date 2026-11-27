@@ -709,7 +709,7 @@
     ui.memberQuery = input.value;
     const view = document.createElement('template');
     view.innerHTML = window.clubScreens.renderScreen(currentRoute,state,ui,helpers);
-    app.querySelector('.secondary-page .panel-body').replaceWith(view.content.querySelector('.panel-body'));
+    app.querySelector('.member-rows').replaceWith(view.content.querySelector('.member-rows'));
   }
   document.addEventListener('input', ev => {
     const input = ev.target;

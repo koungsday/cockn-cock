@@ -198,7 +198,7 @@ function writeHash({ replace = false } = {}) {
 function noteLostEvent() {
   if (!lostEvent) return;
   lostEvent = false;
-  showMessage('주소의 회차를 찾지 못해 일정 목록을 열었어요.');
+  showMessage('주소의 일정을 찾지 못해 일정 목록을 열었어요.');
 }
 
 function hideMessage() {
@@ -811,17 +811,17 @@ async function doAction(action, itemId, tab) {
       showMessage('응답과 출석을 다시 불러왔어요.');
       break;
     case 'new-event':
-      openDialog('새 회차', eventForm(eventDefaults(null, club.defaultPlace)));
+      openDialog('새 일정', eventForm(eventDefaults(null, club.defaultPlace)));
       break;
     case 'clone-event': {
       const event = itemId ? state.admin.events.find(event => event.id === itemId) : state.detail.event;
-      openDialog('다음 주 회차', eventForm(eventDefaults(event, club.defaultPlace, { keepFuture: Boolean(itemId) })));
+      openDialog('다음 주 일정', eventForm(eventDefaults(event, club.defaultPlace, { keepFuture: Boolean(itemId) })));
       break;
     }
     // 더보기 (DESIGN.md 5 더보기 메뉴): what the box shows no icon for. A save in it closes the menu with the redraw
     // (showSaved); 복제·카톡 미리보기·일정 취소 open their own dialog in its place.
     case 'event-menu':
-      openDialog('회차 메뉴', eventMenu(state.detail), 'action-menu-dialog');
+      openDialog('일정 메뉴', eventMenu(state.detail), 'action-menu-dialog');
       break;
     case 'notice-menu': {
       const notice = state.admin.notices.find(entry => entry.id === itemId);
@@ -831,7 +831,7 @@ async function doAction(action, itemId, tab) {
     }
     case 'edit-event':
       eventSnapshot = { ...state.detail.event };
-      openDialog('회차 수정', eventForm(eventSnapshot, state.selectedEvent));
+      openDialog('일정 수정', eventForm(eventSnapshot, state.selectedEvent));
       break;
     case 'publish-event': {
       const published = !state.detail.event.published;
@@ -844,7 +844,7 @@ async function doAction(action, itemId, tab) {
       if (open && deadlinePassed(state.detail.event)) {
         closeDialog();
         render();
-        showMessage('투표 마감 시각이 지났어요. 회차 수정에서 마감 시각을 먼저 바꿔 주세요.', true);
+        showMessage('투표 마감 시각이 지났어요. 일정 수정에서 마감 시각을 먼저 바꿔 주세요.', true);
         break;
       }
       await update(adminEventPath(), 'PATCH', { open }, open ? '투표를 열었어요.' : '투표를 닫았어요.');
@@ -891,9 +891,9 @@ async function doAction(action, itemId, tab) {
     // 일정 취소 (FLOW.md 10): asked once, undone with 취소 풀기.
     case 'cancel-event': {
       const event = state.detail?.event;
-      if (!event || event.id !== itemId) return showSaved('회차가 바뀌어 새로 불러왔어요.');
+      if (!event || event.id !== itemId) return showSaved('일정이 바뀌어 새로 불러왔어요.');
       openDialog('일정 취소', `<p>"${esc(event.title)}" 일정을 취소할까요? 투표가 닫히고 회원 화면에는 "취소됐어요"로 보여요. 받은 응답은 지우지 않고, 취소 풀기로 되돌릴 수 있어요.</p>
-        <p>취소 사유는 회차 수정의 공개 안내에 적으면 회원에게 보여요.</p>` + button('일정 취소하기', 'confirm-cancel-event', { id: itemId }));
+        <p>취소 사유는 일정 수정의 공개 안내에 적으면 회원에게 보여요.</p>` + button('일정 취소하기', 'confirm-cancel-event', { id: itemId }));
       break;
     }
     case 'confirm-cancel-event':
@@ -1095,7 +1095,7 @@ async function doSubmit(kind, itemId, data) {
       }
       state.selectedEvent = result.event.id;
       if (!itemId) state.eventTab = null;
-      await showSaved('회차를 저장했어요.', fromHome ? 'section' : '');
+      await showSaved('일정을 저장했어요.', fromHome ? 'section' : '');
       writeHash();
       if (fromHome) (main.querySelector('.admin-content h1') ?? main).focus({ preventScroll: true });
       break;

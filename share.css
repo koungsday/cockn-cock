@@ -389,7 +389,6 @@
   font-size: var(--t4);
 }
 
-
 .public-share-card {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -667,7 +666,7 @@
 .member-record-card .public-share-content { display: grid; gap: 10px; }
 .member-record-card .public-share-content > * { margin: 0; }
 .member-record-card .public-form-note { word-break: keep-all; }
-/* 응답 현황 bars (views.mjs countsBlock): colours of the organisers' .poll-track, track #e9eee7 and 참석 #458563. */
+/* 응답 현황 bars (views.mjs countsBlock): track #e9eee7 and 참석 #458563. */
 .member-counts { display: grid; gap: 10px; }
 .public-event-facts + .member-counts { margin-top: 16px; }
 /* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */

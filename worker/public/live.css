@@ -21,32 +21,27 @@ body:has(.admin-app) .site-header { display: none; }
 .current-club strong { font-size: var(--t2); letter-spacing: -.04em; }
 .current-club small { color: var(--muted); font-size: var(--t4); margin-top: 2px; }
 .current-club small:empty { display: none; }
-.current-club :is(strong, small), .account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.current-club :is(strong, small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #account { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px 4px; }
 #account:empty { display: none; }
-.account-name { max-width: 14ch; margin-right: 4px; color: var(--muted); font-size: var(--t4); }
 
 /* Loading (DESIGN.md 6): a still skeleton of the coming screen; only the shuttlecock in the middle of the viewport moves. */
 .loading-center { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: 24px; pointer-events: none; }
 .loading-center .shuttle-spin { width: 72px; height: 67px; }
 .loading-center .shuttle-loader { padding: 18px 22px 14px; border-radius: 16px; background: #fffffff2; box-shadow: 0 10px 30px #1b2a2124, 0 2px 8px #1b2a2114; }
 .sk { display: block; border-radius: 6px; background: var(--line); }
-.sk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.sk-head > div { display: grid; gap: 10px; flex: 1; min-width: 0; }
 .sk-h1 { width: 150px; height: 30px; }
 .sk-text { width: min(320px, 80%); height: 14px; }
-.sk-button { flex: none; width: 96px; height: 41px; border-radius: 8px; }
 .sk-panel { display: grid; align-content: start; gap: 12px; padding: 18px 19px; }
 .sk-h2 { width: 110px; height: 18px; }
 .sk-meter { height: 10px; border-radius: 99px; }
 .sk-line { height: 14px; }
-.sk-field { height: 44px; border-radius: 8px; }
+
 .sk-tabs { display: flex; gap: 19px; padding: 10px 6px 11px; border-bottom: 1px solid #dce5db; }
 .sk-tab { width: 64px; height: 18px; }
 .sk-rows { display: grid; }
-.sk-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 56px; align-items: center; gap: 10px; min-height: 52px; border-top: 1px solid var(--line); }
+.sk-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; align-items: center; gap: 10px; min-height: 76px; border-top: 1px solid var(--line); }
 .sk-row:first-child { border-top: 0; }
-.sk-dot { width: 28px; height: 28px; border-radius: 50%; }
 .sk-chip { height: 22px; }
 /* Member cards (skeleton.mjs, as worker/public/views.mjs memberCard): the label, title and date on the card's own white. */
 .sk-card-head { display: grid; gap: 8px; padding: 20px 18px 0; }
@@ -58,7 +53,6 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-fact { width: 70%; height: 18px; }
 .sk-cta { height: 46px; border-radius: 11px; }
 .sk-back { width: 72px; height: 18px; margin-block: 13px 25px; }
-.sk-row--plain { grid-template-columns: minmax(0, 1fr) 72px; min-height: 88px; }
 .sk-stack { display: grid; gap: 10px; }
 .sk-meta { width: 60%; height: 12px; }
 .sk-facts { display: grid; gap: 10px; }
@@ -110,9 +104,7 @@ body:has(.admin-app) .site-header { display: none; }
 
 /* Buttons that carry demo link styles. */
 button.nav-link { width: 100%; border: 0; background: transparent; text-align: left; }
-button.metric { width: 100%; color: inherit; text-align: left; }
-button.notice-home-link { border: 0; background: none; padding: 0; text-align: left; }
-button.small-link { border: 0; background: none; }
+
 .mobile-nav-account { margin: 18px 6px 0; padding-top: 14px; border-top: 1px solid var(--menu-line); }
 .topbar .btn-text { color: var(--muted); }
 :is(form[aria-busy="true"] button[type="submit"], button[data-pending]):not([hidden]) { position: relative; }
@@ -132,16 +124,10 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
   .progress-table.stack-table tbody td.table-actions { grid-column: auto; text-align: right; }
 }
 /* The live CSP blocks style attributes, so the response bar is SVG; colours match styles.css .vote-yes/.vote-no. */
-svg.poll-track { display: block; width: 100%; }
-svg.poll-track .vote-yes { fill: var(--court); }
-svg.poll-track .vote-no { fill: var(--line); }
+
 .panel-body > * + * { margin-top: 12px; }
 .panel-actions .search-field input { width: min(150px, 100%); }
-.event-overview .panel-body { display: grid; gap: 12px; }
-.event-overview .panel-body > * + * { margin-top: 0; }
-.event-picker { max-width: 26rem; }
-.event-overview-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.event-overview-title h2 { font-size: var(--t2); overflow-wrap: anywhere; }
+
 .share-preview { padding-left: 0; }
 .data-table tr[data-selected="true"] td { background: var(--accent-soft); }
 .data-table tr[hidden] { display: none; }
@@ -246,7 +232,7 @@ svg.poll-track .vote-no { fill: var(--line); }
 @media (max-width: 700px) { :root:has(.att-foot) .message { bottom: calc(144px + var(--safe-bottom)); } }
 
 @media (max-width: 430px) {
-  .current-club small, .account-name { display: none; }
+  .current-club small { display: none; }
   .site-header .brand-mark { width: 34px; height: 34px; }
 }
 

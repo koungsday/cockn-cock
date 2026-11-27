@@ -119,7 +119,7 @@ export function loadingPage(kind, operating = false, text = undefined) {
   return shellSkeleton(kind, operating) + loadingCenter(shuttlecockMark(), text);
 }
 
-const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text', lime: 'btn-lime', glass: 'btn-glass' };
+const tones = { primary: 'btn-primary', secondary: 'btn-secondary', quiet: 'btn-text', text: 'btn-text' };
 
 // css takes a tone (secondary, quiet/text, lime, glass) and "compact"/"small"; other words pass through.
 // The phone menu button: two lines that cross into × inside the open menu (styles.css .menu-toggle).
@@ -183,8 +183,10 @@ function form(kind, body, label, id = '', css = '') {
     <div class="form-actions"><button type="submit" class="btn btn-primary">${label}</button></div></form>`;
 }
 
+// The head of a screen (단순화 5): the top bar already names it, so the h1 is for reading programs and focus; what shows
+// is one quiet line (a count or what the screen is for) and one action.
 function pageHead(title, description = '', actions = '') {
-  return `<header class="page-head"><div><h1 tabindex="-1">${title}</h1>${description ? `<div class="page-description">${description}</div>` : ''}</div>${actions ? `<div class="page-actions">${actions}</div>` : ''}</header>`;
+  return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">${title}</h1><p>${description}</p>${actions}</header>`;
 }
 
 function panel(title, content, { subtitle = '', actions = '', id = '', titleId = '' } = {}) {
@@ -324,7 +326,7 @@ function voteResponse(event, vote, eligible, voteSaved = false, signedIn = true)
       <button class="share-button share-button--primary" type="submit">${vote ? '응답 변경' : '응답 저장'}</button>
       ${vote ? '<button class="share-button share-button--secondary" type="button" data-action="cancel-vote">응답 취소</button>' : ''}</form>`;
   } else if (event.canVote) {
-    response = '<div class="public-form"><p class="public-status"><strong>이 회차에 응답할 수 없어요.</strong>운영진에게 참석 명단을 확인해 주세요.</p></div>';
+    response = '<div class="public-form"><p class="public-status"><strong>이 일정에 응답할 수 없어요.</strong>운영진에게 참석 명단을 확인해 주세요.</p></div>';
   }
   return response;
 }
@@ -357,7 +359,7 @@ function memberEventState(event, signedIn = true) {
       : { action: '투표하기', primary: true, row: '투표하기', note: '아직 응답하지 않았어요.' };
   }
   if (event.mySlot) return { action: '일정 확인', primary: false, row: '응답 완료', note: `내 응답 <strong>${slotWords[event.mySlot]}</strong>` };
-  if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 회차에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
+  if (event.canVote) return { action: '일정 확인', primary: false, row: '일정 확인', note: '이 일정에 응답할 수 없어요. 운영진에게 참석 명단을 확인해 주세요.' };
   return { action: '일정 확인', primary: false, row: '일정 확인', note: event.open ? '투표가 마감됐어요.' : '현재는 참석 투표를 받고 있지 않아요.' };
 }
 
@@ -419,7 +421,7 @@ function recordCard(record) {
     <p class="public-form-note">${record.year}년 ${record.half === 1 ? '상반기' : '하반기'} 줄서기 인정</p>
     ${record.periods.map((marks, index) => markSlots(periodName(record.periods.length, index), months[index], marks, record.goal)).join('')}
     <dl class="public-event-facts"><div><dt>콕 수령</dt><dd>${reward}</dd></div></dl>
-    <p class="public-form-note">마무리한 회차에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
+    <p class="public-form-note">마무리한 일정에서 운영진이 기록한 출석과 인정만 세요.</p></div></section>`;
 }
 
 // One event or notice in the member lists (홈, 일정, 공지); the whole row opens it in the shell.
@@ -449,7 +451,7 @@ const noEvents = '게시된 일정이 없어요. 운영진이 일정을 올리�
 function noNextCard() {
   return `<article class="public-share-card member-next" aria-labelledby="member-next-title">
     <header class="public-story-head share-art--vote">${courtLines}<span class="public-share-type">다음 일정</span>
-      <h2 id="member-next-title" class="public-title">예정된 회차가 없어요.</h2></header>
+      <h2 id="member-next-title" class="public-title">예정된 일정이 없어요.</h2></header>
     <div class="public-share-content"><p class="member-answer">운영진이 일정을 올리면 여기에 보여요.</p></div></article>`;
 }
 
@@ -807,7 +809,7 @@ function formGroup(legend, body) {
 export function eventForm(event, id = '') {
   const time = { type: 'time', attrs: 'required' };
   return form('event',
-    (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 회차는 준비 상태로 저장할 수 있어요.') : '')
+    (!id ? note('일시, 장소와 마감 시각을 확인해 주세요. 새 일정은 준비 상태로 저장할 수 있어요.') : '')
     + formGroup('무엇을, 어디서', `<div class="form-grid">
       ${field('모임 이름', 'title', event.title, { attrs: 'required maxlength="120"' })}
       ${select('종류', 'kind', Object.entries(eventKindLabels), event.kind ?? 'regular')}
@@ -827,7 +829,7 @@ export function eventForm(event, id = '') {
       + note('로그인한 회원에게 표시되는 안내입니다. 개인 연락처와 회원 명단은 별도로 전달해 주세요.')
       + check('카톡 공유 링크 공개', 'published', event.published)
       + check('웹 투표 열기', 'open', event.open)),
-    id ? '회차 저장' : '회차 만들기', id);
+    id ? '일정 저장' : '일정 만들기', id);
 }
 
 const sessionTabs = [['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']];
@@ -1087,15 +1089,13 @@ export function organizerForm(candidates = []) {
 export function membersScreen(members, organizers = [], me = null) {
   const active = members.filter(member => member.active).length;
   const organizerIds = new Set(organizers.map(organizer => organizer.id));
-  const rows = members.map(member => `<tr data-search="${esc(member.name)}">
-    <td><div class="member-name">${avatar(member.name)}<strong>${esc(member.name)}</strong></div></td>
-    <td>${pill(member.active ? '활동 중' : '비활성', member.active ? 'green' : 'muted')}${organizerIds.has(member.id) ? ` ${pill('운영진', 'green')}` : ''}</td>
-    <td class="table-actions">${button(icon('edit'), 'edit-member', { id: member.id, css: 'secondary btn-icon', label: `${member.name} 회원 수정` })}</td>
-  </tr>`);
-  return `<div class="secondary-page">${pageHead('회원 관리', '회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.', button(icon('plus', 22), 'new-member', { css: 'btn-icon', label: '회원 추가' }))}
-    ${panel('회원 명단', table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, '등록된 회원이 없습니다.', 'stack-table member-table'), {
-    subtitle: `전체 ${members.length}명 · 활동 중 ${active}명`, actions: search('members'),
-  })}
+  // One row a member, the whole row opens 회원 수정; what is not the usual (비활성, 운영진) is said under the name.
+  const rows = members.map(member => `<li data-search="${esc(member.name)}"><button type="button" class="event-link" data-action="edit-member" data-id="${esc(member.id)}" aria-label="${esc(member.name)} 회원 수정"><span><strong>${esc(member.name)}</strong>
+    ${member.active && !organizerIds.has(member.id) ? '' : `<small>${[member.active ? '' : '비활성', organizerIds.has(member.id) ? '운영진' : ''].filter(Boolean).join(' · ')}</small>`}</span>${icon('chevron-right', 18)}</button></li>`);
+  return `<div class="plain-page">${pageHead('회원 관리', `전체 ${members.length}명 · 활동 중 ${active}명`, button(`${icon('plus', 17)} 회원 추가`, 'new-member', { css: 'secondary small' }))}
+    <div class="list-search">${search('members')}</div>
+    ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">등록된 회원이 없습니다.</p>'}
+    <p class="form-note">회원은 등록한 이름과 생년월일 6자리로 처음 로그인합니다.</p>
     ${organizersPanel(organizers, me)}</div>`;
 }
 
@@ -1136,8 +1136,8 @@ export function noticesScreen(notices) {
   // 박스 동작 (DESIGN.md 5): 링크 복사 · 상단 고정 · 공지 수정 as icons at the notice's top-right, 더보기 last; the pin icon
   // shows whether it is pinned.
   const items = notices.map(notice => `<article class="notice-item">
-    <div class="box-top"><div><div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time>${pill(notice.published ? '공개' : '비공개', notice.published ? 'green' : 'muted')}</div>
-      <h3>${esc(notice.title)}</h3></div>
+    <div class="box-top"><div><div class="notice-date"><time datetime="${esc(notice.date)}">${esc(dateLabel(notice.date))}</time><span>· ${notice.published ? '공개' : '비공개'}</span></div>
+      <h2>${esc(notice.title)}</h2></div>
       ${boxActions(
         iconAction('copy', 'copy-notice-link', { id: notice.id, label: `${notice.title} 링크 복사`, disabled: !notice.published }),
         iconAction('pushpin', 'pin-notice', { id: notice.id, label: `${notice.title} 상단 고정`, pressed: Boolean(notice.pinnedAt) }),
@@ -1146,8 +1146,9 @@ export function noticesScreen(notices) {
         notice.published && iconAction('more', 'notice-menu', { id: notice.id, label: `${notice.title} 공지 메뉴` }))}</div>
     ${notice.body ? `<p class="preserve-lines">${esc(notice.body)}</p>` : ''}
   </article>`);
-  return `<div class="secondary-page">${pageHead('공지', '공개한 공지는 로그인한 회원이 볼 수 있어요.', button(icon('plus', 22), 'new-notice', { css: 'btn-icon', label: '새 공지' }))}
-    ${panel('공지 목록', items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="empty-state">등록된 공지가 없습니다.</p>')}</div>`;
+  const shown = notices.filter(notice => notice.published).length;
+  return `<div class="plain-page">${pageHead('공지', `공지 ${notices.length}개 · 회원에게 공개 ${shown}개`, button(`${icon('plus', 17)} 새 공지`, 'new-notice', { css: 'secondary small' }))}
+    ${items.length ? `<div class="notice-list">${items.join('')}</div>` : '<p class="muted home-empty">등록된 공지가 없습니다.</p>'}</div>`;
 }
 
 // rules: the 모임 규칙 this table was counted under (worker/api.mjs progress): its 구간, goal and 콕 수령 대상.
@@ -1165,7 +1166,7 @@ export function rulesScreen(rules) {
     <fieldset class="rule-choices"><legend>세는 일정 종류</legend>${eventKinds.join('')}</fieldset>
     <fieldset class="rule-choices"><legend>콕 수령</legend>${rewards.join('')}</fieldset>
     ${note('바꾸면 반기 집계와 회원 내 기록(출석 포함)에 바로 반영돼요. 지난 출석 기록은 그대로 두고 세는 방법만 바뀌어요. 콕 수령 기록은 어느 쪽이든 운영진이 해요.')}`;
-  return `<div class="secondary-page">${pageHead('모임 규칙', '줄서기 인정과 콕 수령을 우리 모임 방식대로 셉니다.')}
+  return `<div class="plain-page">${pageHead('모임 규칙', '줄서기 인정과 콕 수령을 우리 모임 방식대로 셉니다.')}
     ${panel('집계 기준', form('rules', body, '규칙 저장', '', 'rules-form'))}</div>`;
 }
 
@@ -1181,10 +1182,11 @@ export function progressScreen(year, half, members, rules) {
   const period = form('progress', `<div class="form-grid">${field('연도', 'year', year, { type: 'number', attrs: 'min="2000" max="2100" step="1" required' })}
     ${select('기간', 'half', [[1, '상반기'], [2, '하반기']], half)}</div>`, '집계 조회', '', 'progress-form');
   const columns = ['회원', `구간별 인정 (목표 ${rules.goal}회)`, '콕 수령', '<span class="sr-only">기록</span>'];
-  return `<div class="secondary-page">${pageHead('반기 집계', `각 구간에서 줄서기 인정을 받은 횟수입니다. 구간 목표 ${rules.goal}회와 구간 나누기는 모임 규칙에서 바꿔요. 지급은 운영진이 확인한 뒤 기록해 주세요.`,
+  return `<div class="plain-page">${pageHead('반기 집계', `구간마다 줄서기 인정 ${rules.goal}회가 목표예요.`,
     button(`${icon('sliders', 17)} 모임 규칙`, 'tab', { id: 'rules', css: 'secondary small' }))}
     ${panel('조회 기간', period)}
     ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table'), {
     actions: search('progress'),
-  })}</div>`;
+  })}
+    <p class="form-note">구간 목표와 구간 나누기는 모임 규칙에서 바꿔요. 지급은 운영진이 확인한 뒤 기록해 주세요.</p></div>`;
 }
