@@ -235,12 +235,18 @@ async function startSession(request, env, user, limits, role) {
   return { user: clientUser(user, role), cookie: sessionCookie(request, env, token, user.organizer) };
 }
 
+// 성함 비교 (DESIGN.md 6 UX 점검표 18 포스텔의 법칙): spaces inside a name do not tell two members apart, so "홍 길동"
+// signs in as "홍길동" and the same-name checks (sign-in, new member, number change, reset) see one name. spaceless() is
+// the JavaScript side, sameName() the SQL side (the space and the full-width space U+3000).
+export const spaceless = value => value.replace(/\s+/g, '');
+export const sameName = column => `replace(replace(${column}, ' ', ''), '　', '')`;
+
 export async function membersNamed(env, name, input = name) {
   // New rows use NFC. Preserve exact and decomposed spellings already stored.
   const { results } = await sql(env.DB, `
     SELECT id, name, active, organizer, credential_salt, credential_hash, credential_version, must_change
-    FROM members WHERE club_id = ? AND name IN (?, ?, ?)
-  `, env.CLUB_SCOPE, name, name.normalize('NFD'), input).all();
+    FROM members WHERE club_id = ? AND ${sameName('name')} IN (?, ?, ?)
+  `, env.CLUB_SCOPE, spaceless(name), spaceless(name.normalize('NFD')), spaceless(input)).all();
   return results;
 }
 
@@ -282,14 +288,15 @@ export async function login(request, env, body) {
     throw new ApiError(400, invalidLogin);
   }
   const source = await ipLimit(env, request, loginNamespace);
-  const namedSource = await ipLimit(env, request, loginNamespace, name);
+  // Every spacing of one name shares its attempt budget (spaceless), as they reach the same member.
+  const namedSource = await ipLimit(env, request, loginNamespace, spaceless(name));
   const limits = [source, namedSource];
   const named = await membersNamed(env, name, input);
   const candidates = named.filter(row => row.active);
   const legacy = legacyAdmin(env, name, named);
   if (candidates.some(row => row.organizer) || legacy) {
     // A six-digit organiser PIN also needs a budget shared across source IPs.
-    const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + name);
+    const key = await sha256(loginNamespace + '-admin\0' + pepper(env) + '\0' + spaceless(name));
     limits.push({ key, expiresAt: await reserveAttempt(env, key, 20) });
   }
   if (legacy && equalDigest(legacy.pin, credential)) {
@@ -371,10 +378,11 @@ export async function changePin(request, env, user, body, role = 'member') {
       UPDATE members SET credential_version = ?, credential_salt = ?, credential_hash = ?, must_change = 0
       WHERE id = ? AND club_id = ? AND name = ? AND active = 1 AND credential_version = ?
         AND NOT EXISTS (
-          SELECT 1 FROM members WHERE club_id = ? AND name IN (?, ?, ?)
+          SELECT 1 FROM members WHERE club_id = ? AND ${sameName('name')} IN (?, ?, ?)
             AND credential_version NOT IN (SELECT value FROM json_each(?))
         )
-    `, version, salt, hash, user.id, env.CLUB_SCOPE, row.name, user.version, env.CLUB_SCOPE, name, name.normalize('NFD'), row.name,
+    `, version, salt, hash, user.id, env.CLUB_SCOPE, row.name, user.version, env.CLUB_SCOPE,
+    spaceless(name), spaceless(name.normalize('NFD')), spaceless(row.name),
     JSON.stringify(candidates.map(candidate => candidate.credential_version))),
     sql(env.DB, `
       DELETE FROM sessions WHERE role = 'member' AND member_id = ? AND credential_version = ?

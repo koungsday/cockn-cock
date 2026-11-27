@@ -55,6 +55,7 @@ p { line-height: 1.58; }
 /* 가상 체험 보기 전환 (app.js viewSwitch): the live club decides the menus from the sign-in instead. On a narrow phone
    the switch and the club's name keep the top bar; the 가상 데이터 체험 label gives way (the pages still say so). */
 .view-switch { display: inline-flex; gap: 2px; }
+.view-switch .btn { min-width: var(--touch-target); }
 @media (max-width: 520px) { .topbar .demo-label { display: none; } }
 .demo-label { display: inline-flex; align-items: center; gap: 7px; color: #435e4c; background: #edf3e8; border: 1px solid #e2ebdf; padding: 6px 10px; border-radius: 99px; font-size: .77rem; font-weight: 700; white-space: nowrap; }
 .demo-label i, .featured-kicker i, .poll-status i { width: 6px; height: 6px; border-radius: 50%; background: #619c66; }
@@ -554,8 +555,10 @@ html.menu-locked body {
    the last tab. Only position and opacity move. With reduced motion everything is simply there. */
 @media (prefers-reduced-motion: no-preference) {
   [data-arrive] > :not(:only-child), [data-arrive] > :only-child > * { animation: section-arrive var(--dur-arrive) var(--ease-settle) backwards; }
-  [data-arrive] > :nth-child(2):not(:only-child), [data-arrive] > :only-child > :nth-child(2) { animation-delay: calc(var(--dur-quick) / 4); }
-  [data-arrive] > :nth-child(n+3), [data-arrive] > :only-child > :nth-child(n+3) { animation-delay: calc(var(--dur-quick) / 2); }
+  /* Only the first screen arrives block by block; moving between menus, the most frequent thing done, comes in as one
+     piece (DESIGN.md 6 UX 점검표 3·20). */
+  [data-arrive="enter"] > :nth-child(2):not(:only-child), [data-arrive="enter"] > :only-child > :nth-child(2) { animation-delay: calc(var(--dur-quick) / 4); }
+  [data-arrive="enter"] > :nth-child(n+3), [data-arrive="enter"] > :only-child > :nth-child(n+3) { animation-delay: calc(var(--dur-quick) / 2); }
   [data-arrive="next"] { --view-entry: 18px 0; }
   [data-arrive="back"] { --view-entry: -18px 0; }
   [data-arrive="enter"] { --view-entry: 0 12px; }
@@ -563,11 +566,9 @@ html.menu-locked body {
   .calendar-days[data-slide="next"] { --view-entry: 24px 0; }
   .calendar-days[data-slide="back"] { --view-entry: -24px 0; }
   .tab-bar[data-slide] .tab-bar-mark { animation: tab-mark-slide var(--dur-arrive) var(--ease-settle); }
-  .tab-bar[data-slide] .tab-bar-link[aria-current="page"] svg { animation: tab-press var(--dur-quick) var(--ease-settle); }
 }
 @keyframes section-arrive { from { opacity: .5; translate: var(--view-entry, 0 12px); } }
 @keyframes tab-mark-slide { from { translate: calc(var(--tab-from) * (100% + 4px)) 0; } }
-@keyframes tab-press { from { scale: .86; } }
 /* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. The body keeps --paper:
    it has no background of its own, so without this the --ink root showed through every gap between cards and the page
    behind the dim turned green (사용자 지적, 2026-11-26). */

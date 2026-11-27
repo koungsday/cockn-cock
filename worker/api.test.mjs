@@ -254,6 +254,22 @@ test('same-name records use their own credentials and identical matches are deni
   assert.equal((await client().login(name, temporaryPin)).user.id, duplicate.id);
 });
 
+// 성함 띄어쓰기 (DESIGN.md 6 UX 점검표 18 포스텔의 법칙): spaces inside a name neither stop sign-in nor tell two members
+// apart, and the spellings share one attempt budget.
+test('spaces inside a name neither stop sign-in nor make a second login for it', async t => {
+  const {client} = setup(t);
+  const admin = client('203.0.113.40');
+  await admin.adminLogin();
+  const {member} = await admin.request('/api/admin/members', {method:'POST', expect:201, body:{name:'가상홍길동', birthday:'19740612'}});
+  for (const typed of ['가상 홍길동', ' 가상 홍 길동 ', '가상홍　길동']) {
+    assert.equal((await client('203.0.113.41').login(typed, '19740612')).user.id, member.id);
+  }
+  await admin.request('/api/admin/members', {method:'POST', expect:409, body:{name:'가상 홍 길동', birthday:'19740612'}});
+  const spaced = client('203.0.113.42');
+  for (let i = 0; i < 5; i++) await spaced.login(i % 2 ? '가상 홍길동' : '가상홍 길동', '000001', 401);
+  await spaced.login('가상홍길동', '19740612', 429);
+});
+
 test('shared login assigns role and cookie lifetime on the server', async t => {
   const {DB, client, env} = setup(t);
   const admin = client();
