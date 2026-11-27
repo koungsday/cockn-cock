@@ -317,13 +317,17 @@ test('reissue, removal and a pause take effect at once', async t => {
 
   const reissued = await receive(`/console/clubs/paused-club/organizers/${id}/reset`, { method: 'POST', form: {}, cookie });
   assert.equal(reissued.status, 200);
-  const again = issuedPin(await reissued.text());
+  const reissuedPage = await reissued.text();
+  assert.match(reissuedPage, /<h1>비밀번호 재설정<\/h1>/, 'a reissue is titled 비밀번호 재설정, as in the club screen');
+  const again = issuedPin(reissuedPage);
   assert.equal((await (await api('/admin/session', { cookie: own })).json()).user, null, 'reissuing ends their sessions');
   assert.equal((await (await api('/login', { method: 'POST', json: { name: club.organizer, credential: again } })).json()).user.mustChange, true);
 
   const added = await receive('/console/clubs/paused-club/organizers', { method: 'POST', form: { organizer: '가상 둘째 운영진' }, cookie });
   assert.equal(added.status, 201);
-  const second = issuedPin(await added.text());
+  const addedPage = await added.text();
+  assert.match(addedPage, /<h1>운영진을 추가했어요<\/h1>/, 'adding an organiser is not a reset');
+  const second = issuedPin(addedPage);
   assert.equal((await receive('/console/clubs/paused-club/organizers', { method: 'POST', form: { organizer: '가상 둘째 운영진' }, cookie })).status, 409);
   const secondLogin = await api('/login', { method: 'POST', json: { name: '가상 둘째 운영진', credential: second } });
   const secondId = (await secondLogin.json()).user.id;

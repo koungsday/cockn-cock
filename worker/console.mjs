@@ -198,7 +198,7 @@ async function resetOrganizer(env, legacy, slug, id) {
   const { club, scope } = await scoped(env, legacy, slug);
   const issued = await reissueOrganizer(scope, id);
   await audit(env.DB, slug, consoleActor, 'organizer.reset', id, () => issued.name);
-  return { title: '임시 번호를 다시 발급했어요', club, organizer: issued.name, pin: issued.pin };
+  return { title: '비밀번호 재설정', club, organizer: issued.name, pin: issued.pin };
 }
 
 async function removeOrganizer(env, legacy, slug, id) {
