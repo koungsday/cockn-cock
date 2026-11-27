@@ -506,7 +506,8 @@ export function memberEventsScreen({ events }, monthEvents, user, { month, selec
   const calendar = calendarOpen ? calendarBlock(calendarEvents(monthEvents, now), { month, selected, today: now.day, icon }) : '';
   return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
     <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${calendarToggle(calendarOpen, icon)}</div>
-    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { listClass: 'member-records' }))}
+    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { listClass: 'member-records',
+      done: calendarEvents(monthEvents.filter(event => event.date === selected), now).every(event => event.done) }))}
     <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div>
     </div></section>`);
 }
@@ -885,10 +886,12 @@ function eventList(events, month, calendarOpen, selected) {
   const pastRows = past.filter(event => event.date !== selected).map(pastRow);
   const dayRows = selected ? events.filter(event => event.date === selected).sort((a, b) => a.time.localeCompare(b.time))
     .map(event => finished(event, now) ? pastRow(event) : flowRow(event)) : [];
-  const add = selected ? button(`${icon('plus', 16)} 일정 추가`, 'new-event', { id: selected, css: 'text small' }) : '';
+  // 일정 추가 only from today on: a day that has gone takes no new event.
+  const add = selected && selected >= now.day ? button(`${icon('plus', 16)} 일정 추가`, 'new-event', { id: selected, css: 'text small' }) : '';
+  const dayDone = calendarEvents(events.filter(event => event.date === selected), now).every(event => event.done);
   return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
       ${calendarToggle(calendarOpen, icon)}</header>
-    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { action: add }))}
+    ${calendarPanel(calendar + calendarDayPanel(selected, dayRows, { action: add, done: dayDone }))}
     <div class="calendar-other-dates">
     ${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
     ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;

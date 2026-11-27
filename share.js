@@ -286,7 +286,8 @@
       return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
         <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${helpers.calendarToggle()}</div>
         ${window.clubCalendar.calendarPanel(helpers.calendarOpen() ? helpers.calendar(state.events)
-          + window.clubCalendar.calendarDayPanel(selected, dayRows, {listClass:'member-records'}) : '')}
+          + window.clubCalendar.calendarDayPanel(selected, dayRows, {listClass:'member-records',
+            done:state.events.filter(event => event.date === selected).every(helpers.eventDone)}) : '')}
         <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div></div></section>`, helpers);
     }
     if (route.page === 'member-notices') {

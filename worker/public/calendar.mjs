@@ -58,7 +58,9 @@ export function shiftMonth(month, step) {
 }
 
 // events: [{ date 'YYYY-MM-DD', title, kind (its label), done }]. done (지난 일정, 마무리 확정, 취소) is drawn quiet.
-// Every visible date is a button, including spillover days. Only the shown month has event markers.
+// Every date from today on is a button, including spillover days, and so is a past date that had an event (to look back
+// at it). A past date with nothing on it is only a faded number: no event can be made on a day that has gone (사용자
+// 결정 2026-11-27). Only the shown month has event markers.
 export function calendarBlock(events, { month, today, selected = '', icon }) {
   const [year, index] = month.split('-').map(Number);
   const lead = new Date(Date.UTC(year, index - 1, 1)).getUTCDay();
@@ -75,6 +77,10 @@ export function calendarBlock(events, { month, today, selected = '', icon }) {
     const css = `calendar-day${other ? ' is-other' : ''}${iso === today ? ' is-today' : ''}${list.length ? ' has-events' : ''}${list.length && list.every(event => event.done) ? ' is-done' : ''}`;
     const description = list.length ? ` · ${list.map(event => `${event.kind} ${event.title}`).join(', ')}` : other ? '' : ' · 일정 없음';
     const label = `${dayLabel(date)}${iso === today ? ' 오늘' : ''}${description}`;
+    if (iso < today && !list.length) {
+      cells.push(`<li class="${css} is-past"><span class="calendar-date"><span class="calendar-number">${day}</span></span></li>`);
+      continue;
+    }
     cells.push(`<li class="${css}"><button type="button" class="calendar-date" data-action="calendar-day" data-id="${iso}" aria-pressed="${iso === selected}" aria-label="${escapeText(label)}"${iso === today ? ' aria-current="date"' : ''}>
       <span class="calendar-number">${day}</span></button></li>`);
   }
@@ -94,11 +100,15 @@ export function calendarTarget(month, step) {
   return shiftMonth(month, step === 'next' ? 1 : -1);
 }
 
-export function calendarDayPanel(date, rows, { listClass = 'event-list', action = '' } = {}) {
+// The chosen date's own box, in the yellow of the chosen date (사용자 결정 2026-11-27): its title, how many events it has
+// as a pill (red as the calendar's dot, grey when they are all over), its rows, and 일정 추가 from today on (action).
+// done: every event of the day is over.
+export function calendarDayPanel(date, rows, { listClass = 'event-list', action = '', done = false } = {}) {
   if (!date) return '';
   const label = dayLabel(new Date(`${date}T00:00:00Z`));
+  const count = rows.length ? `<span class="calendar-count${done ? ' is-done' : ''}">${done ? '지난 일정' : '일정'} ${rows.length}개</span>` : '';
   return `<section class="calendar-selection" aria-labelledby="calendar-selected-title">
-    <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time></h3>
+    <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time>${count}</h3>
       ${rows.length ? '' : '<p>이 날짜에 일정이 없어요.</p>'}</div>${action}</div>
     ${rows.length ? `<ul class="${listClass}">${rows.join('')}</ul>` : ''}
   </section>`;
