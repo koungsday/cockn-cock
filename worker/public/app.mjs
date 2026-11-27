@@ -1,10 +1,10 @@
 import {
-  accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceSubtitle, brand, button,
+  accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceCount, brand, button,
   countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeNow, noticeMenu,
   icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
-  rulesScreen, sharePreview, today, voteMetrics,
+  rulesScreen, sharePreview, today, voteRoster, voteSummary,
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { loadingKind } from './skeleton.mjs';
@@ -75,6 +75,10 @@ const state = {
   eventTab: null,
   calendarMonth: null,
   calendarOpen: false,
+  // 당일 출석 미확인만 보기 (views.mjs attendancePanel): kept through a redraw of the screen.
+  onlyUnmarked: false,
+  // 일정 화면의 내 응답 (views.mjs eventScreen): unfolded by the organiser or by 지금 하기 on the 운영 홈; a save redraws it open.
+  myVoteOpen: false,
   admin: null,
   upcoming: null,
   last: null,
@@ -332,7 +336,10 @@ function sectionScreen(voteSaved) {
   if (section === 'notices') return noticesScreen(state.admin.notices);
   if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
   if (section === 'rules') return rulesScreen(state.admin.rules);
-  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved }, state.calendarMonth, state.calendarOpen);
+  return eventScreen(state.admin.events, state.detail, {
+    tab: state.eventTab, own: { vote: state.vote, eligible: state.eligible, saved: voteSaved }, month: state.calendarMonth,
+    calendarOpen: state.calendarOpen, onlyUnmarked: state.onlyUnmarked, myVoteOpen: state.myVoteOpen,
+  });
 }
 
 // arrive (DESIGN.md 6 섹션 도착): 'next' or 'back' slides the new section in from that side, 'enter' rises the first one.
@@ -585,7 +592,12 @@ async function refreshVoteCounts() {
         state.admin = admin;
         replaceKeepingFocus('.now-card', homeNow(detail, state.listing));
         replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id, state.listing));
-      } else target.innerHTML = voteMetrics(countEvent(detail.roster, detail.guests));
+      } else {
+        // The names follow the numbers, so the list under them never disagrees; the fold stays as it was.
+        state.detail = detail;
+        target.innerHTML = voteSummary(detail.roster);
+        replaceKeepingFocus('.vote-roster', voteRoster(detail.event, detail.roster, main.querySelector('.vote-roster details')?.open ?? false));
+      }
     }
   } catch (error) {
     if (error.status === 401 && target.isConnected) loginExpired();
@@ -661,6 +673,8 @@ async function goTo(section, { eventId = null, noticeId = null, tab = null, push
   if (section !== previous.section) state.calendarMonth = null;
   state.section = section;
   state.eventTab = section === 'event' ? tab : null;
+  // 내 응답 folds again on another event or the list.
+  if (list || (eventId && eventId !== state.selectedEvent)) state.myVoteOpen = false;
   if (eventId) state.selectedEvent = eventId;
   if (list) state.selectedEvent = null;
   if (section === 'notices') state.selectedNotice = noticeId;
@@ -734,6 +748,15 @@ async function doAction(action, itemId, tab) {
     case 'admin-menu':
       openAdminMenu();
       break;
+    // 운영 홈 "내 응답은 아직이에요 · 지금 하기": the event's 참석 투표 with 내 응답 unfolded.
+    case 'my-vote':
+      await doAction('open-event', itemId, 'poll');
+      state.myVoteOpen = true;
+      for (const fold of main.querySelectorAll('#my-vote')) {
+        fold.open = true;
+        fold.scrollIntoView({ block: 'nearest' });
+      }
+      break;
     case 'open-event':
     case 'tab': {
       const section = action === 'open-event' ? 'event' : itemId;
@@ -775,6 +798,12 @@ async function doAction(action, itemId, tab) {
       break;
     case 'event-tab':
       await goTo('event', { tab: itemId });
+      break;
+    // 미확인만 보기: hides the checked rows in place (CSS on #attendance[data-only]); no redraw, so a tap is never lost.
+    case 'att-filter':
+      state.onlyUnmarked = !state.onlyUnmarked;
+      main.querySelector('#attendance')?.toggleAttribute('data-only', state.onlyUnmarked);
+      main.querySelector('[data-action="att-filter"]')?.setAttribute('aria-pressed', String(state.onlyUnmarked));
       break;
     case 'refresh':
       await load();
@@ -1245,17 +1274,17 @@ const checking = new Set();
 const checkButton = memberId => main.querySelector(`#attendance button[data-action="mark-present"][data-id="${CSS.escape(memberId)}"]`);
 
 function refreshAttendanceRow(person) {
-  const row = main.querySelector(`#attendance tr[data-member="${CSS.escape(person.id)}"]`);
+  const row = main.querySelector(`#attendance li[data-member="${CSS.escape(person.id)}"]`);
   if (!row) return;
   const { event, roster, guests, settlement } = state.detail;
   const focusHere = document.activeElement === document.body || row.contains(document.activeElement);
-  const holder = document.createElement('tbody');
+  const holder = document.createElement('ul');
   holder.innerHTML = attendanceRow(event, person, settlement?.confirmed);
   const fresh = holder.firstElementChild;
   fresh.hidden = row.hidden;
   row.replaceWith(fresh);
-  const subtitle = main.querySelector('#attendance .panel-head p');
-  if (subtitle) subtitle.textContent = attendanceSubtitle(countEvent(roster, guests), settlement?.confirmed);
+  const count = main.querySelector('#att-count');
+  if (count) count.textContent = attendanceCount(countEvent(roster, guests));
   if (focusHere) fresh.querySelector('[data-action="mark-present"]')?.focus({ preventScroll: true });
 }
 
@@ -1267,6 +1296,8 @@ async function markPresent(control, memberId) {
   const recognition = present === null && member.recognition !== 'approved' ? null : member.recognition;
   checking.add(memberId);
   control.disabled = true;
+  // The check answers the tap at once (DESIGN.md 6 UX 점검표 17); the row is redrawn from the saved record after.
+  control.setAttribute('aria-pressed', String(present === true));
   // DESIGN.md 6: a button outside a form shows a thin progress line after 180ms.
   const pending = setTimeout(() => checkButton(memberId)?.setAttribute('data-pending', ''), 180);
   try {
@@ -1314,7 +1345,14 @@ function applyFilter(control) {
   for (const item of main.querySelectorAll('[data-search]')) {
     item.hidden = !item.dataset.search.toLocaleLowerCase('ko-KR').includes(term);
   }
+  // A name looked for may be among the folded 참석 예정이 아닌 회원.
+  if (term) for (const fold of main.querySelectorAll('#attendance details')) fold.open = true;
 }
+
+// toggle does not bubble: the capture phase hears 내 응답 unfold, so a save redraws it as it was.
+main.addEventListener('toggle', event => {
+  if (event.target.id === 'my-vote') state.myVoteOpen = event.target.open;
+}, true);
 
 main.addEventListener('input', event => {
   const input = event.target;

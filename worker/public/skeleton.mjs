@@ -14,8 +14,6 @@ const rows = (count, plain = false) => `<div class="sk-rows">${Array.from({ leng
 const facts = count => `<div class="sk-facts">${bars(count, 'sk-fact')}</div>`;
 const counts = `<div class="sk-counts">${bar('sk-h2')}${Array.from({ length: 3 }, () => `<span class="sk-count">${bar('sk-line')}${bar('sk-meter')}</span>`).join('')}${bar('sk-meta')}</div>`;
 const head = `<div class="page-head sk-head"><div>${bar('sk-h1')}${bar('sk-text')}</div>${bar('sk-button')}</div>`;
-// The 일정 heads carry a longer sentence that wraps on a phone (measured 80–98px at 375px).
-const longHead = `<div class="page-head sk-head"><div>${bar('sk-h1')}${bar('sk-text')}<span class="sk sk-text sk-wrap"></span></div>${bar('sk-button')}</div>`;
 // A member card (worker/public/views.mjs memberCard): one white surface, its label·title·date head (or none), then its
 // content (단순화 2: no green or sand head).
 const card = (body, head = false) => `<div class="public-share-card sk-card">${head ? `<div class="sk-card-head">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-card-date')}</div>` : ''}
@@ -32,12 +30,13 @@ const bodies = {
   home: `<div class="home-page"><div class="sk-tools">${bar('sk-meta')}${bar('sk-chip')}</div>
     <div class="panel sk-panel sk-now">${bar('sk-kicker')}${bar('sk-card-title')}${bar('sk-fact')}<div class="sk-steps">${bars(4, 'sk-step')}</div>${bar('sk-line')}${bar('sk-meter')}${bar('sk-cta')}</div>
     ${list(4)}</div>`,
-  'event-list': `<div class="secondary-page">${longHead}${panel(bar('sk-h2') + rows(4))}</div>`,
-  // 회차 상세 (views.mjs eventScreen): ← 일정 목록, the head, the 개요 panel, the three tabs, then the tab's panel.
-  event: `<div class="secondary-page">${bar('sk-back')}${longHead}
-    ${panel(bar('sk-h2') + bars(4, 'sk-fact') + bar('sk-chip'))}
+  // 일정 (views.mjs eventList): the count line with 달력으로 보기 and 새 일정, then rows on the page.
+  'event-list': `<div class="event-page">${list(5, 'tools')}</div>`,
+  // 일정 하나 (views.mjs eventScreen): ← 일정, the title with its two lines, the three tabs, then the tab's numbers,
+  // bar and button over a list of names.
+  event: `<div class="event-page">${bar('sk-back')}<div class="sk-event-head">${bar('sk-card-title')}${bar('sk-fact')}${bar('sk-meta')}</div>
     <div class="sk-tabs">${bars(3, 'sk-tab')}</div>
-    ${panel(bar('sk-h2') + rows(5))}</div>`,
+    <div class="sk-event-body">${bar('sk-h2')}${bar('sk-meter')}${bar('sk-cta')}</div>${list(4)}</div>`,
   list: `<div class="secondary-page">${head}${panel(bar('sk-h2') + rows(6))}</div>`,
   // 회원·로그인 전 (and 내 기록·공지 하나, the same screens for everyone): one card for the next event, lists as rows.
   'member-home': memberPage(card(facts(2) + counts + bar('sk-text') + bar('sk-cta'), true) + list(3)),

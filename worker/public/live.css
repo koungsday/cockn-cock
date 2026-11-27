@@ -35,8 +35,6 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-head > div { display: grid; gap: 10px; flex: 1; min-width: 0; }
 .sk-h1 { width: 150px; height: 30px; }
 .sk-text { width: min(320px, 80%); height: 14px; }
-.sk-wrap { display: none; width: 45%; }
-@media (max-width: 520px) { .sk-wrap { display: block; } }
 .sk-button { flex: none; width: 96px; height: 41px; border-radius: 8px; }
 .sk-panel { display: grid; align-content: start; gap: 12px; padding: 18px 19px; }
 .sk-h2 { width: 110px; height: 18px; }
@@ -79,6 +77,10 @@ body:has(.admin-app) .site-header { display: none; }
 .sk-month { height: 100px; border-radius: 4px; }
 .sk-slots { display: flex; gap: 8px; }
 .sk-slot { width: 44px; height: 44px; border-radius: 8px; }
+/* 일정 하나 (skeleton.mjs event): the title and its two lines, then the tab's numbers, bar and button. */
+.sk-event-head { display: grid; gap: 8px; margin-bottom: 10px; }
+.sk-event-body { display: grid; gap: 10px; margin-top: 18px; }
+.sk-event-body .sk-meter { height: 6px; }
 /* 운영 홈 지금 할 일 card (skeleton.mjs home): the four step bars over the numbers, as views.mjs homeNow. */
 .sk-now { gap: 10px; padding: 20px 18px; }
 .sk-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-block: 10px 6px; }
@@ -239,6 +241,9 @@ svg.poll-track .vote-no { fill: var(--line); }
 }
 .message.error { background: var(--ink); }
 .message.visually-hidden { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+/* 당일 출석: the message (출석을 기록했어요) sits above the count that stays in sight (styles.css .att-foot), never on it. */
+:root:has(.att-foot) .message { bottom: calc(84px + var(--safe-bottom)); }
+@media (max-width: 700px) { :root:has(.att-foot) .message { bottom: calc(144px + var(--safe-bottom)); } }
 
 @media (max-width: 430px) {
   .current-club small, .account-name { display: none; }

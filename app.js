@@ -70,7 +70,7 @@
   const pinLimit = 3;
   const kindLabels = {regular:'정기', flash:'번개', match:'대회', social:'모임'};
   const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle};
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle, onlyUnmarked, justChecked};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -260,6 +260,8 @@
     content.innerHTML = member ? window.clubShare.renderMember(currentRoute, state, {...helpers, publicReceipts:ui.publicReceipts})
       : currentRoute.page === 'home' ? renderHome()
       : window.clubScreens.renderScreen(currentRoute, state, ui, helpers);
+    // The check just made was drawn once (screens.js attendance); a later redraw shows it as it is.
+    ui.justChecked = null;
     app.dataset.section = section;
     if (focus) app.querySelector('#main-content')?.focus({preventScroll:true});
   }
@@ -321,6 +323,9 @@
   }
   // 달력으로 보기 / 달력 접기 (the live calendarToggle): the month grid is folded until asked for.
   function calendarOpen() { return Boolean(ui.calendarOpen); }
+  // 당일 출석 (screens.js attendance): 미확인만 보기, and the member just checked, whose check is drawn once.
+  function onlyUnmarked() { return Boolean(ui.onlyUnmarked); }
+  function justChecked() { return ui.justChecked; }
   function calendarToggle() { return `<button class="btn btn-text btn-small calendar-toggle" type="button" data-action="calendar-toggle">${calendarOpen() ? '달력 접기' : '달력으로 보기'}</button>`; }
   function pollIsOpen(event) {
     return event.pollOpen && !event.finalized && !event.cancelled && !deadlinePassed(event);
@@ -529,7 +534,7 @@
     const {action,id,kind,member,value} = control.dataset;
     const controlLabel = control.getAttribute('aria-label');
     const event = state.events.find(item => item.id === id);
-    const openTypes = ['event','member','notice','repeat','vote','share','actions'];
+    const openTypes = ['event','member','notice','repeat','vote','attendance','share','actions'];
     // 더보기 (DESIGN.md 6 UX 점검표 15): a dialog opened from the menu takes its place and gives focus back to 더보기 when
     // it closes; a button that saves closes the menu first (the live app does the same in app.mjs).
     const inMenu = Boolean(control.closest('.action-menu'));
@@ -557,6 +562,13 @@
       ui.calendarMonth = null;
       renderPage();
       app.querySelector('.calendar-toggle')?.focus({preventScroll:true});
+      return;
+    }
+    // 미확인만 보기 (the live att-filter): hides the checked rows in place, no redraw.
+    if (action === 'att-filter') {
+      ui.onlyUnmarked = !ui.onlyUnmarked;
+      app.querySelector('#attendance')?.toggleAttribute('data-only', ui.onlyUnmarked);
+      control.setAttribute('aria-pressed', String(ui.onlyUnmarked));
       return;
     }
     if (action === 'calendar-day') {
@@ -651,6 +663,7 @@
       if (value === 'present' || value === 'absent') event.attendance[member] = value;
       else delete event.attendance[member];
       if (value !== 'present' && event.recognized[member] !== 'approved') delete event.recognized[member];
+      ui.justChecked = value === 'present' ? member : null;
       if (!model.save(state)) showToast('브라우저 저장 공간을 사용할 수 없어요.');
     } else if (action === 'mark-pending-absent' && event.date <= today && !event.finalized) {
       for (const id of event.roster) {
@@ -706,15 +719,6 @@
   document.addEventListener('compositionend', ev => filterMembers(ev.target));
   document.addEventListener('change', ev => {
     const input = ev.target;
-    if (input.matches('[data-recognition]')) {
-      const event = state.events.find(item => item.id === input.dataset.id);
-      const member = input.dataset.member;
-      if (!event || event.date > today || event.finalized || !event.roster.includes(member)) return;
-      if (input.value === 'approved' || (['direct','substitute'].includes(input.value) && event.attendance[member] === 'present')) event.recognized[member] = input.value;
-      else delete event.recognized[member];
-      persist('줄서기 인정 기록을 갱신했어요.');
-      return;
-    }
     if (['event','repeat'].includes(input.form?.dataset.form)) {
       for (const key of ['deadline','endTime','date','lateTime']) input.form.elements.namedItem(key)?.setCustomValidity('');
     }
@@ -796,6 +800,18 @@
         event.settlement = Object.fromEntries(fields.map(key => [key,Number(value(key))]));
         message = '마무리 기록을 저장했어요.';
       }
+    } else if (type === 'attendance') {
+      // 출석 상세 (screens.js attendanceDialog): 직접·대타 인정 stays only with 출석, as the row tap keeps it.
+      const event = state.events.find(item => item.id === id);
+      const member = value('member');
+      if (!event || event.date > today || event.finalized || !event.roster.includes(member)) return showToast('지금은 출석을 고칠 수 없어요.');
+      const status = value('status');
+      const recognition = value('recognition');
+      if (status === 'present' || status === 'absent') event.attendance[member] = status;
+      else delete event.attendance[member];
+      if (recognition === 'approved' || (['direct','substitute'].includes(recognition) && status === 'present')) event.recognized[member] = recognition;
+      else delete event.recognized[member];
+      message = '출석 기록을 저장했어요.';
     } else if (type === 'vote' || type === 'public-vote') {
       const event = state.events.find(item => item.id === id);
       const member = value('member');

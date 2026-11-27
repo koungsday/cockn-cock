@@ -1,7 +1,6 @@
 (() => {
   const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
   const voteLabels = { early: '선발', late: '후발', yes: '참석 · 시간 미정', no: '불참' };
-  const attendanceLabels = { present: '출석', absent: '결석' };
   const recognitionLabels = {direct: '직접', substitute: '대타', approved: '별도 인정'};
 
   function makeView(helpers) {
@@ -70,94 +69,89 @@
       return `<li data-date="${e(event.date)}"><a class="event-link" href="#${path}" data-route="${path}"><span><strong>${title}</strong><small>${detail}</small></span>${icon('chevron-right', 18)}</a></li>`;
     }
 
-    // 일정: the month's calendar (the live eventList), every unfinished event in the 운영 홈 order, then the finished ones
-    // (확정 or 취소) folded under 끝난 일정.
+    // 일정 (the live eventList): a count line with 달력으로 보기 and 새 일정, the month's calendar when asked for, every
+    // unfinished event in the 운영 홈 order as rows on the page, then the finished ones folded under 끝난 일정.
     function eventList(state) {
-      const rows = flowEvents().map(event => {
+      const flows = flowEvents();
+      const rows = flows.map(event => {
         const { title, detail } = flowFacts(event);
         return eventLink(event, title, detail);
       });
       const past = finishedEvents().map(event => eventLink(event, e(event.title),
         e(`${kindPrefix(event)}${dateLabel(event.date)} ${event.time} · ${event.cancelled ? '취소' : '마무리 완료'}`)));
-      return heading('일정', '일정을 골라 투표 응답, 당일 출석, 마무리를 기록하세요.', addButton('새 일정', 'open-event'))
+      return `<header class="list-tools"><h1 class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
+          <span class="list-actions">${calendarToggle()}<button class="btn btn-secondary btn-small" type="button" data-action="open-event">${icon('plus', 17)} 새 일정</button></span></header>`
         + (calendarOpen() ? `<section class="panel calendar-panel" aria-labelledby="calendar-title"><div class="panel-body">${calendar(state.events)}</div></section>` : '')
-        + panel('진행 중인 일정', (rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : empty('진행 중인 일정이 없어요. 새 회차를 만들어 투표를 시작하세요.'))
-          + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : ''),
-          {actions: calendarToggle()});
+        + (rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>')
+        + (past.length ? `<details class="event-past"><summary>끝난 일정 ${past.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${past.join('')}</ul></details>` : '');
     }
 
     function eventDetail(route, state) {
       const event = state.events.find(item => item.id === route.id);
       if (!event) return heading('일정을 찾을 수 없어요', '', routeLink('일정 목록', 'events', 'secondary'));
       const pollAvailable = event.pollOpen && !event.finalized && !deadlinePassed(event);
-      const subheader = `<div class="event-facts"><span>${icon('calendar')}${e(kindPrefix(event))}${e(dateLabel(event.date))}</span><span>${icon('clock')}${eventTime(event)}</span><span>${icon('pin')}${e(event.place)}</span></div>`;
-      const nav = `<nav class="tabs" aria-label="회차 단계">${[['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']].map(([tab, label]) => {
+      const nav = `<nav class="tabs" aria-label="일정 단계">${[['poll', '참석 투표'], ['attendance', '당일 출석'], ['settlement', '마무리']].map(([tab, label]) => {
         const path = eventPath(event, tab);
         const active = tab === route.tab;
         return `<a href="#${path}" data-route="${path}"${active ? ' aria-current="page"' : ''}>${label}</a>`;
       }).join('')}</nav>`;
       const members = event.roster.map(id => state.members.find(member => member.id === id)).filter(Boolean);
+      const slotLabel = vote => vote === 'early' ? `${event.earlyTime} 선발` : vote === 'late' ? `${event.lateTime} 후발` : voteLabels[vote] || '미응답';
 
+      // 참석 투표 (the live vote box and voteRoster): the numbers and the link to share, then who has not answered, then
+      // everyone who has, folded. 응답 변경 opens 응답 조정 with that member picked.
       function poll() {
         const report = counts(event);
-        // 투표 마감 and 응답 조정 wait in the 회차 메뉴 (actionsDialog), as in the live 회차 화면.
-        // 카톡 공유 is copying the link (the live copy-vote-link); the preview waits in 더보기.
-        const shareAction = boxActions(iconAction('copy', 'copy-link', event.id, '투표 링크 복사', {kind: 'vote'}));
-        const voteLink = pollAvailable && members.length ? routeLink('회원 투표 체험', `public-vote/${encodeURIComponent(event.id)}`) : '';
-        const rows = members.map(member => {
-          const vote = event.votes[member.id];
-          return `<tr><td><strong>${e(member.name)}</strong></td><td>${pill(voteLabels[vote] || '미응답', vote && vote !== 'no' ? 'green' : 'neutral')}</td><td>${event.lunch[member.id] ? '함께해요' : '—'}</td></tr>`;
-        });
-        return panel('참석 응답', summary([
-          [`${e(event.earlyTime)} 선발`, `${report.early}명`, 'green'], [`${e(event.lateTime)} 후발`, `${report.late}명`],
-          ['점심', `${report.lunch}명`], ['불참', `${report.no}명`], ['미응답', `${report.pending}명`]
-        ])
-          + (rows.length ? table(['멤버', '응답', '점심'], rows) : empty('이 일정에 등록된 멤버가 없어요.'))
-          // 회원 투표 체험 (가상 체험 전용) sits under the answers, so the head keeps only the copy icon at its top-right.
-          + (voteLink ? `<div class="form-actions">${voteLink}</div>` : ''), {
-          subtitle: `참석 예정 ${report.yes}명 · ${e(dateLabel(event.deadline))} ${e(event.deadlineTime)} 마감`,
-          actions: shareAction
-        });
+        const responded = report.yes + report.no;
+        const row = (member, detail) => `<li><span><strong>${e(member.name)}</strong>${detail ? `<small>${e(detail)}</small>` : ''}</span>${event.finalized ? ''
+          : action('응답 변경', 'open-vote', event.id, {tone: 'text btn-small', extra: `data-kind="${e(member.id)}" aria-label="${e(member.name)} 응답 변경"`})}</li>`;
+        const silent = members.filter(member => !event.votes[member.id]);
+        const order = {early: 0, late: 1, yes: 1, no: 2};
+        const answered = members.filter(member => event.votes[member.id]).sort((a, b) => order[event.votes[a.id]] - order[event.votes[b.id]]);
+        return `<section class="vote-box" aria-label="참석 투표 현황"><div id="vote-counts"><p class="vote-total">응답 ${responded} / ${report.total}명</p>
+            <p class="muted">선발 ${report.early} · 후발 ${report.late} · 불참 ${report.no} · 점심 ${report.lunch}</p>
+            <svg class="now-meter" viewBox="0 0 ${Math.max(report.total, 1)} 1" preserveAspectRatio="none" role="img" aria-label="응답 ${responded}/${report.total}명"><rect width="${responded}" height="1"/></svg></div>
+            <div class="now-actions">${action('투표 링크 복사', 'copy-link', event.id, {tone: pollAvailable ? 'primary' : 'secondary', extra: 'data-kind="vote"'})}</div>
+            ${pollAvailable && members.length ? `<a class="btn btn-text now-own" href="#public-vote/${encodeURIComponent(event.id)}" data-route="public-vote/${encodeURIComponent(event.id)}">회원 화면 체험</a>` : ''}</section>
+          <section class="vote-roster" aria-label="응답 명단"><header class="list-tools"><h2>미응답 ${silent.length}명</h2></header>
+            ${silent.length ? `<ul class="name-list">${silent.map(member => row(member, '')).join('')}</ul>` : `<p class="muted home-empty">${members.length ? '모두 응답했어요.' : '이 일정에 등록된 멤버가 없어요.'}</p>`}
+            ${answered.length ? `<details class="event-past"><summary>응답한 ${answered.length}명${icon('chevron-right', 16)}</summary><ul class="name-list">${answered.map(member =>
+              row(member, `${slotLabel(event.votes[member.id])}${event.lunch[member.id] ? ' · 점심' : ''}`)).join('')}</ul></details>` : ''}</section>`;
       }
 
+      // 당일 출석 (the live attendancePanel): the whole row is the check, 결석 and 줄서기 인정 wait behind 상세; the members
+      // who said 불참 or nothing are folded below; the count stays in sight with 미확인만 보기.
       function attendance() {
         const report = attendanceCounts(event);
         const actionAllowed = event.date <= today && !event.finalized && !event.cancelled;
-        const priority = {early: 0, late: 1, yes: 1, no: 3};
-        const sorted = [...members].sort((a, b) => (priority[event.votes[a.id]] ?? 2) - (priority[event.votes[b.id]] ?? 2));
-        const rows = sorted.map(member => {
-          const vote = event.votes[member.id];
+        const coming = member => ['early', 'late', 'yes'].includes(event.votes[member.id]);
+        const row = member => {
           const status = event.attendance[member.id];
-          const recognition = event.recognized[member.id];
-          const buttons = ['present', 'absent'].map(value => {
-            const active = status === value;
-            return action(attendanceLabels[value], 'mark-attendance', event.id, {
-              tone: active ? 'primary' : 'secondary',
-              extra: `data-member="${e(member.id)}" data-value="${active ? '' : value}" aria-label="${e(member.name)} ${attendanceLabels[value]}" aria-pressed="${active}"`
-            });
-          }).join('');
-          const control = actionAllowed
-            ? `<select data-recognition data-id="${e(event.id)}" data-member="${e(member.id)}" aria-label="${e(member.name)} 줄서기 인정">
-                ${option('', '미인정', recognition ?? '')}
-                ${Object.entries(recognitionLabels).map(([value, label]) => `<option value="${value}"${value === recognition ? ' selected' : ''}${value !== 'approved' && status !== 'present' ? ' disabled' : ''}>${label}</option>`).join('')}
-              </select>`
-            : pill(recognitionLabels[recognition] || '미인정');
-          return `<tr><td><strong>${e(member.name)}</strong></td><td>${voteLabels[vote] || '미응답'}</td><td>${actionAllowed
-            ? `<div class="table-actions">${buttons}</div>`
-            : pill(attendanceLabels[status] || '미확인', status === 'present' ? 'green' : 'neutral')}</td><td>${control}</td></tr>`;
-        });
+          const present = status === 'present';
+          const recognition = recognitionLabels[event.recognized[member.id]];
+          const facts = [slotLabel(event.votes[member.id]), event.lunch[member.id] ? '점심' : '', status === 'absent' ? '결석' : '', recognition ? `${recognition} 인정` : ''].filter(Boolean).join(' · ');
+          return `<li data-selected="${present}"><button class="att-row" type="button" data-action="mark-attendance" data-id="${e(event.id)}" data-member="${e(member.id)}" data-value="${present ? '' : 'present'}" aria-pressed="${present}" aria-label="${e(member.name)} 출석"${helpers.justChecked() === member.id && present ? ' data-just' : ''}${actionAllowed ? '' : ' disabled'}>
+              <span><strong>${e(member.name)}</strong><small>${e(facts)}</small></span><span class="att-check" aria-hidden="true"></span></button>
+            <button class="icon-button" type="button" data-action="open-attendance" data-id="${e(event.id)}" data-kind="${e(member.id)}" aria-label="${e(member.name)} 출석 상세" title="${e(member.name)} 출석 상세"${actionAllowed ? '' : ' disabled'}>${icon('more', 20)}</button></li>`;
+        };
+        const list = people => `<ul class="att-list">${people.map(row).join('')}</ul>`;
+        const going = members.filter(coming).sort((a, b) => (event.votes[a.id] === 'early' ? 0 : 1) - (event.votes[b.id] === 'early' ? 0 : 1));
+        const others = members.filter(member => !coming(member));
+        const note = event.finalized ? '확정한 출석 기록이 통계에 반영됐어요.' : actionAllowed ? '' : '일정 당일부터 출석을 기록할 수 있어요.';
         const actions = event.finalized
           ? action('출석 다시 열기', 'reopen-attendance', event.id)
           : actionAllowed
             ? (report.pending ? action('미확인 모두 결석', 'mark-pending-absent', event.id) : '') + action('출석·게스트 확정', 'finalize', event.id, {tone: 'primary', extra: report.pending ? 'disabled' : ''})
             : '';
-        const subtitle = event.finalized
-          ? '확정한 출석 기록이 통계에 반영됐어요.'
-          : actionAllowed
-            ? '선발과 후발 응답을 위에 표시했어요. 실제 출석과 줄서기 인정은 각각 기록하세요.'
-            : '일정 당일부터 출석을 기록할 수 있어요.';
-        return panel('실제 출석', summary([['출석', `${report.present}명`, 'green'], ['결석', `${report.absent}명`], ['미확인', `${report.pending}명`], ['줄서기 인정', `${Object.keys(event.recognized).length}명`]])
-          + (rows.length ? table(['멤버', '투표 응답', '실제 출석', '줄서기 인정'], rows) : empty('이 일정에 등록된 멤버가 없어요.')), { subtitle, actions }) + guests();
+        return `<section id="attendance" class="att" aria-label="당일 출석"${helpers.onlyUnmarked() ? ' data-only="unmarked"' : ''}>
+            ${note ? `<p class="form-note">${note}</p>` : ''}
+            ${members.length ? '' : '<p class="muted home-empty">이 일정에 등록된 멤버가 없어요.</p>'}
+            ${going.length ? list(going) : members.length ? '<p class="muted home-empty">참석한다고 응답한 회원이 아직 없어요.</p>' : ''}
+            ${others.length ? `<details class="event-past att-others"${going.length ? '' : ' open'}><summary>참석 예정이 아닌 회원 ${others.length}명${icon('chevron-right', 16)}</summary>${list(others)}</details>` : ''}
+            <div class="att-foot"><strong id="att-count" role="status">출석 ${report.present}명 · 미확인 ${report.pending}명</strong>
+              <button class="btn btn-text btn-small" type="button" data-action="att-filter" aria-pressed="${helpers.onlyUnmarked()}">미확인만 보기</button></div>
+            ${actions ? `<div class="form-actions att-actions">${actions}</div>` : ''}
+          </section>` + guests();
       }
 
       function guests() {
@@ -216,8 +210,12 @@
         open && iconAction('pushpin', 'toggle-pin', event.id, `${event.title} 상단 고정`, {kind: 'event', pressed: Boolean(event.pinnedAt)}),
         iconAction('edit', 'open-event', event.id, `${event.title} 일정 수정`),
         iconAction('more', 'open-actions', event.id, `${event.title} 회차 메뉴`, {kind: 'event'}));
-      return `<div class="back-link">${routeLink('일정 목록', 'events', 'text', 'arrow-left')}</div>`
-        + heading(`${open ? '' : pinMark(event)}${e(event.title)}${event.cancelled ? ` ${pill('취소', 'muted')}` : ''}`, subheader + cancelled, tools)
+      const stands = event.cancelled ? '취소한 일정' : event.finalized ? '마무리 완료'
+        : pollAvailable ? `공개 중 · ${dateLabel(event.deadline)} ${event.deadlineTime} 투표 마감` : `공개 중 · ${event.pollOpen || deadlinePassed(event) ? '투표 마감' : '투표 닫힘'}`;
+      // The event names the screen (the live event head): its title, one line of when and where, one of where it stands.
+      return `<div class="back-link">${routeLink('일정', 'events', 'text', 'arrow-left')}</div>
+        <header class="event-head"><h1>${open ? '' : pinMark(event)}${e(event.title)}</h1>${tools}
+          <p>${e(kindPrefix(event))}${e(dateLabel(event.date))} ${eventTime(event)} · ${e(event.place)}</p><p class="muted">${e(stands)}</p></header>${cancelled}`
         + (event.notes ? `<p class="event-notes">${e(event.notes)}</p>` : '')
         + nav
         + (route.tab === 'attendance' ? attendance() : route.tab === 'settlement' ? finish() : poll() + guests());
@@ -412,10 +410,24 @@
       const members = event.roster.map(id => state.members.find(member => member.id === id)).filter(Boolean);
       return form(dialog, '예시 응답 조정',
         `<p class="form-note form-field-full">예시 회원의 응답을 정정합니다. 저장하면 기존 응답 한 건이 갱신됩니다.</p>`
-        + field('멤버', `<select name="member" required><option value="">선택하세요</option>${members.map(member => option(member.id, member.name, '')).join('')}</select>`, true)
+        + field('멤버', `<select name="member" required><option value="">선택하세요</option>${members.map(member => option(member.id, member.name, dialog.kind ?? '')).join('')}</select>`, true)
         + field('응답', `<select name="vote" required><option value="">선택하세요</option>${option('early', `${event.earlyTime} 선발`, '')}${option('late', `${event.lateTime} 후발`, '')}${option('no', '불참', '')}</select>`, true)
         + check('lunch', '점심에 함께해요', false),
         '응답 저장');
+    }
+
+    // 출석 상세 (the live attendanceForm): 결석 and 줄서기 인정, the two things a tap on the row does not record.
+    function attendanceDialog(dialog, state) {
+      const event = state.events.find(item => item.id === dialog.id);
+      const member = state.members.find(item => item.id === dialog.kind);
+      if (!event || !member) return '';
+      const status = event.attendance[member.id] ?? '';
+      const recognition = event.recognized[member.id] ?? '';
+      return form(dialog, `${e(member.name)} 출석 상세`,
+        `<input type="hidden" name="member" value="${e(member.id)}">`
+        + field('실제 출석', `<select name="status">${option('', '미확인', status)}${option('present', '출석', status)}${option('absent', '결석', status)}</select>`)
+        + field('줄서기 인정', `<select name="recognition">${option('', '미인정', recognition)}${Object.entries(recognitionLabels).map(([value, label]) => option(value, label, recognition)).join('')}</select>`)
+        + '<p class="form-note form-field-full">직접·대타 인정은 출석으로 기록한 회원에게만 남아요.</p>', '기록 저장');
     }
 
     // Confirmations (the live dialogs): a question and the one button that does it; ×, the backdrop and Esc close them.
@@ -482,7 +494,7 @@
       return confirm(dialog.kind === 'notice' ? '공지 메뉴' : '회차 메뉴', `<div class="menu-actions action-menu">${buttons.join('')}</div>`, '');
     }
 
-    return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, pinDialog, cancelDialog,
+    return {eventList, eventDetail, notices, members, statistics, repeat, eventDialog, memberDialog, noticeDialog, repeatDialog, voteDialog, attendanceDialog, pinDialog, cancelDialog,
       resetDialog, credentialDialog, actionsDialog};
   }
 
@@ -497,7 +509,8 @@
         stats: () => view.statistics(state, ui),
         repeat: () => view.repeat(state)
       }[route.page]?.();
-      return content ? `<div class="secondary-page">${content}</div>` : '';
+      // 일정 (the list and one event) is a single column, as the 운영 홈 (styles.css .event-page).
+      return content ? `<div class="${['events', 'event'].includes(route.page) ? 'event-page' : 'secondary-page'}">${content}</div>` : '';
     },
     renderDialog(dialog, state, helpers) {
       const view = makeView(helpers);
@@ -507,6 +520,7 @@
         notice: view.noticeDialog,
         repeat: view.repeatDialog,
         vote: view.voteDialog,
+        attendance: view.attendanceDialog,
         pin: view.pinDialog,
         cancel: view.cancelDialog,
         reset: view.resetDialog,
