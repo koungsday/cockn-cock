@@ -140,7 +140,7 @@ await writeFile(join(dist, 'flow.js'), `(() => {\n${flowSource.replace(/^export 
 // 일정 달력 (DESIGN.md 5): the same month grid as the live 일정 list, as window.clubCalendar.
 const calendarSource = await readFile(join(root, 'worker/public/calendar.mjs'), 'utf8');
 const calendarNames = [...calendarSource.matchAll(/^export function (\w+)/gm)].map(match => match[1]);
-if (!calendarNames.includes('calendarBlock') || !calendarNames.includes('pickCalendarDay')) throw new Error('The calendar is missing.');
+if (!calendarNames.includes('calendarBlock') || !calendarNames.includes('calendarDayPanel')) throw new Error('The calendar is missing.');
 await writeFile(join(dist, 'calendar.js'), `(() => {\n${calendarSource.replace(/^export function /gm, 'function ')}\nwindow.clubCalendar = { ${calendarNames.join(', ')} };\n})();\n`);
 await copyFile(join(root, 'platform/recent-club.js'), join(dist, 'recent-club.js'));
 // One club address for both views, as the live club (ROLES.md 3단계): the member view at #member, the organisers' at #home.

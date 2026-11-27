@@ -9,7 +9,7 @@
   let menuClosing = null;
   const toast = document.querySelector('#toast');
   const state = model.load();
-  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}, calendarOpen:true};
+  const ui = {memberQuery:'', memberStatus:'active', statsMonth:today.slice(0, 7), publicReceipts:{}, calendarOpen:true, calendarDate:''};
   // The live menu names (ROLES.md 3단계: worker/public/views.mjs organizerSections) where the demo has the same screen;
   // 반복 설정 is the demo's own (the live club has 모임 규칙 instead).
   const pages = [
@@ -69,8 +69,8 @@
   const flowNow = {day: today, minute: model.demoNow};
   const pinLimit = 3;
   const kindLabels = {regular:'정기', flash:'번개', match:'대회', social:'모임'};
-  const helpers = {escape, icon, dateLabel, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle, onlyUnmarked, justChecked};
+  const helpers = {escape, icon, dateLabel, addDays, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle, selectedCalendarDate, onlyUnmarked, justChecked};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -326,7 +326,17 @@
   function calendar(events) {
     const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
       regular:(event.kind ?? 'regular') === 'regular', done:event.date < today || flow.finished(flowEvent(event), flowNow)}));
-    return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), today, icon});
+    return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), selected:ui.calendarDate, today, icon});
+  }
+  function selectedCalendarDate() { return ui.calendarDate; }
+  function showCalendar(month, selected) {
+    const shown = app.querySelector('.calendar').dataset.month;
+    const pastWasOpen = app.querySelector('.calendar-other-dates > details')?.open;
+    Object.assign(ui, {calendarMonth:month, calendarDate:selected});
+    renderPage();
+    const past = app.querySelector('.calendar-other-dates > details');
+    if (past && pastWasOpen) past.open = true;
+    if (month !== shown) app.querySelector('.calendar-days').dataset.slide = month > shown ? 'next' : 'back';
   }
   // 달력으로 보기 / 달력 접기 (the live calendarToggle): the month grid starts open and can be folded.
   function calendarOpen() { return Boolean(ui.calendarOpen); }
@@ -442,8 +452,8 @@
     if (!modal.open) return modal.showModal();
     modal.querySelector('[data-action="close-dialog"]')?.focus();
   }
-  function openDialog(type,id,trigger,kind) {
-    const data = {type,id,kind};
+  function openDialog(type,id,trigger,kind,onDate) {
+    const data = {type,id,kind,onDate};
     modal.innerHTML = type === 'share'
       ? window.clubShare.renderShare(data,state,helpers)
       : window.clubScreens.renderDialog(data,state,helpers);
@@ -561,21 +571,19 @@
       openDialog(action.slice(5),id,trigger,kind);
       return;
     }
-    // 일정 달력 (the live doAction): the asked month slides in from its side; a date marks its rows in the list below.
+    if (action === 'new-event') return openDialog('event', '', trigger, '', id);
+    // 일정 달력 (the live doAction): the asked month slides in from its side; a date opens its rows below.
     if (action === 'calendar-month') {
       const shown = app.querySelector('.calendar')?.dataset.month;
       const month = shown && window.clubCalendar.calendarTarget(shown, id);
       if (!month || month === shown) return;
-      ui.calendarMonth = month;
-      renderPage();
-      const days = app.querySelector('.calendar-days');
-      if (days) days.dataset.slide = month > shown ? 'next' : 'back';
+      showCalendar(month, '');
       app.querySelector(`.calendar [data-action="calendar-month"][data-id="${id}"]`)?.focus({preventScroll:true});
       return;
     }
     if (action === 'calendar-toggle') {
       ui.calendarOpen = !ui.calendarOpen;
-      ui.calendarMonth = null;
+      ui.calendarDate = '';
       renderPage();
       app.querySelector('.calendar-toggle')?.focus({preventScroll:true});
       return;
@@ -588,7 +596,8 @@
       return;
     }
     if (action === 'calendar-day') {
-      window.clubCalendar.pickCalendarDay(app, id, !reducedMotion.matches);
+      showCalendar(id.slice(0, 7), id === ui.calendarDate ? '' : id);
+      app.querySelector(`.calendar-date[data-id="${CSS.escape(id)}"]`)?.focus({preventScroll:true});
       return;
     }
     if (action === 'close-dialog') modal.close();
@@ -933,8 +942,9 @@
     if (location.hash === '#main-content') return;
     if (modal.open) modal.close();
     const before = currentRoute;
+    const beforeMenu = menuPage();
     currentRoute = routeFromHash();
-    if (before.page !== currentRoute.page) ui.calendarMonth = null;
+    if (beforeMenu !== menuPage()) Object.assign(ui, {calendarMonth:null, calendarDate:''});
     if (mobileNav.open) closeMobileMenu(false);
     renderPage({focus:true, arrive:arriveSide(before, currentRoute)});
     window.scrollTo(0,0);

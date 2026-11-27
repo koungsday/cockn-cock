@@ -245,19 +245,26 @@ p { line-height: 1.58; }
 .calendar-weekdays span { display: grid; place-items: center; min-height: 44px; color: var(--neutral-muted); font-size: var(--t4); }
 .calendar-days { margin: 0; padding: 0; list-style: none; }
 .calendar-day { display: grid; min-width: 0; min-height: 44px; }
-.calendar-slot, .calendar-date { display: grid; place-items: center; width: 100%; min-width: 0; }
-.calendar-date { border: 0; background: none; color: inherit; border-radius: 8px; cursor: pointer; }
+.calendar-date { display: grid; place-items: center; width: 100%; min-width: 0; border: 0; background: none; color: inherit; border-radius: 8px; cursor: pointer; }
 .calendar-number { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--mark-radius); font-size: var(--t4); font-variant-numeric: tabular-nums; }
 .calendar-day.is-other { color: var(--neutral-muted); }
 .calendar-day.is-today .calendar-number { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; }
-.calendar-date .calendar-number { border: 2px solid var(--neutral-muted); background: var(--neutral-soft); font-weight: 600; }
-.calendar-day.is-done .calendar-number { border-width: 1px; background: var(--surface); color: var(--neutral-muted); }
-.calendar-date[aria-pressed="true"] .calendar-number { border-color: var(--neutral-ink); background: var(--neutral-ink); color: var(--surface); }
+.calendar-day.has-events .calendar-number { background: var(--neutral-muted); color: var(--surface); font-weight: 600; }
+.calendar-day.is-done .calendar-number, .calendar[data-selected] .has-events .calendar-date[aria-pressed="false"] .calendar-number { background: var(--neutral-soft); color: var(--neutral-muted); }
+.calendar .calendar-date[aria-pressed="true"] .calendar-number { background: var(--neutral-ink); color: var(--surface); font-weight: 600; }
 @media (hover: hover) {
-  .calendar-date:hover .calendar-number { border-color: var(--neutral-ink); }
+  .calendar-date:hover .calendar-number { background: var(--neutral-ink); color: var(--surface); }
 }
-:is(.event-list li, .member-record)[data-date] { transition: background-color var(--dur-quick), box-shadow var(--dur-quick); }
-:is(.event-list li, .member-record).is-picked { border-radius: 4px; background: var(--neutral-soft); box-shadow: 0 0 0 6px var(--neutral-soft); }
+.calendar-selection { margin-block: 4px 12px; color: var(--neutral-ink); }
+.calendar-selection-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch-target); }
+.calendar-selection h3 { font-size: var(--t3); }
+.calendar-selection p { color: var(--neutral-muted); font-size: var(--t4); }
+.calendar-selection .btn { min-height: var(--touch-target); color: var(--neutral-ink); }
+.calendar-selection .btn:hover { background: var(--neutral-soft); }
+.calendar-selection > ul { margin-top: 6px; }
+.calendar-other-dates { display: grid; gap: 4px; }
+.calendar-selection + .calendar-other-dates :is(.event-link, .member-record-link):not(:hover, :focus-visible) { color: var(--neutral-muted); }
+.calendar-selection + .calendar-other-dates :is(.event-link, .member-record-link):not(:hover, :focus-visible) :is(strong, small, .member-record-meta, .member-record-action) { color: inherit; }
 /* A cancelled event says so on the 회차 화면 with the way back; 일정 취소 itself is in the 회차 메뉴. */
 .event-cancelled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t4); word-break: keep-all; }
 .event-cancelled p { flex: 1 1 14rem; }
@@ -631,7 +638,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
 html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--paper); }
 
 /* Shared form pickers keep the original control in the form for submission. */
-.picker-native { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; pointer-events: none; clip-path: inset(50%); }
+:is(input, select).picker-native[aria-hidden="true"] { position: absolute; inline-size: 1px; block-size: 1px; max-inline-size: 1px; min-block-size: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; clip-path: inset(50%); }
 .form-picker { display: block; min-width: 0; }
 .picker-trigger, .picker-option, .picker-days button, .picker-heading { margin-bottom: 8px; }
 .picker-close { width: var(--touch-target); height: var(--touch-target); font-size: var(--t2); }
@@ -728,6 +735,32 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) body { background: var(--p
   border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
 }
 .picker-clock + .btn { width: 100%; }
+
+/* 일정 모달: empty text fields carry their hints, and each picker names itself next to its current value. */
+.dialog [data-form="event"] { --focus: var(--neutral-ink); }
+.dialog [data-form="event"] .form-group > legend, .dialog [data-form="event"] .form-group .form-note { color: var(--neutral-muted); }
+.dialog [data-form="event"] .form-field:has(> :is(input, textarea)[placeholder], > .form-picker) > span:first-child {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.dialog [data-form="event"] :is(input, textarea)[placeholder] {
+  min-height: 52px; padding: 12px; font-size: var(--t3);
+}
+.dialog [data-form="event"] :is(input, textarea)[placeholder]:not(:focus, [aria-invalid="true"]) { border-color: var(--neutral-muted); }
+.dialog [data-form="event"] :is(input, textarea)::placeholder { color: var(--neutral-muted); opacity: 1; }
+.dialog [data-form="event"] .form-field textarea { min-height: 86px; }
+.dialog [data-form="event"] .picker-trigger {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 3px; min-height: 60px;
+  margin: 0; padding: 8px 12px; background: var(--neutral-soft); color: var(--neutral-ink);
+}
+.dialog [data-form="event"] .picker-trigger:not([aria-expanded="true"], [aria-invalid="true"], :focus-visible) { border-color: var(--neutral-muted); }
+.dialog [data-form="event"] .picker-trigger::after { grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 8px; margin-inline-end: 2px; border-color: var(--neutral-muted); }
+.dialog [data-form="event"] .picker-caption { grid-column: 1; color: var(--neutral-muted); font-size: var(--t4); line-height: 1.25; }
+.dialog [data-form="event"] .picker-value { grid-column: 1; font-size: var(--t2); line-height: 1.25; overflow-wrap: anywhere; }
+.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button, .picker-clock-options) { background: var(--neutral-soft); }
+.dialog [data-form="event"] .picker-popup :is(.picker-option, .picker-days button) { min-height: var(--touch-target); }
+.dialog [data-form="event"] .picker-popup .picker-clock-options button { font-size: var(--t2); }
+.dialog [data-form="event"] .picker-popup [aria-pressed="true"] { background: var(--neutral-ink); color: var(--surface); font-weight: 600; }
+.dialog [data-form="event"] .picker-popup .picker-clock + .btn { min-height: var(--touch-target); background: var(--neutral-ink); border-color: var(--neutral-ink); color: var(--surface); }
 @media (forced-colors: active) {
   .picker-trigger:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
 }

@@ -211,9 +211,9 @@
 
   // The member's events as the live listPublic gives them: upcoming and not wrapped up. The demo has no sign-in, so
   // every open vote waits for the visitor; one they answered here (publicReceipts) reads 응답 완료.
-  function memberEvents(state, helpers) {
+  function memberEvents(state, helpers, onlyDate = '') {
     const now = helpers.flowNow;
-    const listed = state.events.filter(event => event.date >= now.day && !event.finalized).map(event => ({
+    const listed = state.events.filter(event => onlyDate ? event.date === onlyDate : event.date >= now.day && !event.finalized).map(event => ({
       ...event, canVote: event.pollOpen && !event.cancelled && `${event.deadline}T${event.deadlineTime}` > now.minute,
       deadlineDate: event.deadline, deadline: `${event.deadline}T${event.deadlineTime}`, eligible: true,
       mySlot: helpers.publicReceipts?.[event.id]?.vote ?? null,
@@ -280,8 +280,13 @@
     const events = memberEvents(state, helpers);
     // 일정: the month's calendar above the list in one card (the live memberEventsScreen).
     if (route.page === 'member-events') {
+      const selected = helpers.selectedCalendarDate();
+      const rows = events.filter(event => event.date !== selected).map(eventRow);
+      const dayRows = selected ? memberEvents(state, helpers, selected).map(eventRow) : [];
       return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
-        <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${helpers.calendarToggle()}</div>${helpers.calendarOpen() ? helpers.calendar(events) : ''}${events.length ? `<ul class="member-records">${events.map(eventRow).join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`, helpers);
+        <h1 id="member-events" tabindex="-1">일정</h1><div class="list-tools"><span>예정 ${events.length}개</span>${helpers.calendarToggle()}</div>
+        ${helpers.calendarOpen() ? helpers.calendar(state.events) : ''}${window.clubCalendar.calendarDayPanel(selected, dayRows, {listClass:'member-records'})}
+        <div class="calendar-other-dates">${rows.length ? `<ul class="member-records">${rows.join('')}</ul>` : selected ? '' : `<p class="public-form-note">${noEvents}</p>`}</div></div></section>`, helpers);
     }
     if (route.page === 'member-notices') {
       return memberPage(listCard('member-notices', '공지', pinnedFirst(state.notices).map(noticeRow), '게시된 공지가 없어요.', 'h1'), helpers);

@@ -10,7 +10,7 @@ import {
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { loadingKind } from './skeleton.mjs';
 import { flowOrder, koreanNow } from './flow.mjs';
-import { calendarTarget, pickCalendarDay } from './calendar.mjs';
+import { calendarTarget } from './calendar.mjs';
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
@@ -74,6 +74,8 @@ const state = {
   selectedNotice: null,
   eventTab: null,
   calendarMonth: null,
+  calendarDate: '',
+  memberCalendar: null,
   calendarOpen: true,
   // 당일 출석 미확인만 보기 (views.mjs attendancePanel): kept through a redraw of the screen.
   onlyUnmarked: false,
@@ -266,6 +268,18 @@ async function load() {
     if (state.section === 'event' && state.selectedEvent) {
       ({ event: state.event } = await request(`/api/public/vote/${id(state.selectedEvent)}`));
       await loadOwnVote(state.selectedEvent);
+    } else if (state.section === 'event') {
+      const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
+      const [listing, calendar] = await Promise.all([request('/api/public'), state.calendarOpen ? memberMonth(month).catch(error => {
+        if (error.name === 'AbortError') throw error;
+        return null;
+      }) : null]);
+      state.listing = listing;
+      state.memberCalendar = calendar;
+      if (state.calendarOpen && !calendar) {
+        Object.assign(state, { calendarOpen: false, calendarDate: '' });
+        showMessage('달력을 불러오지 못했어요. 달력으로 보기를 눌러 다시 시도해 주세요.', true);
+      }
     } else if (state.section === 'notices' && state.selectedNotice) {
       ({ notice: state.notice } = await request(`/api/public/notice/${id(state.selectedNotice)}`));
     } else {
@@ -317,12 +331,15 @@ async function load() {
 // The screen inside the shell for the section on the address and the person's permission (ROLES.md 권한 표).
 function sectionScreen(voteSaved) {
   const { section, user } = state;
+  const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
   if (section === 'notices' && state.selectedNotice) return noticeScreen(state.notice);
   if (section === 'record') return memberRecordScreen(state.listing, user);
   if (!operating(user)) {
     if (section === 'event') {
       return state.selectedEvent ? memberVoteScreen(state.event, state.vote, state.eligible, voteSaved, Boolean(user))
-        : memberEventsScreen(state.listing, user, state.calendarMonth, state.calendarOpen);
+        : memberEventsScreen(state.listing, state.memberCalendar?.events ?? [], user, {
+          month: state.memberCalendar?.month ?? month, selected: state.calendarDate, calendarOpen: state.calendarOpen,
+        });
     }
     return section === 'notices' ? memberNoticesScreen(state.listing) : homeScreen(state.listing, club, user);
   }
@@ -332,8 +349,8 @@ function sectionScreen(voteSaved) {
   if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
   if (section === 'rules') return rulesScreen(state.admin.rules);
   return eventScreen(state.admin.events, state.detail, {
-    tab: state.eventTab, own: { vote: state.vote, eligible: state.eligible, saved: voteSaved }, month: state.calendarMonth,
-    calendarOpen: state.calendarOpen, onlyUnmarked: state.onlyUnmarked, myVoteOpen: state.myVoteOpen,
+    tab: state.eventTab, own: { vote: state.vote, eligible: state.eligible, saved: voteSaved }, month,
+    selected: state.calendarDate, calendarOpen: state.calendarOpen, onlyUnmarked: state.onlyUnmarked, myVoteOpen: state.myVoteOpen,
   });
 }
 
@@ -371,7 +388,7 @@ function clearProtectedView() {
   busy = false;
   Object.assign(state, {
     user: null, section: 'home', selectedEvent: null, selectedNotice: null, eventTab: null, admin: null, upcoming: null, last: null, listing: { events: [], notices: [] },
-    detail: null, event: null, notice: null, vote: null, eligible: false, progress: [],
+    detail: null, event: null, notice: null, vote: null, eligible: false, progress: [], calendarMonth: null, calendarDate: '', memberCalendar: null,
   });
   eventSnapshot = null;
   Object.assign(signIn, { name: null, numberStep: false });
@@ -684,7 +701,8 @@ function submitCompleteCode(input) {
 // Moves to a section, event, notice or tab. Only a new section, event or notice is fetched; a tab change redraws what is
 // already here. list: the 일정 list (#event) rather than an event; noticeId: one notice (#notices/:id), null for the list.
 async function goTo(section, { eventId = null, noticeId = null, tab = null, push = true, list = false } = {}) {
-  const previous = { section: state.section, selectedEvent: state.selectedEvent, selectedNotice: state.selectedNotice, eventTab: state.eventTab };
+  const previous = { section: state.section, selectedEvent: state.selectedEvent, selectedNotice: state.selectedNotice, eventTab: state.eventTab,
+    calendarMonth: state.calendarMonth, calendarDate: state.calendarDate };
   const reload = section !== previous.section
     || (section === 'event' && (list ? previous.selectedEvent !== null : eventId !== null && eventId !== previous.selectedEvent))
     || (section === 'notices' && noticeId !== previous.selectedNotice);
@@ -692,7 +710,7 @@ async function goTo(section, { eventId = null, noticeId = null, tab = null, push
   const order = appSections(state.user).map(([name]) => name);
   const step = order.indexOf(section) - order.indexOf(previous.section);
   const arrive = step > 0 || (!step && !list && (eventId || noticeId)) ? 'next' : 'back';
-  if (section !== previous.section) state.calendarMonth = null;
+  if (section !== previous.section) Object.assign(state, { calendarMonth: null, calendarDate: '' });
   state.section = section;
   state.eventTab = section === 'event' ? tab : null;
   // 내 응답 folds again on another event or the list.
@@ -719,6 +737,23 @@ async function goTo(section, { eventId = null, noticeId = null, tab = null, push
   window.scrollTo(0, 0);
   const target = desktopNavigation.matches ? main.querySelector('.sidebar [aria-current="page"]') : main.querySelector('.admin-content h1');
   (target ?? main).focus({ preventScroll: true });
+}
+
+async function memberMonth(month) {
+  const { events } = await request(`/api/public?month=${id(month)}`);
+  return { month, events };
+}
+
+async function showCalendar(month, selected) {
+  const shown = main.querySelector('.calendar').dataset.month;
+  if (!operating(state.user) && state.memberCalendar?.month !== month) state.memberCalendar = await memberMonth(month);
+  const pastWasOpen = main.querySelector('.calendar-other-dates > details')?.open;
+  if (month !== shown) state.calendarMonth = month;
+  state.calendarDate = selected;
+  render();
+  const past = main.querySelector('.calendar-other-dates > details');
+  if (past && pastWasOpen) past.open = true;
+  if (month !== shown) main.querySelector('.calendar-days').dataset.slide = month > shown ? 'next' : 'back';
 }
 
 async function doAction(action, itemId, tab) {
@@ -780,28 +815,30 @@ async function doAction(action, itemId, tab) {
     case 'event-list':
       await goTo('event', { list: true });
       break;
-    // 일정 달력 (calendar.mjs): the asked month slides in from its side, focus stays on the same button; a date marks its
-    // rows in the list below.
+    // A month arrow preserves focus, and a date (including spillover) opens its own list below the calendar.
     case 'calendar-month': {
       const shown = main.querySelector('.calendar')?.dataset.month;
       const month = shown && calendarTarget(shown, itemId);
       if (!month || month === shown) break;
-      state.calendarMonth = month;
-      render();
-      const days = main.querySelector('.calendar-days');
-      if (days) days.dataset.slide = month > shown ? 'next' : 'back';
+      await showCalendar(month, '');
       main.querySelector(`.calendar [data-action="calendar-month"][data-id="${itemId}"]`)?.focus({ preventScroll: true });
       break;
     }
     // 달력으로 보기 / 달력 접기: the list stays, the month grid comes and goes above it; focus stays on the button.
-    case 'calendar-toggle':
+    case 'calendar-toggle': {
+      if (!state.calendarOpen && !operating(state.user)) {
+        const month = state.calendarMonth ?? koreanNow().day.slice(0, 7);
+        state.memberCalendar = await memberMonth(month);
+      }
       state.calendarOpen = !state.calendarOpen;
-      state.calendarMonth = null;
+      state.calendarDate = '';
       render();
       main.querySelector('.calendar-toggle')?.focus({ preventScroll: true });
       break;
+    }
     case 'calendar-day':
-      pickCalendarDay(main, itemId, !reducedMotion.matches);
+      await showCalendar(itemId.slice(0, 7), itemId === state.calendarDate ? '' : itemId);
+      main.querySelector(`.calendar-date[data-id="${CSS.escape(itemId)}"]`)?.focus({ preventScroll: true });
       break;
     case 'event-tab':
       await goTo('event', { tab: itemId });
@@ -818,7 +855,7 @@ async function doAction(action, itemId, tab) {
       showMessage('응답과 출석을 다시 불러왔어요.');
       break;
     case 'new-event':
-      openDialog('새 일정', eventForm(eventDefaults(null, club.defaultPlace)));
+      openDialog('새 일정', eventForm(eventDefaults(null, club.defaultPlace, { onDate: itemId || null })));
       break;
     case 'clone-event': {
       const event = itemId ? state.admin.events.find(event => event.id === itemId) : state.detail.event;
