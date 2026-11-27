@@ -5,7 +5,7 @@
 
   function makeView(helpers) {
     const { escape: e, icon, dateLabel, today, counts, attendanceCounts, stats, deadlinePassed, settlement, qualification,
-      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle, selectedCalendarDate } = helpers;
+      flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, calendar, calendarOpen, calendarToggle, selectedCalendarDate, eventDone } = helpers;
     const { genderChoices, memberNameTag } = window.clubMemberLabel;
 
     function action(text, name, id, options = {}) {
@@ -79,11 +79,13 @@
       const pastRows = past.filter(event => event.date !== selected).map(pastRow);
       const dayRows = selected ? state.events.filter(event => event.date === selected).sort((a, b) => a.time.localeCompare(b.time))
         .map(event => past.includes(event) ? pastRow(event) : flowRow(event)) : [];
-      const add = selected ? action(`${icon('plus', 16)} 일정 추가`, 'new-event', selected, {tone:'text btn-small'}) : '';
+      // 일정 추가 only from today on (the live eventList).
+      const add = selected && selected >= today ? action(`${icon('plus', 16)} 일정 추가`, 'new-event', selected, {tone:'text btn-small'}) : '';
+      const dayDone = state.events.filter(event => event.date === selected).every(eventDone);
       return `<header class="list-tools"><h1 class="sr-only">일정</h1><p>진행 중 ${flows.length}개</p>
           ${calendarToggle()}</header>`
         + window.clubCalendar.calendarPanel(calendarOpen() ? calendar(state.events)
-          + window.clubCalendar.calendarDayPanel(selected, dayRows, {action:add}) : '')
+          + window.clubCalendar.calendarDayPanel(selected, dayRows, {action:add, done:dayDone}) : '')
         + `<div class="calendar-other-dates">${rows.length ? `<ul class="event-list">${rows.join('')}</ul>` : selected ? '' : '<p class="muted home-empty">진행 중인 일정이 없어요. 새 일정을 만들어 투표를 시작하세요.</p>'}
         ${pastRows.length ? `<details class="event-past"><summary>끝난 일정 ${pastRows.length}개${icon('chevron-right', 16)}</summary><ul class="event-list">${pastRows.join('')}</ul></details>` : ''}</div>`;
     }

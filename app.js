@@ -70,7 +70,7 @@
   const pinLimit = 3;
   const kindLabels = {regular:'정기', flash:'번개', match:'대회', social:'모임'};
   const helpers = {escape, icon, dateLabel, addDays, today, counts, attendanceCounts, stats, avatar, deadlinePassed, settlement, qualification, brandAsset,
-    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle, selectedCalendarDate, onlyUnmarked, justChecked};
+    flowEvents, flowFacts, finishedEvents, pinMark, kindPrefix, kindLabels, defaultTab, pinLimit, flowNow, calendar, calendarOpen, calendarToggle, selectedCalendarDate, eventDone, onlyUnmarked, justChecked};
   let currentRoute = {page:'home'};
   let dialogTrigger;
   let toastTimer;
@@ -325,10 +325,12 @@
   // cancelled quiet. ui.calendarMonth is the month picked, this month when none was.
   function calendar(events) {
     const marks = events.map(event => ({date:event.date, title:event.title, kind:kindLabels[event.kind] ?? kindLabels.regular,
-      done:`${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow)}));
+      done:eventDone(event)}));
     return window.clubCalendar.calendarBlock(marks, {month:ui.calendarMonth ?? today.slice(0, 7), selected:ui.calendarDate, today, icon});
   }
   function selectedCalendarDate() { return ui.calendarDate; }
+  // An event that is over for the calendar (the live calendarEvents done): ended, or 마무리 확정, or cancelled.
+  function eventDone(event) { return `${event.date}T${event.endTime}` <= flowNow.minute || flow.finished(flowEvent(event), flowNow); }
   function showCalendar(month, selected) {
     const shown = app.querySelector('.calendar').dataset.month;
     const pastWasOpen = app.querySelector('.calendar-other-dates > details')?.open;

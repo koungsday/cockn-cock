@@ -76,3 +76,18 @@ test('titles are escaped in the labels', () => {
   assert.match(html, /&lt;b&gt;&quot;운동&quot;&lt;\/b&gt;/);
   assert.doesNotMatch(html, /<b>"운동"/);
 });
+
+// 사용자 결정 2026-11-27: a past date with nothing on it is only a faded number (no event can be made on it); a past date
+// that had an event still opens it; the chosen date's box says how many events it has, grey once they are all over.
+test('past empty dates cannot be chosen, and the chosen date counts its events', () => {
+  const html = calendarBlock([{ date: '2026-11-10', title: '지난 운동', kind: '정기', done: true }, { date: '2026-11-28', title: '다음 운동', kind: '정기', done: false }],
+    { month: '2026-11', today: '2026-11-27', icon });
+  assert.doesNotMatch(html, /data-id="2026-11-17"/, 'a past empty date is not a button');
+  assert.match(html, /<li class="calendar-day is-past"><span class="calendar-date"><span class="calendar-number">17<\/span>/);
+  assert.match(html, /data-action="calendar-day" data-id="2026-11-10"/, 'a past date with an event still opens');
+  assert.match(html, /data-action="calendar-day" data-id="2026-11-27"/, 'today can be chosen');
+  assert.match(html, /data-action="calendar-day" data-id="2026-12-01"/, 'a coming spillover date can be chosen');
+  assert.match(calendarDayPanel('2026-11-28', ['<li>a</li>', '<li>b</li>']), /<span class="calendar-count">일정 2개<\/span>/);
+  assert.match(calendarDayPanel('2026-11-10', ['<li>a</li>'], { done: true }), /<span class="calendar-count is-done">지난 일정 1개<\/span>/);
+  assert.doesNotMatch(calendarDayPanel('2026-11-30', []), /calendar-count/);
+});
