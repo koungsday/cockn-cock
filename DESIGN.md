@@ -145,7 +145,7 @@ UI 값은 이 문서와 아래 세 파일에서만 가져온다. 추측한 값�
 | 회차 단계 탭 | `nav.tabs` > `a`(가상 체험) / `button`(실사용) | 참석 투표 / 당일 출석 / 마무리. 현재 탭 `aria-current="page"`, 터치 44px |
 | 투표 현황 | `.poll-dashboard` | 응답률 막대 하나 + 선발·후발·점심 |
 | 바로가기 숫자 | `.dashboard-metrics` > `.metric` | 세 개까지. 누르면 해당 화면 |
-| 목록 | `.data-table` | 행 동작은 오른쪽 `.table-actions`. 칸은 `keep-all`(단어 안 끊김) + `overflow-wrap: anywhere` |
+| 목록 | `.data-table` | 행 동작은 오른쪽 `.table-actions`. 칸은 `keep-all`(단어 안 끊김) + `overflow-wrap: anywhere`. 회원 명단(실사용·가상 체험 같은 마크업: 이름 · 상태(+운영진) · 연필)과 운영진은 `.stack-table`: 700px 이하에서 머리 줄을 숨기고 줄마다 한 덩어리(회원 명단은 이름·상태·연필 한 줄, 운영진은 동작이 다음 줄) |
 | 상태 | `.pill` (`-green`, `-warm`, `-muted`) | 문구로 상태를 말한다 |
 | 숫자 요약 | `.summary-grid` > `.summary-item` | 집계 화면 상단 |
 | 폼 | `.form-grid` > `.form-field`(`-full`), `.form-check` | 라벨은 입력 위 |

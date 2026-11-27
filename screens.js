@@ -39,8 +39,8 @@
       return `<p class="empty-state">${message}</p>`;
     }
 
-    function table(columns, rows) {
-      return `<div class="data-table-wrap"><table class="data-table"><thead><tr>${columns.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    function table(columns, rows, css = '') {
+      return `<div class="data-table-wrap"><table class="data-table${css ? ` ${css}` : ''}"><thead><tr>${columns.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
     }
 
     function summary(items) {
@@ -236,15 +236,15 @@
         <label class="search-field">${icon('search')}<input type="search" data-filter="member-query" aria-label="이름 검색" placeholder="이름 검색" value="${e(ui.memberQuery)}"></label>
         <select data-filter="member-status" aria-label="활동 상태">${[['all', '전체 상태'], ['active', '활동 중'], ['inactive', '활동 중지']].map(([value, label]) => option(value, label, ui.memberStatus)).join('')}</select>
       </div>`;
+      // The live 회원 명단 (views.mjs membersScreen): name, state with 운영진 beside it, the 연필. On a phone each row is one
+      // line (.stack-table.member-table); 가입일 stays in 회원 수정.
       const rows = filtered.map(member => `<tr>
         <td><div class="member-name"><span class="avatar" aria-hidden="true">${e(member.name.slice(0, 1))}</span><strong>${e(member.name)}</strong></div></td>
-        <td>${e(member.role)}</td>
-        <td>${member.status === 'active' ? pill('활동 중', 'green') : pill('활동 중지')}</td>
-        <td>${e(dateLabel(member.joined))}</td>
+        <td>${member.status === 'active' ? pill('활동 중', 'green') : pill('활동 중지')}${member.role === '운영진' ? ` ${pill('운영진', 'green')}` : ''}</td>
         <td class="table-actions"><button class="btn btn-secondary btn-icon" type="button" data-action="open-member" data-id="${e(member.id)}" aria-label="${e(member.name)} 회원 수정" title="${e(member.name)} 회원 수정">${icon('edit')}</button></td>
       </tr>`);
       return heading('회원 관리', '새 회원을 추가하고 활동 상태를 관리하세요.', addButton('회원 추가', 'open-member'))
-        + panel('회원 명단', rows.length ? table(['이름', '역할', '상태', '가입일', '<span class="sr-only">멤버 수정</span>'], rows) : empty('조건에 맞는 멤버가 없어요.'), {
+        + panel('회원 명단', rows.length ? table(['이름', '상태', '<span class="sr-only">회원 관리</span>'], rows, 'stack-table member-table') : empty('조건에 맞는 멤버가 없어요.'), {
           subtitle: `전체 ${state.members.length}명 · 활동 중 ${activeCount}명`, actions: controls
         });
     }

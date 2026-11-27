@@ -254,6 +254,20 @@ p { line-height: 1.58; }
 .data-table .table-actions .btn+.btn { margin-left: 5px; }
 /* A row's 연필 (회원 수정) keeps the 44px square on mouse screens too; the row's text buttons stay compact. */
 .data-table .table-actions .btn.btn-icon { min-height: var(--touch-target); padding: 0; }
+/* 회원 명단 (live views.mjs and the demo's screens.js) and 운영진 on a phone: name and state on the first line, the row's actions on the next, so no button sits
+   past the screen edge inside the scrolling table. The header row stays for screen readers only. */
+@media (max-width: 700px) {
+  .stack-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .stack-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 10px 6px; border-bottom: 1px solid #eaf0e9; }
+  .stack-table tbody tr:last-child { border-bottom: 0; }
+  .stack-table tbody td { padding: 0; border-bottom: 0; }
+  .stack-table .member-name { min-width: 0; }
+  .stack-table .member-name strong { overflow: hidden; text-overflow: ellipsis; }
+  .stack-table tbody td.table-actions { grid-column: 1 / -1; text-align: left; white-space: normal; }
+  /* 회원 명단 has one action, the 연필: it stays on the name's line, at the right. */
+  .member-table.stack-table tbody tr { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .member-table.stack-table tbody td.table-actions { grid-column: auto; text-align: right; }
+}
 .data-table [aria-pressed="true"] { border-color: #3b7553; background: #edf7ea; color: #234a36; }
 .record-title { font-weight: 780; }
 .record-title:hover { text-decoration: underline; }
