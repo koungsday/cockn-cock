@@ -108,8 +108,8 @@ export function calendarDayPanel(date, rows, { listClass = 'event-list', action 
   const label = dayLabel(new Date(`${date}T00:00:00Z`));
   const count = rows.length ? `<span class="calendar-count${done ? ' is-done' : ''}">${done ? '지난 일정' : '일정'} ${rows.length}개</span>` : '';
   return `<section class="calendar-selection" aria-labelledby="calendar-selected-title">
-    <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time>${count}</h3>
-      ${rows.length ? '' : '<p>이 날짜에 일정이 없어요.</p>'}</div>${action}</div>
+    <div class="calendar-selection-head"><div><h3 id="calendar-selected-title"><time datetime="${escapeText(date)}">${label}</time></h3>
+      <p>${count || '이 날짜에 일정이 없어요.'}</p></div>${action}</div>
     ${rows.length ? `<ul class="${listClass}">${rows.join('')}</ul>` : ''}
   </section>`;
 }

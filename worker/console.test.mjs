@@ -170,11 +170,11 @@ test('only the configured ID and password open the club numbers, from this page 
   assert.match(panels['first-club'], /<dt>활동 회원<\/dt><dd>2명<\/dd>/);
   // Before its first sign-in, the organiser in Worker secrets is listed as the club's existing account.
   assert.match(panels['first-club'], /<dt>운영진<\/dt><dd>1명<\/dd>/);
-  assert.match(panels['first-club'], /fixture-first-admin<\/td><td><span class="pill">기존 계정/);
-  assert.doesNotMatch(panels['first-club'], /<dt>최근 회차<\/dt><dd>없음/);
-  assert.doesNotMatch(panels['first-club'], /<dt>다음 회차<\/dt><dd>없음/);
+  assert.match(panels['first-club'], /<strong>fixture-first-admin<\/strong><small>기존 계정/);
+  assert.doesNotMatch(panels['first-club'], /<dt>최근 일정<\/dt><dd>없음/);
+  assert.doesNotMatch(panels['first-club'], /<dt>다음 일정<\/dt><dd>없음/);
   assert.match(panels['second-club'], /<dt>활동 회원<\/dt><dd>1명<\/dd>/);
-  assert.match(panels['second-club'], /<dt>다음 회차<\/dt><dd>없음<\/dd>/);
+  assert.match(panels['second-club'], /<dt>다음 일정<\/dt><dd>없음<\/dd>/);
   assert.doesNotMatch(html, /가상 회원|가상 쉬는 회원|가상 다른 모임 회원/, 'no member names');
   assert.match(html, /<form method="post" action="\/console\/logout">/);
   assert.match(html, /<a class="btn btn-primary btn-icon" href="\/console\/new" aria-label="새 모임" title="새 모임">/);
@@ -301,7 +301,7 @@ test('the console makes a club that opens at once, and its first organiser sets 
   assert.equal((await api('/login', { method: 'POST', json: { name: '가상 운영진', credential: pin }, ip: '198.51.100.30' })).status, 401);
 
   const listed = clubPanels(await (await receive('/console/', { cookie })).text());
-  assert.match(listed['new-club'], /가상 운영진<\/td>[\s\S]*사용 중/);
+  assert.match(listed['new-club'], /<strong>가상 운영진<\/strong>\s*<small><span class="state-word state-quiet">사용 중/);
   assert.match(listed['new-club'], /<dt>운영진<\/dt><dd>1명<\/dd>/);
 });
 

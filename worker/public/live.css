@@ -127,7 +127,6 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 /* The live CSP blocks style attributes, so the response bar is SVG; colours match styles.css .vote-yes/.vote-no. */
 
 .panel-body > * + * { margin-top: 12px; }
-.panel-actions .search-field input { width: min(150px, 100%); }
 
 .share-preview { padding-left: 0; }
 .data-table tr[data-selected="true"] td { background: var(--accent-soft); }
@@ -210,6 +209,10 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .console-page .page-head { margin-bottom: 4px; }
 .console-page .page-description { word-break: keep-all; }
 .console-page .summary-grid.console-issued { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.console-page .console-issued dd { font-size: var(--t2); }
+/* Nexen Tire has one weight: the club name and page title at 600 as the club page's own (단순화 8). */
+.console-page :is(h1, h2) { font-weight: 600; }
+.console-address { display: inline-flex; align-items: center; min-height: var(--touch-target); }
 /* 운영진 추가: the name and its button share a line where they fit. 해지·정지 open a confirm step without script. */
 .console-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .console-inline-form .form-field { flex: 1 1 12rem; }

@@ -153,11 +153,6 @@ function word(text, tone = '') {
   return `<span class="state-word${tone ? ` state-${tone}` : ''}">${esc(text)}</span>`;
 }
 
-function avatar(name) {
-  const seed = Array.from(name).reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
-  return `<span class="avatar tone-${seed % 4}" aria-hidden="true">${esc(name.slice(0, 1))}</span>`;
-}
-
 function option(value, label, selected) {
   return `<option value="${esc(value)}"${String(selected ?? '') === String(value) ? ' selected' : ''}>${esc(label)}</option>`;
 }
@@ -191,10 +186,6 @@ function form(kind, body, label, id = '', css = '') {
 // is one quiet line (a count or what the screen is for) and one action.
 function pageHead(title, description = '', actions = '') {
   return `<header class="list-tools"><h1 tabindex="-1" class="sr-only">${title}</h1><p>${description}</p>${actions}</header>`;
-}
-
-function panel(title, content, { subtitle = '', actions = '', id = '', titleId = '' } = {}) {
-  return `<section class="panel"${id ? ` id="${id}"` : ''}><header class="panel-head"><div><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div>${actions ? `<div class="panel-actions">${actions}</div>` : ''}</header><div class="panel-body">${content}</div></section>`;
 }
 
 function table(columns, rows, empty, css = '') {
@@ -1134,20 +1125,19 @@ export function reportText(detail, clubName) {
   ].filter(Boolean).join('\n');
 }
 
+// 운영진 (단순화 8): a row a person like the 게스트 list, the state in words under the name, the two actions at the right.
 function organizersPanel(organizers, me) {
   const rows = organizers.map(organizer => {
     const self = organizer.id === me;
-    return `<tr><td><div class="member-name">${avatar(organizer.name)}<strong>${esc(organizer.name)}</strong></div></td>
-    <td>${self ? word('나') : organizer.mustChange ? word('자기 번호 정하기 전', 'due') : word('사용 중', 'quiet')}</td>
-    <td class="table-actions">${self ? ''
-      : button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })
-        + button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</td>
-  </tr>`;
+    const state = self ? word('나') : organizer.mustChange ? word('자기 번호 정하기 전', 'due') : word('사용 중', 'quiet');
+    const actions = self ? '' : `<div class="name-actions">${button('번호 재발급', 'reset-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 번호 재발급` })}
+      ${button('해지', 'remove-organizer', { id: organizer.id, css: 'text small', label: `${organizer.name} 해지` })}</div>`;
+    return `<li><span><strong>${esc(organizer.name)}</strong><small>${state}</small></span>${actions}</li>`;
   });
-  return panel('운영진', table(['이름', '상태', '<span class="sr-only">운영진 관리</span>'], rows, '운영진이 없습니다.', 'stack-table'), {
-    subtitle: '운영 메뉴를 쓰는 사람이에요. 회원 명단에서 고르거나, 명단에 없으면 새로 추가해요.',
-    actions: button('운영진 추가', 'new-organizer', { css: 'secondary small' }),
-  });
+  return `<section id="organizers" class="home-list organizer-list" aria-labelledby="organizers-title"><header class="list-tools"><h2 id="organizers-title">운영진 ${organizers.length}명</h2>
+      ${button(`${icon('plus', 16)} 운영진 추가`, 'new-organizer', { css: 'secondary small' })}</header>
+    ${rows.length ? `<ul class="name-list">${rows.join('')}</ul>` : '<p class="muted home-empty">운영진이 없습니다.</p>'}
+    <p class="form-note">운영 메뉴를 쓰는 사람이에요. 회원 명단에서 고르거나, 명단에 없으면 새로 추가해요.</p></section>`;
 }
 
 // 운영진 추가 (ROLES.md 2단계): someone on the 회원 명단 (candidates: active, without the 운영 권한) keeps their account
@@ -1248,7 +1238,7 @@ export function rulesScreen(rules) {
     <fieldset class="rule-choices"><legend>콕 수령</legend>${rewards.join('')}</fieldset>
     ${note('바꾸면 반기 집계와 회원 내 기록(출석 포함)에 바로 반영돼요. 지난 출석 기록은 그대로 두고 세는 방법만 바뀌어요. 콕 수령 기록은 어느 쪽이든 운영진이 해요.')}`;
   return `<div class="plain-page">${pageHead('모임 규칙', '줄서기 인정과 콕 수령을 우리 모임 방식대로 셉니다.')}
-    ${panel('집계 기준', form('rules', body, '규칙 저장', '', 'rules-form'))}</div>`;
+    ${form('rules', body, '규칙 저장', '', 'rules-form')}</div>`;
 }
 
 export function progressScreen(year, half, members, rules, gender) {
@@ -1271,8 +1261,8 @@ export function progressScreen(year, half, members, rules, gender) {
   return `<div class="plain-page">${pageHead('반기 집계', `구간마다 줄서기 인정 ${rules.goal}회가 목표예요.`,
     button(`${icon('sliders', 17)} 모임 규칙`, 'tab', { id: 'rules', css: 'secondary small' }))}
     <div class="progress-period">${period}</div>
-    ${panel(`${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정`, table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table') + emptyFilter, {
-    actions: `<div class="progress-filters">${genderFilter}${search('progress')}</div>`,
-  })}
+    <section class="progress-list" aria-labelledby="progress-title"><header class="list-tools"><h2 id="progress-title">${esc(year)}년 ${Number(half) === 1 ? '상반기' : '하반기'} 줄서기 인정 · ${members.length}명</h2></header>
+      <div class="progress-filters">${genderFilter}${search('progress')}</div>
+      ${table(columns, rows, '해당 기간에 확인할 회원이 없습니다.', 'stack-table progress-table') + emptyFilter}</section>
     <p class="form-note">구간 목표와 구간 나누기는 모임 규칙에서 바꿔요. 지급은 운영진이 확인한 뒤 기록해 주세요.</p></div>`;
 }

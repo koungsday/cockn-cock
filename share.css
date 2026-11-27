@@ -677,7 +677,7 @@
 .member-counts li > span { color: var(--ink); font-size: var(--t3); }
 .member-counts li > strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .member-count-bar { grid-column: 1 / -1; display: block; width: 100%; height: 8px; border-radius: 8px; background: var(--hint); overflow: hidden; }
-.member-count-slot { fill: var(--court); }
+.member-count-slot { fill: url(#gauge-fill); }
 .member-count-lunch { fill: var(--field-line); }
 .member-counts-note { margin: 0; word-break: keep-all; }
 /* 내 기록 date slots (views.mjs markSlots), like the club's 출석완료자 명단 sheet. */

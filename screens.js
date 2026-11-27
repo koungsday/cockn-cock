@@ -37,9 +37,10 @@
       return `<header class="list-tools"><h1 class="sr-only">${title}</h1><p>${description}</p>${actions}</header>`;
     }
 
-    function panel(title, content, options = {}) {
-      const { subtitle = '', actions = '' } = options;
-      return `<section class="panel"><header class="panel-head"><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ''}</div>${actions ? `<div class="panel-actions">${actions}</div>` : ''}</header><div class="panel-body">${content}</div></section>`;
+    // A part of a screen without a box (단순화 8): a quiet heading line like the 게스트 list, what it holds, a note under it.
+    function group(title, content, options = {}) {
+      const { note = '', actions = '' } = options;
+      return `<section class="home-list"><header class="list-tools"><h2>${title}</h2>${actions}</header>${content}${note ? `<p class="form-note">${note}</p>` : ''}</section>`;
     }
 
     function empty(message) {
@@ -300,11 +301,11 @@
       return heading('반기 집계', '실제 출석과 반기 줄서기 인정 횟수를 확인하세요.')
         + `<div class="progress-filters">${selector}${genderFilter}</div>`
         + `<section class="settle-box" aria-label="출석 요약"><p class="vote-total">전체 출석률 ${report.total ? `${report.rate}%` : '—'}</p><p class="muted">일정 ${report.sessions}회 · 누적 출석 ${report.present}회</p></section>`
-        + panel(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
-          subtitle: '확정한 일정에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
+        + group(`${credits.period} 줄서기 인정`, creditRows.length ? table(['멤버', credits.ranges[0], credits.ranges[1], '예시 3+3 기준'], creditRows) : empty('집계할 회원이 없어요.'), {
+          note: '확정한 일정에서 직접·대타·별도 인정을 합산한 횟수입니다. 수령 확정은 실제 기준에 따라 운영진이 확인합니다.'
         })
-        + panel('일정별 출석', bars.length ? `<div class="bar-chart">${bars.join('')}</div>` : empty('이 기간에 확정된 출석 기록이 없어요.'), {subtitle: '일정 참여 대상 중 실제 출석한 인원이에요.'})
-        + panel('멤버별 출석', rows.length ? table(['멤버', '출석', '참여 대상 일정', '출석률'], rows) : empty('집계할 출석 기록이 없어요.'));
+        + group('일정별 출석', bars.length ? `<div class="bar-chart">${bars.join('')}</div>` : empty('이 기간에 확정된 출석 기록이 없어요.'), {note: '일정 참여 대상 중 실제 출석한 인원이에요.'})
+        + group('멤버별 출석', rows.length ? table(['멤버', '출석', '참여 대상 일정', '출석률'], rows) : empty('집계할 출석 기록이 없어요.'));
     }
 
     function repeat(state) {
@@ -316,16 +317,16 @@
       ];
       return heading('반복 일정', '정기 일정과 참석 투표를 한 번에 준비하세요.',
         action('반복 설정 수정', 'open-repeat', '', {symbol: 'settings'}))
-        + panel('반복 설정', `<dl class="public-event-facts">
+        + group('반복 설정', `<dl class="public-event-facts">
           <div><dt>일정 이름</dt><dd>${e(rule.title)}</dd></div>
           <div><dt>시간</dt><dd>매주 ${weekdays[rule.weekday]} ${eventTime(rule)}</dd></div>
           <div><dt>장소</dt><dd>${e(rule.place)}</dd></div>
           <div><dt>투표 마감</dt><dd>${rule.deadlineDays ? `일정 ${e(rule.deadlineDays)}일 전` : '일정 당일'} ${e(rule.deadlineTime)}</dd></div>
         </dl><div class="form-actions">${action('다음 일정 만들기', 'generate-next', '', {tone: 'primary', symbol: 'plus', extra: rule.enabled ? '' : 'disabled'})}</div>`, {
-          subtitle: '다음 일정 만들기를 누르면 이 설정으로 일정과 투표를 준비해요.',
+          note: '다음 일정 만들기를 누르면 이 설정으로 일정과 투표를 준비해요.',
           actions: rule.enabled ? '<span class="state-word state-due">사용 중</span>' : '<span class="state-word state-quiet">사용 중지</span>'
         })
-        + panel('정기 일정 운영 순서', `<ol class="routine-list">${steps.map(([title, description]) => `<li><strong>${title}</strong><p>${description}</p></li>`).join('')}</ol>`);
+        + group('정기 일정 운영 순서', `<ol class="routine-list">${steps.map(([title, description]) => `<li><strong>${title}</strong><p>${description}</p></li>`).join('')}</ol>`);
     }
 
     function field(label, control, full = false) {
