@@ -87,9 +87,9 @@ test('past empty dates cannot be chosen, and the chosen date counts its events',
   assert.match(html, /data-action="calendar-day" data-id="2026-11-10"/, 'a past date with an event still opens');
   assert.match(html, /data-action="calendar-day" data-id="2026-11-27"/, 'today can be chosen');
   assert.match(html, /data-action="calendar-day" data-id="2026-12-01"/, 'a coming spillover date can be chosen');
-  assert.match(calendarDayPanel('2026-11-28', ['<li>a</li>', '<li>b</li>']), /<span class="calendar-count">일정 2개<\/span>/);
-  assert.match(calendarDayPanel('2026-11-10', ['<li>a</li>'], { done: true }), /<span class="calendar-count is-done">지난 일정 1개<\/span>/);
-  assert.doesNotMatch(calendarDayPanel('2026-11-30', []), /calendar-count/);
+  assert.match(calendarDayPanel('2026-11-28', ['<li>a</li>', '<li>b</li>']), /<p>일정 2개<\/p>/);
+  assert.match(calendarDayPanel('2026-11-10', ['<li>a</li>'], { done: true }), /<p>지난 일정 1개<\/p>/);
+  assert.match(calendarDayPanel('2026-11-30', []), /<p>이 날짜에 일정이 없어요\.<\/p>/);
   // The count sits on its own line under the date, not in the heading (사용자 결정 2026-11-27).
-  assert.match(calendarDayPanel('2026-11-28', ['<li>a</li>']), /<h3 id="calendar-selected-title"><time datetime="2026-11-28">[^<]+<\/time><\/h3>\s*<p><span class="calendar-count">/);
+  assert.match(calendarDayPanel('2026-11-28', ['<li>a</li>']), /<h3 id="calendar-selected-title"><time datetime="2026-11-28">[^<]+<\/time><\/h3>\s*<p>일정 1개<\/p>/);
 });
