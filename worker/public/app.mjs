@@ -1,7 +1,7 @@
 import {
   accountActions, adminHome, adminMenu, adminShell, appSections, attendanceForm, attendanceRow, attendanceSubtitle, brand, button,
-  countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeSteps, noticeMenu,
-  homeVoteCounts, icon, loader, loadingPage, menuIcon, messagePage,
+  countEvent, deadlinePassed, esc, eventDefaults, eventForm, eventMenu, eventScreen, homeFlows, homeNow, noticeMenu,
+  icon, loader, loadingPage, menuIcon, messagePage,
   guestForm, homeScreen, loginHelp, loginScreen, memberAccess, memberEventsScreen, memberForm, memberNoticesScreen, memberRecordScreen, membersScreen,
   memberVoteScreen, noticeForm, noticeScreen, organizerForm, noticesScreen, operating, overrideForm, pinForm, progressScreen, reportText,
   rulesScreen, sharePreview, today, voteMetrics,
@@ -570,28 +570,22 @@ function replaceKeepingFocus(selector, html) {
 async function refreshVoteCounts() {
   if (document.hidden || busy || dialog.open || !operating(state.user)) return;
   const onHome = state.section === 'home';
-  const target = main.querySelector(onHome ? '#home-vote-counts' : '#vote-counts');
-  if (!target) return;
+  const target = main.querySelector(onHome ? '#home-now' : '#vote-counts');
+  if (!target || (onHome && !state.upcoming?.event)) return;
   try {
     const [detail, admin] = await Promise.all([
       request(adminEventPath(onHome ? state.upcoming.event.id : state.selectedEvent)),
       onHome ? request('/api/admin') : null,
     ]);
     if (target.isConnected && !busy) {
-      target.innerHTML = onHome ? homeVoteCounts(detail) : voteMetrics(countEvent(detail.roster, detail.guests));
       if (onHome) {
-        // The step band and 진행 중인 일정 change with the counts (미응답 n명 stays true for every event listed).
+        // The card and 다른 일정 change with the counts (미응답 n명 stays true for every event listed). Both sit inside
+        // #home-now and #home-flows, which stay, so the page's arriving motion does not replay.
         state.upcoming = detail;
         state.admin = admin;
-        replaceKeepingFocus('.featured .session-steps', homeSteps(detail));
-        replaceKeepingFocus('.todo-panel', homeFlows(state.admin.events, detail.event.id));
-        for (const action of main.querySelectorAll('[data-home-published]')) {
-          if (!detail.event.published && action.contains(document.activeElement)) {
-            main.querySelector('[data-action=open-event]')?.focus({ preventScroll: true });
-          }
-          action.hidden = !detail.event.published;
-        }
-      }
+        replaceKeepingFocus('.now-card', homeNow(detail, state.listing));
+        replaceKeepingFocus('.home-flows', homeFlows(state.admin.events, detail.event.id, state.listing));
+      } else target.innerHTML = voteMetrics(countEvent(detail.roster, detail.guests));
     }
   } catch (error) {
     if (error.status === 401 && target.isConnected) loginExpired();

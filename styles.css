@@ -176,6 +176,43 @@ p { line-height: 1.58; }
 .event-link small { color: var(--muted); font-size: var(--t4); line-height: 1.45; }
 .event-link > svg { flex: none; color: var(--muted); }
 .event-link:hover strong { color: var(--court); }
+.event-link strong, .event-link > svg { transition: color var(--dur-quick), translate var(--dur-quick) var(--ease-settle); }
+@media (hover: hover) { .event-link:hover > svg { color: var(--court); translate: 3px 0; } }
+/* A quiet line above a list on the page: what the list is (or how many), and one text action at its end. */
+.list-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--touch-target); color: var(--muted); font-size: var(--t4); }
+.list-tools :is(h2, p) { margin: 0; color: inherit; font-size: inherit; font-weight: 400; letter-spacing: 0; }
+/* 운영 홈 (DESIGN.md 4, 단순화 3): one column: the 지금 할 일 card, then lists as rows on the page itself. */
+.home-page { display: grid; gap: 4px; max-width: 760px; margin-inline: auto; }
+.home-list { margin-top: 14px; }
+.home-list .event-list { border-block: 1px solid var(--line); }
+.home-list .event-link { min-height: 64px; }
+.home-list .event-link strong { font-size: var(--t3); }
+.home-empty { margin: 0; padding: 14px 0; border-top: 1px solid var(--line); font-size: var(--t4); }
+.now-card { display: grid; gap: 4px; padding: 20px 18px; }
+.now-when, .now-fact { margin: 0; overflow-wrap: anywhere; }
+.now-when { color: var(--muted); font-size: var(--t4); }
+.now-card h2 { margin: 0; font-size: var(--t1); line-height: 1.3; overflow-wrap: anywhere; }
+.now-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: var(--t4); }
+.now-steps li { display: grid; gap: 6px; }
+.now-steps i { height: 4px; border-radius: 99px; background: var(--line); }
+.now-steps [data-step="done"] i { background: var(--edge); }
+.now-steps [data-step="now"] { color: var(--ink); font-weight: 600; }
+.now-steps [data-step="now"] i { background: var(--court); }
+.now-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; }
+.now-stats div { display: flex; align-items: baseline; gap: 6px; }
+.now-stats dt { color: var(--muted); font-size: var(--t4); }
+.now-stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.now-meter { display: block; width: 100%; height: 6px; margin-top: 10px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.now-meter rect { fill: var(--court); }
+.now-note { margin: 14px 0 0; color: var(--muted); font-size: var(--t4); }
+.now-actions { display: grid; gap: 8px; margin-top: 16px; }
+.now-actions .btn { min-height: 48px; font-size: var(--t3); }
+.now-own { justify-self: start; margin-top: 4px; padding-inline: 0; }
+@media (min-width: 701px) {
+  .now-card { padding: 24px; }
+  .now-actions { grid-auto-flow: column; justify-content: start; }
+  .now-actions .btn { min-width: 168px; }
+}
 .event-past { margin-top: 6px; border-top: 1px solid var(--line); }
 .event-past summary { display: flex; align-items: center; gap: 4px; min-height: var(--touch-target); color: var(--muted); font-size: var(--t4); font-weight: 600; cursor: pointer; }
 .event-past summary::-webkit-details-marker { display: none; }
@@ -615,7 +652,10 @@ html.menu-locked body {
   .calendar-days[data-slide="next"] { --view-entry: 24px 0; }
   .calendar-days[data-slide="back"] { --view-entry: -24px 0; }
   .tab-bar[data-slide] .tab-bar-mark { animation: tab-mark-slide var(--dur-arrive) var(--ease-settle); }
+  /* 지금 할 일: the bar fills once, as the card arrives (not on the 15-second refresh, which omits data-fresh). */
+  .now-card[data-fresh] .now-meter rect { transform-box: fill-box; transform-origin: left; animation: meter-grow var(--dur-arrive) var(--ease-settle) calc(var(--dur-quick) / 2) backwards; }
 }
+@keyframes meter-grow { from { transform: scaleX(0); } }
 @keyframes section-arrive { from { opacity: .5; translate: var(--view-entry, 0 12px); } }
 @keyframes tab-mark-slide { from { translate: calc(var(--tab-from) * (100% + 4px)) 0; } }
 /* While a full-screen menu is open, the scrollbar gutter shows --ink instead of a light band. The body keeps --paper:
