@@ -262,18 +262,17 @@ function confirmAction(summary, action, note, label, fields = '') {
     <div class="console-confirm-body"><p class="form-note">${note}</p>${postButton(action, label, 'btn-secondary btn-small', fields)}</div></details>`;
 }
 
+// 운영진 of one club as rows like the club's own 운영진 list (단순화 8): name and state on the left, the actions at the right.
 function organizerRows(club) {
   const base = `/console/clubs/${escape(club.slug)}/organizers`;
-  const rows = club.organizers.map(row => `<tr><td>${escape(row.name)}</td>
-      <td><span class="pill ${row.must_change ? 'pill-warm' : 'pill-green'}">${row.must_change ? '자기 번호 정하기 전' : '사용 중'}</span></td>
-      <td class="table-actions">${postButton(`${base}/${row.id}/reset`, '번호 재발급')}
-        <a class="btn btn-text btn-small" href="${base}/${row.id}/remove">해지</a></td></tr>`);
+  const rows = club.organizers.map(row => `<li><span><strong>${escape(row.name)}</strong>
+      <small>${row.must_change ? '<span class="state-word state-due">자기 번호 정하기 전</span>' : '<span class="state-word state-quiet">사용 중</span>'}</small></span>
+      <div class="name-actions">${postButton(`${base}/${row.id}/reset`, '번호 재발급', 'btn-text btn-small')}
+        <a class="btn btn-text btn-small" href="${base}/${row.id}/remove">해지</a></div></li>`);
   if (club.pending) {
-    rows.unshift(`<tr><td>${escape(club.pending)}</td><td><span class="pill">기존 계정</span></td>
-      <td><small>처음 로그인하면 이 목록으로 옮겨져요</small></td></tr>`);
+    rows.unshift(`<li><span><strong>${escape(club.pending)}</strong><small>기존 계정 · 처음 로그인하면 이 목록으로 옮겨져요</small></span></li>`);
   }
-  return rows.length ? `<div class="data-table-wrap"><table class="data-table"><thead><tr><th scope="col">운영진</th><th scope="col">상태</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>
-      <tbody>${rows.join('')}</tbody></table></div>` : '<p class="form-note">운영진이 없어요. 아래에서 추가해 주세요.</p>';
+  return rows.length ? `<ul class="name-list" aria-label="운영진">${rows.join('')}</ul>` : '<p class="form-note">운영진이 없어요. 아래에서 추가해 주세요.</p>';
 }
 
 function clubPanel(club, today) {
@@ -284,13 +283,13 @@ function clubPanel(club, today) {
   const items = [
     ['활동 회원', `${Number(club.members ?? 0)}명`],
     ['운영진', `${club.organizers.length + (club.pending ? 1 : 0)}명`],
-    ['최근 회차', shortDate(club.last_date, today)],
-    ['다음 회차', shortDate(club.next_date, today)]
+    ['최근 일정', shortDate(club.last_date, today)],
+    ['다음 일정', shortDate(club.next_date, today)]
   ];
   const status = `/console/clubs/${escape(club.slug)}/status`;
   return `<section class="panel" id="${heading}" aria-labelledby="${heading}-title">
       <header class="panel-head"><div><h2 id="${heading}-title">${escape(club.name)}</h2>
-        <p><a href="/clubs/${escape(club.slug)}/">/clubs/${escape(club.slug)}/</a></p></div>
+        <p><a class="console-address" href="/clubs/${escape(club.slug)}/">/clubs/${escape(club.slug)}/</a></p></div>
         <div class="panel-actions"><a class="btn btn-text btn-small" href="/console/clubs/${escape(club.slug)}/log">변경 기록</a><span class="pill ${pill}">${word}</span></div></header>
       <div class="panel-body">${problem ? `<p class="form-note">${problem}</p>` : ''}
         <dl class="summary-grid">${items.map(([label, value]) =>
