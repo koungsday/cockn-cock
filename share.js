@@ -235,7 +235,7 @@
     const eventRow = event => {
       const { row } = eventState(event);
       const tone = row === '투표하기' ? ' member-record-open' : row === '응답 완료' ? ' member-record-done' : '';
-      return `<li class="member-record"><a class="member-record-link" ${link('vote', event.id)}>
+      return `<li class="member-record" data-date="${escape(event.date)}"><a class="member-record-link" ${link('vote', event.id)}>
         <span><strong>${helpers.pinMark(event)}${escape(event.title)}</strong><span class="member-record-meta"><time datetime="${escape(event.date)}">${escape(helpers.kindPrefix(event) + when(event))}</time><span>${escape(event.place)}</span>${event.canVote ? `<span>투표 마감 ${escape(deadline(event))}</span>` : ''}</span></span>
         <span class="member-record-action${tone}">${row}</span></a></li>`;
     };
@@ -256,7 +256,12 @@
           <a class="share-button ${primary ? 'share-button--primary' : 'share-button--secondary'} member-next-action" ${link('vote', event.id)}>${action}</a>
         </div></article>`;
     };
-    return { eventRow, noticeRow, listCard, nextCard };
+    // No event yet: the big card keeps its place (the live noNextCard).
+    const noNextCard = () => `<article class="public-share-card member-next" aria-labelledby="member-next-title">
+        <header class="public-story-head share-art--vote">${decoration()}<span class="public-share-type">다음 일정</span>
+          <h2 id="member-next-title" class="public-title">예정된 회차가 없어요.</h2></header>
+        <div class="public-share-content"><p class="member-answer">운영진이 일정을 올리면 여기에 보여요.</p></div></article>`;
+    return { eventRow, noticeRow, listCard, nextCard, noNextCard };
   }
 
   const noEvents = '게시된 일정이 없어요. 운영진이 일정을 올리면 여기에 보여요.';
@@ -266,9 +271,13 @@
   // vote and notice they open (#public-vote/<id>, #public-notice/<id>, also what the 카톡 links lead to).
   function renderMember(route, state, helpers) {
     if (route.page === 'public-vote' || route.page === 'public-notice') return renderPublic(route, state, helpers);
-    const { eventRow, noticeRow, listCard, nextCard } = memberRoutes(helpers);
+    const { eventRow, noticeRow, listCard, nextCard, noNextCard } = memberRoutes(helpers);
     const events = memberEvents(state, helpers);
-    if (route.page === 'member-events') return memberPage(listCard('member-events', '일정', events.map(eventRow), noEvents, 'h1'), helpers);
+    // 일정: the month's calendar above the list in one card (the live memberEventsScreen).
+    if (route.page === 'member-events') {
+      return memberPage(`<section class="public-share-card member-list" aria-labelledby="member-events"><div class="public-share-content">
+        <h1 id="member-events" tabindex="-1">일정</h1>${helpers.calendar(events)}${events.length ? `<ul class="member-records">${events.map(eventRow).join('')}</ul>` : `<p class="public-form-note">${noEvents}</p>`}</div></section>`, helpers);
+    }
     if (route.page === 'member-notices') {
       return memberPage(listCard('member-notices', '공지', pinnedFirst(state.notices).map(noticeRow), '게시된 공지가 없어요.', 'h1'), helpers);
     }
@@ -283,7 +292,7 @@
     const waiting = others.filter(window.clubFlow.awaitingVote);
     const later = others.filter(event => !window.clubFlow.awaitingVote(event));
     return memberPage(`<h1 class="sr-only" tabindex="-1">썬콕19 모임 홈</h1>
-      ${next ? nextCard(next) : listCard('member-events', '일정', [], noEvents)}
+      ${next ? nextCard(next) : noNextCard()}
       ${waiting.length ? listCard('member-waiting', `응답할 투표 ${waiting.length}개`, waiting.map(eventRow), '') : ''}
       ${later.length ? listCard('member-events', '이후 일정', later.map(eventRow), '') : ''}
       ${listCard('member-notices', '공지', pinnedFirst(state.notices).map(noticeRow), '게시된 공지가 없어요.')}

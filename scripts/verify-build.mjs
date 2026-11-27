@@ -49,7 +49,7 @@ assert.equal(redirect, basePath + clubPath + oldHash);
 redirect = undefined;
 runInNewContext(legacy, { location: { hash: '#clubs', search: '', replace: target => { redirect = target; } } });
 assert.equal(redirect, undefined);
-const required = ['styles.css', 'share.css', 'flow.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
+const required = ['styles.css', 'share.css', 'flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js', 'published-shares.js', 'app.js'];
 const runtime = new Map();
 for (const file of required) {
   assert(home.includes(`="${basePath}${file}"`), `${file} is referenced by the demo`);
@@ -71,17 +71,18 @@ for (const file of ['styles.css', 'platform.css']) {
 
 const window = { localStorage: { getItem: () => null } };
 assert(home.indexOf(`src="${basePath}flow.js"`) < home.indexOf(`src="${basePath}app.js"`), 'the flow rules load before the demo');
-for (const file of ['flow.js', 'state.js', 'share.js']) {
+for (const file of ['flow.js', 'calendar.js', 'state.js', 'screens.js', 'share.js']) {
   runInNewContext(runtime.get(file), { URL, window }, { filename: file });
 }
 assert.equal(typeof window.clubFlow.flowOrder, 'function', 'flow.js gives the demo the live flow rules');
+assert.equal(typeof window.clubCalendar.calendarBlock, 'function', 'calendar.js gives the demo the live month grid');
 const seed = window.clubModel.load();
 const { linkFor } = window.clubShare;
 
 function openDemo(suffix) {
   const address = new URL(basePath + clubPath, remote ?? 'http://localhost:4173/');
   const location = new URL(suffix(address.href), address);
-  const content = { innerHTML: '' };
+  const content = { innerHTML: '', dataset: {} };
   const app = {
     innerHTML: '', dataset: {}, addEventListener() {},
     querySelector: selector => selector === '#main-content' ? content : null,
@@ -119,6 +120,12 @@ const memberHome = openDemo(() => '#member').html;
 assert.match(memberHome, /<h2 id="member-waiting">응답할 투표 \d+개<\/h2>/);
 for (const marker of ['public-share-card member-next', 'member-next-action', 'member-records', 'data-route="public-vote/e-nov28"']) {
   assert(memberHome.includes(marker), `the demo member home uses ${marker}`);
+}
+// 일정 달력 (DESIGN.md 5): both 일정 lists open with the live month grid (calendar.js) and mark the event dates.
+for (const hash of ['#events', '#member-events']) {
+  const page = openDemo(() => hash).html;
+  assert.match(page, /<div class="calendar" data-month="\d{4}-\d{2}">/, `${hash} shows the month calendar`);
+  assert.match(page, /data-action="calendar-day" data-id="\d{4}-\d{2}-\d{2}"/, `${hash} marks the event dates`);
 }
 assert(home.includes(`href="${basePath}share.css"`));
 assert.match(openDemo(() => '#public-vote/').html, /공유 내용을 찾을 수 없어요/);

@@ -8,6 +8,7 @@ import {
 } from './views.mjs';
 import { shuttlecockMark, spinShuttlecocks } from './shuttlecock.mjs';
 import { flowOrder, koreanNow } from './flow.mjs';
+import { calendarTarget, pickCalendarDay } from './calendar.mjs';
 
 const main = document.querySelector('#main');
 const account = document.querySelector('#account');
@@ -49,6 +50,7 @@ const state = {
   selectedEvent: null,
   selectedNotice: null,
   eventTab: null,
+  calendarMonth: null,
   admin: null,
   upcoming: null,
   last: null,
@@ -297,7 +299,7 @@ function sectionScreen(voteSaved) {
   if (!operating(user)) {
     if (section === 'event') {
       return state.selectedEvent ? memberVoteScreen(state.event, state.vote, state.eligible, voteSaved, Boolean(user))
-        : memberEventsScreen(state.listing, user);
+        : memberEventsScreen(state.listing, user, state.calendarMonth);
     }
     return section === 'notices' ? memberNoticesScreen(state.listing) : homeScreen(state.listing, club, user);
   }
@@ -306,11 +308,13 @@ function sectionScreen(voteSaved) {
   if (section === 'notices') return noticesScreen(state.admin.notices);
   if (section === 'progress') return progressScreen(state.period.year, state.period.half, state.progress, state.progressRules ?? state.admin.rules);
   if (section === 'rules') return rulesScreen(state.admin.rules);
-  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved });
+  return eventScreen(state.admin.events, state.detail, state.eventTab, { vote: state.vote, eligible: state.eligible, saved: voteSaved }, state.calendarMonth);
 }
 
-function render({ voteSaved = false, motion = '' } = {}) {
+// arrive (DESIGN.md 6 섹션 도착): 'next' or 'back' slides the new section in from that side, 'enter' rises the first one.
+function render({ voteSaved = false, motion = '', arrive = '' } = {}) {
   main.dataset.motion = motion;
+  const lastTab = main.querySelector('.tab-bar')?.dataset.current;
   const search = main.querySelector('input[data-filter]');
   renderAccount();
   main.classList.toggle('narrow', signingIn());
@@ -319,6 +323,12 @@ function render({ voteSaved = false, motion = '' } = {}) {
     return;
   }
   main.innerHTML = adminShell(state.section, sectionScreen(voteSaved), club, state.user);
+  if (arrive) main.querySelector('.admin-content').dataset.arrive = arrive;
+  const bar = main.querySelector('.tab-bar');
+  if (bar?.dataset.current && lastTab && lastTab !== bar.dataset.current) {
+    bar.style.setProperty('--tab-from', lastTab);
+    bar.dataset.slide = '';
+  }
   for (const memberId of checking) {
     const pendingButton = checkButton(memberId);
     if (pendingButton) {
@@ -366,7 +376,7 @@ async function initialize() {
     ({ user: state.user } = await request('/api/session'));
     applyHash();
     await load();
-    render();
+    render({ arrive: 'enter' });
     writeHash({ replace: true });
     noteLostEvent();
   } catch (error) {
@@ -381,7 +391,7 @@ async function openSignedInPage() {
   try {
     applyHash();
     await load();
-    render();
+    render({ arrive: 'enter' });
     writeHash({ replace: true });
     noteLostEvent();
   } catch (error) {
@@ -620,6 +630,11 @@ async function goTo(section, { eventId = null, noticeId = null, tab = null, push
   const reload = section !== previous.section
     || (section === 'event' && (list ? previous.selectedEvent !== null : eventId !== null && eventId !== previous.selectedEvent))
     || (section === 'notices' && noticeId !== previous.selectedNotice);
+  // A later menu (or deeper: an event, a notice) comes in from the right, an earlier one (or back to a list) from the left.
+  const order = appSections(state.user).map(([name]) => name);
+  const step = order.indexOf(section) - order.indexOf(previous.section);
+  const arrive = step > 0 || (!step && !list && (eventId || noticeId)) ? 'next' : 'back';
+  if (section !== previous.section) state.calendarMonth = null;
   state.section = section;
   state.eventTab = section === 'event' ? tab : null;
   if (eventId) state.selectedEvent = eventId;
@@ -634,7 +649,7 @@ async function goTo(section, { eventId = null, noticeId = null, tab = null, push
       throw error;
     }
   }
-  render({ motion: reload ? 'section' : '' });
+  render(reload ? { motion: 'section', arrive } : {});
   writeHash({ replace: !push });
   noteLostEvent();
   if (!reload) {
@@ -710,6 +725,22 @@ async function doAction(action, itemId, tab) {
     }
     case 'event-list':
       await goTo('event', { list: true });
+      break;
+    // 일정 달력 (calendar.mjs): the asked month slides in from its side, focus stays on the same button; a date marks its
+    // rows in the list below.
+    case 'calendar-month': {
+      const shown = main.querySelector('.calendar')?.dataset.month;
+      const month = shown && calendarTarget(shown, itemId, today());
+      if (!month || month === shown) break;
+      state.calendarMonth = month;
+      render();
+      const days = main.querySelector('.calendar-days');
+      if (days) days.dataset.slide = month > shown ? 'next' : 'back';
+      main.querySelector(`.calendar [data-action="calendar-month"][data-id="${itemId}"]`)?.focus({ preventScroll: true });
+      break;
+    }
+    case 'calendar-day':
+      pickCalendarDay(main, itemId, !reducedMotion.matches);
       break;
     case 'event-tab':
       await goTo('event', { tab: itemId });
