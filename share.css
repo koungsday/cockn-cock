@@ -29,15 +29,15 @@
   padding: 0 0 var(--space-2);
   border: 0;
   border-radius: 12px;
-  background: #edf1eb;
-  color: #263c32;
+  background: var(--hint);
+  color: var(--ink);
   font: inherit;
   font-size: 1.6rem;
   cursor: pointer;
 }
 
 .share-close:hover {
-  background: #dde7db;
+  background: var(--line);
 }
 
 .share-brand-mark {
@@ -47,8 +47,8 @@
   height: 35px;
   place-items: center;
   border-radius: 12px;
-  background: #d9ee8f;
-  color: #193c29;
+  background: var(--lime);
+  color: var(--ink);
   font-weight: 600;
   letter-spacing: -.075em;
 }
@@ -56,8 +56,8 @@
 .share-chat {
   padding: var(--space-16);
   border-radius: 16px;
-  background: #dce8ef;
-  color: #283d48;
+  background: var(--hint);
+  color: var(--ink);
 }
 
 .share-chat-head {
@@ -68,8 +68,8 @@
 .share-chat-head span {
   padding: var(--space-4) var(--space-8);
   border-radius: 20px;
-  background: #f0f5f9;
-  color: #415967;
+  background: var(--white);
+  color: var(--muted);
   font-size: var(--t3);
   font-weight: 600;
 }
@@ -86,7 +86,7 @@
   overflow: hidden;
   border-radius: 5px 14px 14px;
   background: #fff;
-  box-shadow: 0 2px 6px #35455412;
+  box-shadow: 0 2px 6px #17171712;
 }
 
 .share-chat-caption {
@@ -105,13 +105,13 @@
 }
 
 .share-chat-caption strong {
-  color: #1e2928;
+  color: var(--ink);
   font-size: var(--t3);
 }
 
 .share-chat-caption span,
 .share-chat-caption small {
-  color: #46575c;
+  color: var(--muted);
   font-size: var(--t3);
   line-height: 1.5;
 }
@@ -131,14 +131,14 @@
   aspect-ratio: 1200 / 630;
   isolation: isolate;
   overflow: hidden;
-  background: #174331;
-  color: #f7fbf2;
+  background: var(--black);
+  color: var(--white);
   container-type: inline-size;
 }
 
 .share-art--notice {
-  background: #f4e5b8;
-  color: #362d1b;
+  background: var(--lime);
+  color: var(--ink);
 }
 
 .share-art-content {
@@ -174,19 +174,19 @@
 }
 
 .share-art--notice .share-brand-mark {
-  background: #6c4818;
-  color: #fff6dc;
+  background: var(--ink);
+  color: var(--lime);
 }
 
 .share-art-label {
   margin-top: 4.6cqw;
-  color: #e1f59f;
+  color: var(--lime);
   font-size: 3.6cqw;
   font-weight: 600;
 }
 
 .share-art--notice .share-art-label {
-  color: #6c4818;
+  color: var(--ink);
 }
 
 .share-art-title,
@@ -210,7 +210,7 @@
 .share-art-detail {
   width: min(100%, 56cqw);
   margin-top: 2.1cqw;
-  color: #ecf5e6;
+  color: var(--gray-200);
   font-size: 3.4cqw;
   font-weight: 600;
   line-height: 1.35;
@@ -218,7 +218,7 @@
 }
 
 .share-art--notice .share-art-detail {
-  color: #5b421e;
+  color: var(--gray-700);
 }
 
 .share-art-decoration {
@@ -229,14 +229,14 @@
   height: 43cqw;
   overflow: hidden;
   transform: rotate(24deg);
-  border: .7cqw solid #d8ef9a;
-  background: #426f48;
+  border: .7cqw solid var(--lime);
+  background: var(--gray-800);
 }
 
 .share-art-decoration span {
   position: absolute;
   inset: 20% 10%;
-  border: .55cqw solid #d8ef9a;
+  border: .55cqw solid var(--lime);
 }
 
 .share-art-decoration span:nth-child(2) {
@@ -257,8 +257,8 @@
   transform: rotate(-18deg);
   border: 0;
   border-radius: 4cqw;
-  background: #fdf4d9;
-  box-shadow: -3cqw 2.5cqw 0 #dbc283;
+  background: var(--white);
+  box-shadow: -3cqw 2.5cqw 0 var(--ink);
 }
 
 .share-art--notice .share-art-decoration span {
@@ -267,19 +267,19 @@
   height: 1.7cqw;
   border: 0;
   border-radius: 2cqw;
-  background: #aa6d1b;
+  background: var(--ink);
 }
 
 .share-art--notice .share-art-decoration span:nth-child(2) {
   inset: 18cqw 6cqw auto;
   width: 22cqw;
-  background: #d0b56e;
+  background: var(--gray-300);
 }
 
 .share-art--notice .share-art-decoration span:nth-child(3) {
   inset: 24cqw 6cqw auto;
   width: 19cqw;
-  background: #d0b56e;
+  background: var(--gray-300);
 }
 
 .share-dialog-actions,
@@ -410,13 +410,13 @@
   overflow: hidden;
   container-type: inline-size;
   padding: var(--space-24);
-  background: #174331;
-  color: #f7fbf2;
+  background: var(--black);
+  color: var(--white);
 }
 
 .public-story-head.share-art--notice {
-  background: #f4e5b8;
-  color: #362d1b;
+  background: var(--lime);
+  color: var(--ink);
 }
 
 .public-story-head > :not(.share-art-decoration) {
@@ -431,13 +431,13 @@
 }
 
 .public-share-type {
-  color: #e2f49e;
+  color: var(--lime);
   font-size: var(--t3);
   font-weight: 600;
 }
 
 .share-art--notice .public-share-type {
-  color: #6c4818;
+  color: var(--ink);
 }
 
 .public-share-card h1 {
@@ -608,7 +608,7 @@
 .share-close:focus-visible,
 .public-field select:focus-visible,
 .public-choice input:focus-visible + span {
-  outline: 2px solid #386e4e;
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -668,7 +668,7 @@
 .member-record-card .public-share-content { display: grid; gap: var(--space-12); }
 .member-record-card .public-share-content > * { margin: 0; }
 .member-record-card .public-form-note { word-break: keep-all; }
-/* 응답 현황 bars (views.mjs countsBlock): track #e9eee7 and 참석 #458563. */
+/* 응답 현황 bars (views.mjs countsBlock): track --hint, 참석 the gauge fill, 점심 --field-line. */
 .member-counts { display: grid; gap: var(--space-12); }
 .public-event-facts + .member-counts { margin-top: var(--space-16); }
 /* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */

@@ -416,7 +416,7 @@ function page(style, main, signedInNow = false) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f3f2ec">
+  <meta name="theme-color" content="#ffffff">
   <meta name="robots" content="noindex, nofollow">
   <title>총괄 · 콕콕콕!</title>
   <link rel="icon" type="image/png" sizes="96x96" href="/assets/shuttlecock-icon-96.png">

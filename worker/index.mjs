@@ -97,7 +97,7 @@ function clubManifest(request, club) {
   const manifest = {
     id: start, start_url: start, scope: start, display: 'standalone', lang: 'ko',
     name: `${club.name} · ${PLATFORM_NAME}`, short_name: club.name,
-    background_color: '#f3f2ec', theme_color: '#f3f2ec',
+    background_color: '#ffffff', theme_color: '#ffffff',
     icons: [192, 512].map(size => ({
       src: `/assets/shuttlecock-icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png'
     }))

@@ -64,16 +64,16 @@ a { color: inherit; text-decoration: none; }
 }
 
 .demo-label, .header-link {
-  color: #3d5b47;
+  color: var(--ink);
   font-size: .86rem;
   font-weight: 700;
 }
 
 .demo-label {
   padding: var(--space-4) var(--space-12);
-  border: 1px solid #dce8d4;
+  border: 1px solid var(--line);
   border-radius: .4rem;
-  background: #edf3e6;
+  background: var(--hint);
 }
 
 .header-link { display: inline-flex; align-items: center; min-height: var(--touch-target); }
@@ -88,15 +88,16 @@ main.page-width { padding-block: var(--space-24) var(--space-64); }
   padding: var(--space-24);
   border-radius: 16px;
   background-color: var(--court);
-  background-image: linear-gradient(90deg, var(--court) 2%, #10483afa 25%, #10483ac2 51%, #10483a18 81%), url("assets/court.webp");
+  background-image: linear-gradient(90deg, var(--black) 2%, #171717fa 25%, #171717c2 51%, #17171718 81%), url("assets/court.webp");
   background-position: center, right 53%;
   background-size: cover;
-  color: #f7fae9;
+  background-blend-mode: normal, luminosity;
+  color: var(--gray-100);
 }
 
 .hero-copy { max-width: 29rem; }
 .hero-label { display: flex; align-items: center; gap: var(--space-8); font-size: .94rem; font-weight: 750; color: var(--lime); }
-.hero-label::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
+.hero-label::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--lime); }
 
 .hero h1 {
   margin-block: .08em .2em;
@@ -108,7 +109,7 @@ main.page-width { padding-block: var(--space-24) var(--space-64); }
 
 .hero-copy p:last-child {
   max-width: 23rem;
-  color: #edf3e5;
+  color: var(--gray-200);
   font-size: clamp(.95rem, 2vw, 1.15rem);
   word-break: keep-all;
 }
@@ -134,7 +135,7 @@ main.page-width { padding-block: var(--space-24) var(--space-64); }
 .club-entry-row .try-link { justify-content: center; }
 .console-entry a { display: inline-flex; align-items: center; min-height: var(--touch-target); text-decoration: underline; }
 
-/* Intro home (DESIGN.md: white panels on --paper, no cards inside cards, one accent-red in the hero). */
+/* Intro home (DESIGN.md: white panels on --paper, no cards inside cards, one lime mark in the hero). */
 .intro-section { padding-top: var(--space-32); }
 .intro-lead { margin: calc(-1 * var(--space-4)) 0 var(--space-16); color: var(--muted); font-size: .98rem; word-break: keep-all; }
 .intro-panel {
@@ -243,7 +244,7 @@ main.page-width { padding-block: var(--space-24) var(--space-64); }
 }
 
 .shuttlecock-toggle:focus-visible + .shuttlecock-scene {
-  outline: 3px solid #3e714e;
+  outline: 3px solid var(--focus);
   outline-offset: 4px;
 }
 
@@ -254,7 +255,7 @@ main.page-width { padding-block: var(--space-24) var(--space-64); }
 
 @media (max-width: 44rem) {
   .hero {
-    background-image: linear-gradient(90deg, #10483af5 0%, #10483ad4 45%, #10483a80 100%), url("assets/court.webp");
+    background-image: linear-gradient(90deg, #171717f5 0%, #171717d4 45%, #17171780 100%), url("assets/court.webp");
     background-position: center, 68% center;
   }
 }
