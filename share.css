@@ -62,7 +62,7 @@
 
 .share-chat-head {
   margin-bottom: var(--space-16);
-  font-size: var(--t4);
+  font-size: var(--t3);
 }
 
 .share-chat-head span {
@@ -70,7 +70,7 @@
   border-radius: 20px;
   background: #f0f5f9;
   color: #415967;
-  font-size: var(--t4);
+  font-size: var(--t3);
   font-weight: 600;
 }
 
@@ -112,7 +112,7 @@
 .share-chat-caption span,
 .share-chat-caption small {
   color: #46575c;
-  font-size: var(--t4);
+  font-size: var(--t3);
   line-height: 1.5;
 }
 
@@ -328,13 +328,13 @@
 .share-preview-note {
   margin: 0;
   color: var(--muted);
-  font-size: var(--t4);
+  font-size: var(--t3);
   line-height: 1.55;
 }
 
 .share-feedback {
   color: var(--ink);
-  font-size: var(--t4);
+  font-size: var(--t3);
   font-weight: 600;
 }
 
@@ -347,7 +347,7 @@
   gap: var(--space-8);
   min-width: 0;
   color: var(--ink);
-  font-size: var(--t4);
+  font-size: var(--t3);
   font-weight: 600;
 }
 
@@ -386,7 +386,7 @@
 
 .public-example {
   color: var(--muted);
-  font-size: var(--t4);
+  font-size: var(--t3);
 }
 
 .public-share-card {
@@ -432,7 +432,7 @@
 
 .public-share-type {
   color: #e2f49e;
-  font-size: var(--t4);
+  font-size: var(--t3);
   font-weight: 600;
 }
 
@@ -457,7 +457,7 @@
 .public-share-card time {
   display: block;
   margin-top: var(--space-8);
-  font-size: var(--t4);
+  font-size: var(--t3);
 }
 
 .public-share-body,
@@ -491,7 +491,7 @@
 
 .public-event-facts dt {
   color: var(--muted);
-  font-size: var(--t4);
+  font-size: var(--t3);
 }
 
 .public-event-facts dd {
@@ -601,7 +601,7 @@
 
 .public-form-note {
   color: var(--muted);
-  font-size: var(--t4);
+  font-size: var(--t3);
 }
 
 .share-button:focus-visible,
@@ -625,7 +625,7 @@
     width: 28px;
     height: 28px;
     border-radius: 9px;
-    font-size: var(--t4);
+    font-size: var(--t3);
   }
 }
 
@@ -634,7 +634,7 @@
 /* In the shell (ROLES.md 2·3단계) they keep their one centred column of cards (DESIGN.md 4 회원 화면) inside the content
    area's own padding. */
 .main-content .member-page { width: min(100%, 640px); margin: 0 auto; padding: 0; }
-.member-back { display: inline-flex; align-items: center; gap: var(--space-8); width: fit-content; min-height: var(--touch-target); color: var(--ink); font-size: var(--t4); font-weight: 600; }
+.member-back { display: inline-flex; align-items: center; gap: var(--space-8); width: fit-content; min-height: var(--touch-target); color: var(--ink); font-size: var(--t3); font-weight: 600; }
 .member-back:hover { text-decoration: underline; text-underline-offset: 3px; }
 .public-receipt strong { margin-left: var(--space-4); }
 .member-confirmed { margin-left: var(--space-8); color: var(--court); font-weight: 600; }
@@ -647,8 +647,8 @@
 /* The card's own date (.public-share-card time) sits 8 under its title; a row's date keeps the row's 4. */
 .member-record-link time { margin-top: 0; }
 .member-record-link:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.member-record-meta { display: grid; color: var(--muted); font-size: var(--t4); line-height: 1.45; font-variant-numeric: tabular-nums; }
-.member-record-action { padding: var(--space-8) var(--space-12); border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: var(--t4); font-weight: 600; white-space: nowrap; }
+.member-record-meta { display: grid; color: var(--muted); font-size: var(--t3); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.member-record-action { padding: var(--space-8) var(--space-12); border: 1px solid var(--edge); border-radius: 8px; color: var(--ink); font-size: var(--t3); font-weight: 600; white-space: nowrap; }
 .member-record-open { border-color: transparent; background: var(--accent-soft); }
 .member-record-arrow { display: grid; color: var(--muted); }
 .member-list :is(h1, h2) { font-size: var(--t2); margin-bottom: var(--space-4); }
@@ -674,7 +674,7 @@
 /* The 응답 현황 now follows the answer (DESIGN.md 6 UX 점검표 13): the same line and space as above the form. */
 .public-form + .member-counts { margin-top: var(--space-24); padding-top: var(--space-16); border-top: 1px solid var(--line); }
 .member-counts-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-8); margin: 0; }
-.member-counts-head span, .member-counts-note { color: var(--muted); font-size: var(--t4); }
+.member-counts-head span, .member-counts-note { color: var(--muted); font-size: var(--t3); }
 .member-counts ul { display: grid; gap: var(--space-12); margin: 0; padding: 0; list-style: none; }
 .member-counts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-4) var(--space-8); align-items: baseline; }
 .member-counts li > span { color: var(--ink); font-size: var(--t3); }
@@ -686,19 +686,19 @@
 /* 내 기록 date slots (views.mjs markSlots), like the club's 출석완료자 명단 sheet. */
 .member-marks { display: grid; gap: var(--space-8); }
 .member-marks-head { display: flex; align-items: baseline; gap: var(--space-8); margin: 0; }
-.member-marks-head span { color: var(--muted); font-size: var(--t4); }
+.member-marks-head span { color: var(--muted); font-size: var(--t3); }
 .member-marks-head .member-marks-count { margin-left: auto; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .member-mark-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
 .member-mark { display: grid; align-content: center; justify-items: center; min-height: 48px; padding: var(--space-8) var(--space-4); border-radius: 8px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
-.member-mark small { color: var(--court); font-size: var(--t4); font-weight: 600; word-break: keep-all; }
+.member-mark small { color: var(--court); font-size: var(--t3); font-weight: 600; word-break: keep-all; }
 .member-mark-empty { background: var(--hint); box-shadow: none; }
 /* 내 기록 출석 by month (views.mjs attendanceMonths): a track per month, filled from the bottom in 응답 현황's green. */
 .member-months { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: end; }
 .member-month { display: grid; justify-items: center; gap: var(--space-4); min-width: 0; }
-.member-month small { min-height: 1.1em; color: var(--ink); font-size: var(--t4); font-weight: 600; font-variant-numeric: tabular-nums; }
+.member-month small { min-height: 1.1em; color: var(--ink); font-size: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums; }
 .member-month svg { display: block; width: 100%; height: 56px; border-radius: 4px; background: var(--hint); overflow: hidden; }
 .member-month rect { fill: var(--court); }
-.member-month > span { color: var(--muted); font-size: var(--t4); font-variant-numeric: tabular-nums; }
+.member-month > span { color: var(--muted); font-size: var(--t3); font-variant-numeric: tabular-nums; }
 .member-month-now > span { color: var(--ink); font-weight: 600; }
 .member-pin { display: grid; gap: var(--space-8); justify-items: start; padding: var(--space-8) var(--space-4) 0; }
 .member-pin h2 { font-size: var(--t3); }
@@ -728,7 +728,7 @@
 .main-content .member-count-bar { height: 6px; }
 .main-content .member-list:not(.member-record-card) { overflow: visible; border: 0; border-radius: 0; background: none; }
 .main-content .member-list:not(.member-record-card) > .public-share-content { padding: 0; }
-.main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: var(--space-16) 0 0; color: var(--muted); font-size: var(--t4); font-weight: 400; }
+.main-content .member-list:not(.member-record-card) h2 { display: flex; align-items: center; min-height: var(--touch-target); margin: var(--space-16) 0 0; color: var(--muted); font-size: var(--t3); font-weight: 400; }
 /* The top bar already names the screen (썬콕19 / 일정): the list's own h1 stays for reading programs and focus only. */
 .main-content .member-list h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .main-content .member-records { border-top: 1px solid var(--line); }

@@ -309,7 +309,7 @@
       }
       return {member, first:halves[0], second:halves[1], met:halves[0] >= 3 && halves[1] >= 3};
     });
-    return {period: `${year}년 ${laterHalf ? '하반기' : '상반기'}`, ranges: laterHalf ? ['7–9월','10–12월'] : ['1–3월','4–6월'], byMember};
+    return {period: `${year}년 ${laterHalf ? '하반기' : '상반기'}`, ranges: laterHalf ? ['7~9월','10~12월'] : ['1~3월','4~6월'], byMember};
   }
 
   function rate(present, total) {
