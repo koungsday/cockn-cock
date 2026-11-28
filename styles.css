@@ -85,8 +85,8 @@ p { line-height: 1.58; }
 .sidebar-footer .view-switch .btn-text { color: var(--menu-text-2); }
 .sidebar-footer .view-switch .btn-text:hover { background: var(--menu-hover); }
 @media (max-width: 520px) { .topbar .demo-label { display: none; } }
-.demo-label { display: inline-flex; align-items: center; gap: var(--space-8); color: #435e4c; background: #edf3e8; border: 1px solid #e2ebdf; padding: var(--space-8) var(--space-12); border-radius: 99px; font-size: var(--t3); font-weight: 600; white-space: nowrap; }
-.demo-label i { width: 6px; height: 6px; border-radius: 50%; background: #619c66; }
+.demo-label { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); background: var(--hint); border: 1px solid var(--line); padding: var(--space-8) var(--space-12); border-radius: 99px; font-size: var(--t3); font-weight: 600; white-space: nowrap; }
+.demo-label i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 .main-content { --content-top: var(--space-32); max-width: 1400px; margin: 0 auto; padding: var(--content-top) var(--space-32) var(--space-48); }
 .page-head { display: flex; gap: var(--space-16); align-items: flex-end; justify-content: space-between; margin-bottom: var(--space-24); }
 .page-head h1 { font-size: var(--t1); font-weight: 600; }
@@ -98,7 +98,7 @@ p { line-height: 1.58; }
 /* 주요 버튼은 짙은 코트 초록 (사용자 결정 2026-11-27: 초록 포인트 버튼은 어둡게). */
 .btn-primary { background: var(--court); color: #fff; }
 .btn-primary:not(:disabled, [aria-pressed="true"]):hover { background: var(--court-deep); }
-.btn-primary:not(:disabled, [aria-pressed="true"]):active { background: var(--ink); }
+.btn-primary:not(:disabled, [aria-pressed="true"]):active { background: var(--gray-700); }
 .btn-secondary { background: #fff; border-color: var(--edge); color: var(--ink); }
 .btn-secondary:not(:disabled):hover, .btn-text:not(:disabled):hover, .icon-button:hover, .icon-btn:hover { background: var(--accent-soft); }
 .btn-text { background: transparent; color: var(--court); }
@@ -312,7 +312,7 @@ p { line-height: 1.58; }
 .calendar-day.has-events .calendar-number { background: var(--neutral-soft); font-weight: 600; }
 .calendar-day.has-events .calendar-number::after {
   content: ''; position: absolute; inset: 1px 1px auto auto; width: 7px; height: 7px;
-  border-radius: 50%; background: var(--accent-red); box-shadow: 0 0 0 1px var(--surface);
+  border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1px var(--surface);
 }
 .calendar[data-selected] .has-events:not(.is-done) .calendar-date[aria-pressed="false"] .calendar-number {
   background: color-mix(in srgb, var(--neutral-soft) 72%, var(--surface)); color: var(--neutral-muted);
@@ -321,7 +321,7 @@ p { line-height: 1.58; }
 .calendar .is-done .calendar-date[aria-pressed="false"] .calendar-number {
   background: color-mix(in srgb, var(--neutral-soft) 58%, var(--surface)); color: var(--neutral-muted); font-weight: 400;
 }
-/* A day whose events are over: the dot turns grey (--neutral-muted, 7.94:1 on the white band; the pale red was 1.96:1,
+/* A day whose events are over: the dot turns grey (--neutral-muted, 7.81:1 on the white band; the pale red was 1.96:1,
    사용자 결정 2026-11-27), so it still reads as "there was something" without competing with the coming ones. */
 .calendar .is-done .calendar-number::after {
   width: 5px; height: 5px; background: var(--neutral-muted);
@@ -338,7 +338,7 @@ p { line-height: 1.58; }
     background: color-mix(in srgb, var(--neutral-soft) 78%, var(--neutral-ink)); color: var(--neutral-ink);
   }
   .calendar .has-events:not(.is-done) .calendar-date[aria-pressed="false"]:hover .calendar-number::after {
-    background: color-mix(in srgb, var(--accent-red) 76%, var(--neutral-ink)); opacity: 1;
+    background: var(--neutral-ink); opacity: 1;
   }
   .calendar .is-done .calendar-date[aria-pressed="false"]:hover .calendar-number::after {
     background: var(--neutral-ink);
@@ -347,8 +347,8 @@ p { line-height: 1.58; }
 @media (prefers-contrast: more), (forced-colors: active) {
   .calendar-date[aria-pressed="true"] .calendar-number { outline: 2px solid currentColor; outline-offset: -2px; }
 }
-/* The chosen date's box takes the chosen date's yellow (사용자 결정 2026-11-27): a lighter face of --calendar-selected
-   with its full colour as the edge. */
+/* The chosen date's box takes the chosen date's colour (사용자 결정 2026-11-27, lime since 2026-11-28): a lighter face of
+   --calendar-selected with its full colour as the edge. */
 .calendar-selection { margin-block: var(--space-24) 0; padding: var(--space-12) var(--space-16) var(--space-12); border: 1px solid var(--calendar-selected); border-radius: 12px;
   background: color-mix(in srgb, var(--calendar-selected) 45%, var(--surface)); color: var(--neutral-ink); }
 .calendar-selection-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--touch-target); }
@@ -402,16 +402,16 @@ p { line-height: 1.58; }
 
 .pill { padding: var(--space-4) var(--space-8); display: inline-block; border-radius: 6px; background: var(--hint); color: var(--muted); font-size: var(--t3); font-weight: 600; white-space: nowrap; }
 .pill-green, .pill-good { background: var(--accent-soft); color: var(--court); }
-.pill-warm, .pill-amber { background: #f6efdf; color: #785228; }
+.pill-warm, .pill-amber { background: var(--lime); color: var(--ink); }
 .pill-muted { background: var(--hint); color: var(--muted); }
 .member-label {
   display: inline-block; justify-self: start; width: fit-content; max-width: 100%;
-  padding: var(--space-4) var(--space-8); border-radius: 6px; background: var(--neutral-soft); color: var(--neutral-ink);
+  padding: var(--space-4) var(--space-8); border-radius: 6px; background: none; color: var(--neutral-ink);
   font-size: var(--t3); line-height: 1.45; white-space: normal; overflow-wrap: anywhere;
 }
-.member-label[data-gender="male"] { background: var(--member-male-bg); color: var(--member-male-ink); }
-.member-label[data-gender="female"] { background: var(--member-female-bg); color: var(--member-female-ink); }
-.member-label[data-gender="other"] { background: var(--member-other-bg); color: var(--member-other-ink); }
+.member-label[data-gender="male"] { background: var(--member-male-bg); }
+.member-label[data-gender="female"] { background: var(--white); box-shadow: inset 0 0 0 1px var(--member-female-line); }
+.member-label[data-gender="other"] { background: var(--white); outline: 1px dashed var(--member-other-line); outline-offset: -1px; }
 .data-table .member-label { white-space: nowrap; }
 .progress-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-8); width: min(100%, 20rem); }
 .progress-filters > :is(label, .form-picker) { min-width: 0; }
@@ -458,10 +458,7 @@ p { line-height: 1.58; }
 .search-field svg { pointer-events: none; position: absolute; top: 50%; translate: 0 -50%; left: 10px; color: var(--muted); }
 .search-field input { display: block; width: min(180px,100%); padding-left: 35px; }
 .member-name { display: flex; align-items: center; gap: var(--space-8); white-space: nowrap; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: #e9f3e7; color: #325a3d; display: inline-grid; place-items: center; font-weight: 600; font-size: var(--t3); flex: none; }
-.tone-1 { background: #f5ebd7; color: #775932; }
-.tone-2 { background: #e7eff4; color: #42627a; }
-.tone-3 { background: #f2eaf6; color: #655271; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--hint); color: var(--ink); display: inline-grid; place-items: center; font-weight: 600; font-size: var(--t3); flex: none; }
 .bar-chart { display: grid; gap: var(--space-16); }
 .bar-label { display: flex; align-items: start; gap: var(--space-12); justify-content: space-between; font-size: var(--t3); margin-bottom: var(--space-8); }
 .bar-label strong { white-space: nowrap; }
@@ -538,7 +535,7 @@ textarea { min-height: 100px; resize: vertical; }
 /* The 접속 안내 to copy (live credentialDialog, the demo's credentialDialog). */
 .copy-text { width: 100%; }
 .form-actions { display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap; }
-.toast { display: none; position: fixed; inset: auto var(--space-16) var(--space-16) auto; z-index: 20; max-width: calc(100vw - 2 * var(--space-16)); padding: var(--space-12) var(--space-16); border-radius: 10px; background: var(--ink); color: #fff; font-weight: 600; font-size: var(--t3); box-shadow: 0 8px 25px #15362630; }
+.toast { display: none; position: fixed; inset: auto var(--space-16) var(--space-16) auto; z-index: 20; max-width: calc(100vw - 2 * var(--space-16)); padding: var(--space-12) var(--space-16); border-radius: 10px; background: var(--ink); color: #fff; font-weight: 600; font-size: var(--t3); box-shadow: 0 8px 25px #17171730; }
 .toast.visible { display: block; }
 :root:has(.att-foot) .toast { bottom: 84px; }
 @media (max-width: 1100px) {
@@ -566,7 +563,7 @@ textarea { min-height: 100px; resize: vertical; }
     position: fixed; z-index: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
     inset: auto max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     max-width: 420px; margin-inline: auto; padding: 6px; border-radius: 16px;
-    background: var(--ink); box-shadow: 0 12px 30px #1b2a2138, 0 2px 8px #1b2a211f;
+    background: var(--ink); box-shadow: 0 12px 30px #17171738, 0 2px 8px #1717171f;
   }
   .tab-bar-link {
     display: grid; place-items: center; min-width: 0; min-height: 48px; border: 0; border-radius: 11px;
@@ -655,7 +652,7 @@ html.menu-locked body {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   background: var(--ink);
-  box-shadow: -18px 0 40px #0b100d40;
+  box-shadow: -18px 0 40px #17171740;
 }
 .mobile-nav-header {
   display: flex;
@@ -763,7 +760,7 @@ html:is(.menu-locked, :has(.mobile-navigation[open])) { background: var(--ink); 
   box-shadow: inset 0 0 0 1px var(--focus);
   outline: none;
 }
-.picker-trigger[aria-invalid=true] { border-color: #9d2e30; }
+.picker-trigger[aria-invalid=true] { border-color: var(--error); }
 .picker-popup {
   position: fixed; inset: auto; margin: 0;
   max-height: min(70dvh, 460px); overflow: auto;

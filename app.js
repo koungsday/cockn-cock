@@ -58,8 +58,7 @@
     return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[char]);
   }
   function avatar(member, extra='') {
-    const seed = Array.from(member?.name || '').reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
-    return `<span class="avatar tone-${seed % 5} ${escape(extra)}" aria-hidden="true">${escape((member?.name || '?').slice(0, 1))}</span>`;
+    return `<span class="avatar ${escape(extra)}" aria-hidden="true">${escape((member?.name || '?').slice(0, 1))}</span>`;
   }
 
   const platformHome = document.querySelector('meta[name=platform-home]')?.content;

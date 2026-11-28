@@ -102,7 +102,7 @@ export function renderCatalog({ basePath, mode, demo = null }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f3f2ec">
+  <meta name="theme-color" content="#ffffff">
   <meta name="description" content="${escape(description)}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ko_KR">

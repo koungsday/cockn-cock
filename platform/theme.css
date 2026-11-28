@@ -35,40 +35,56 @@
   --t1: 1.375rem;
   --t2: 1.125rem;
   --t3: 1rem;
-  --paper: #f3f2ec;
-  --surface: #ffffff;
-  --ink: #252c29;
-  --muted: #4a534d;
-  --court: #10483a;
-  --court-deep: #0a372c;
-  --action: #126047;
+  /* Colour (DESIGN.md 1, 사용자 결정 2026-11-28): white, black, grey and one bright lime, nothing else. The greys are
+     the plain neutral scale of common UI kits (R = G = B), taken as they are. */
+  --white: #ffffff;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --black: #171717;
   --lime: #d0f988;
-  --line: #e3e1d9;
-  --hint: #edf0ee;
-  --accent-soft: #e8f0eb;
-  --neutral-ink: #292929;
-  --neutral-muted: #515151;
-  --neutral-soft: #e5e5e5;
-  --calendar-selected: #ffdb79;
-  --member-male-bg: #e3eefb;
-  --member-male-ink: #254b7b;
-  --member-female-bg: #f8e5ec;
-  --member-female-ink: #793953;
-  --member-other-bg: #eee7f7;
-  --member-other-ink: #59427b;
-  --edge: #b9c0ba;
-  --field-line: #7b8f78;
-  --dialog-scrim: #2d2d2d72;
-  --drawer-scrim: #15151599;
-  --dialog-shadow: #29292943;
-  /* Dark menu (sidebar, mobile menu) on --ink: text 12.5 / 10.0 / 6.6:1, hover and current surfaces, dividers. */
-  --menu-text: #eef1ee;
-  --menu-text-2: #d3d9d4;
-  --menu-muted: #a9b2ac;
-  --menu-hover: #2f3733;
-  --menu-line: #3a433e;
+  /* Roles: every rule reads these, so the palette above is the only place a colour is written. */
+  --paper: var(--white);
+  --surface: var(--white);
+  --ink: var(--black);
+  --muted: var(--gray-600);
+  --court: var(--black);
+  --court-deep: var(--gray-800);
+  --action: var(--black);
+  --line: var(--gray-200);
+  --hint: var(--gray-100);
+  --accent-soft: var(--gray-100);
+  --neutral-ink: var(--black);
+  --neutral-muted: var(--gray-600);
+  --neutral-soft: var(--gray-200);
+  --calendar-selected: var(--lime);
+  /* 성별 이름표 (사용자 결정 2026-11-28, 연두 없이): 남성 회색 면, 여성 흰 면 + 진회색 테두리, 기타 흰 면 + 회색 점선,
+     미기재 면 없음. Lime keeps meaning "now / chosen" only, so a name never looks picked in 출석 체크. */
+  --member-male-bg: var(--gray-200);
+  --member-female-line: var(--gray-600);
+  --member-other-line: var(--gray-500);
+  --edge: var(--gray-300);
+  --field-line: var(--gray-500);
+  --dialog-scrim: #17171773;
+  --drawer-scrim: #17171799;
+  --dialog-shadow: #17171743;
+  /* Dark menu (sidebar, mobile menu) on --ink: text 16.4 / 12.1 / 7.1:1, hover and current surfaces, dividers. */
+  --menu-text: var(--gray-100);
+  --menu-text-2: var(--gray-300);
+  --menu-muted: var(--gray-400);
+  --menu-hover: var(--gray-800);
+  --menu-line: var(--gray-700);
   --focus: var(--action);
-  --accent-red: #ff5b45;
+  /* Errors only (DESIGN.md 1, 사용자 결정 2026-11-28): the one colour outside the four, kept so a mistake never reads as
+     ordinary text. */
+  --error: #9d2e30;
+  --error-line: #b13f39;
+  --error-soft: #fff1ef;
   --font-text: "Wanted Sans UI", "Wanted Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-display: "Nexen Tire", var(--font-text);
   --safe-top: env(safe-area-inset-top, 0px);

@@ -12,7 +12,7 @@ Codex·Claude Code 등 이 저장소를 고치는 모든 에이전트의 공통 
 | --- | --- |
 | 스타일 | 가상 체험과 실사용이 `styles.css`·`share.css`를 함께 쓴다. 실사용 전용 화면만 `worker/public/live.css` |
 | 서체 | 넥센타이어체 = 모임 이름·제목 / 원티드 산스 = 본문·입력·버튼·숫자 |
-| 색 | `platform/theme.css` 토큰만. 다홍 `--accent-red`는 화면당 한 곳 |
+| 색 | 흰·검정·회색·밝은 연두만(DESIGN.md 1장). `platform/theme.css` 토큰만, 오류 빨강만 예외 |
 | 형태 | 패널 15px, 코트 장면 16px, 버튼·입력 8px. 카드 안 카드 금지 |
 | 로고 | 셔틀콕 심볼만 쓸 수 있다. 사각 배경은 DESIGN.md 3장 기준에 따라 선택한다. |
 | 모션 | 토큰 다섯 개(DESIGN.md 6장). 로딩·섹션 전환은 셔틀콕 최종본만 |
