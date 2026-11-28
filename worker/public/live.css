@@ -18,7 +18,7 @@ body:has(.admin-app) .site-header { display: none; }
 .site-header .brand-mark { width: 38px; height: 38px; }
 .current-club { min-width: 0; min-height: var(--touch-target); display: grid; align-content: center; line-height: 1.2; }
 .current-club strong { font-size: var(--t2); letter-spacing: -.04em; }
-.current-club small { color: var(--muted); font-size: var(--t4); margin-top: var(--space-2); }
+.current-club small { color: var(--muted); font-size: var(--t3); margin-top: var(--space-2); }
 .current-club small:empty { display: none; }
 .current-club :is(strong, small) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #account { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-4); }
@@ -116,9 +116,9 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
    On a phone the boxes take their own line and 콕 수령 shares the last line with its button. */
 .period-counts { display: flex; flex-wrap: wrap; gap: var(--space-8); margin: 0; padding: 0; list-style: none; }
 .period-counts li { display: grid; min-width: 44px; padding: var(--space-4) var(--space-8); border-radius: 6px; background: var(--hint); line-height: 1.25; }
-.period-counts li span { color: var(--muted); font-size: var(--t4); white-space: nowrap; }
+.period-counts li span { color: var(--muted); font-size: var(--t3); white-space: nowrap; }
 .period-counts strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: var(--t4); font-weight: 600; }
+.data-table .period-counts small { display: inline; margin: 0 0 0 1px; color: var(--muted); font-size: var(--t3); font-weight: 600; }
 .period-counts .period-met { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--court); }
 @media (max-width: 700px) {
   .progress-table tbody td.progress-periods { grid-column: 1 / -1; }
@@ -161,11 +161,11 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .login-browse .btn { min-height: var(--touch-target); }
 .login-form { gap: var(--space-12); }
 .club-login-dialog .login-form { margin-top: 0; }
-.login-field > label { display: block; margin-bottom: var(--space-8); color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
+.login-field > label { display: block; margin-bottom: var(--space-8); color: var(--neutral-muted); font-size: var(--t3); font-weight: 600; }
 .login-label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
-.login-label-row label { color: var(--muted); font-size: var(--t4); font-weight: 600; }
-.login-help summary { cursor: pointer; min-height: var(--touch-target); padding-block: var(--space-12); color: var(--neutral-muted); font-size: var(--t4); font-weight: 600; }
-.login-guide { display: grid; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-radius: 8px; background: var(--neutral-soft); font-size: var(--t4); word-break: keep-all; }
+.login-label-row label { color: var(--muted); font-size: var(--t3); font-weight: 600; }
+.login-help summary { cursor: pointer; min-height: var(--touch-target); padding-block: var(--space-12); color: var(--neutral-muted); font-size: var(--t3); font-weight: 600; }
+.login-guide { display: grid; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-radius: 8px; background: var(--neutral-soft); font-size: var(--t3); word-break: keep-all; }
 .login-greeting { display: flex; align-items: center; gap: var(--space-8); padding-top: var(--space-4); }
 .login-greeting p { font-weight: 600; overflow-wrap: anywhere; }
 .login-back { flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
@@ -184,7 +184,7 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .login-form input[aria-invalid="true"], .login-code:has(input[aria-invalid="true"]) .login-code-cells > span { border-color: var(--ink); }
 .login-form .login-field.login-rejected :is(input[name="credential"], .login-code-cells > span) { border-color: #b13f39; background: #fff1ef; }
 .login-field :is(.inline-error, .login-pending) { margin-top: var(--space-8); }
-.login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t4); font-weight: 600; }
+.login-pending { display: flex; align-items: center; color: var(--muted); font-size: var(--t3); font-weight: 600; }
 .login-pending .shuttle-inline { color: var(--neutral-ink); }
 
 /* 총괄 콘솔 (PLATFORM.md, worker/console.mjs): the sign-in card with ID and password, then one panel per club in the member column. */
@@ -198,7 +198,7 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
   background-position: center, right center; background-size: cover;
 }
 .hero h1 { font-size: clamp(2rem, 6vw, 3.1rem); font-weight: 600; letter-spacing: -.055em; }
-.hero .tagline { display: flex; align-items: center; gap: var(--space-8); color: var(--lime); font-size: .9rem; font-weight: 600; }
+.hero .tagline { display: flex; align-items: center; gap: var(--space-8); color: var(--lime); font-size: var(--t3); font-weight: 600; }
 .hero .tagline::before { content: ''; inline-size: .9rem; block-size: 3px; border-radius: 3px; background: var(--accent-red); }
 .hero-meta { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-16); color: #f4f6eb; }
 .login-card { padding: var(--space-8) var(--space-16) var(--space-16); border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
@@ -233,7 +233,7 @@ button[data-pending]:not([hidden])::after { content: ''; position: absolute; ins
 .message {
   position: fixed; z-index: 20; left: 50%; bottom: calc(18px + var(--safe-bottom)); transform: translateX(-50%);
   width: max-content; max-width: min(520px, calc(100% - 32px)); padding: var(--space-12) var(--space-16); border-radius: 10px;
-  background: var(--ink); color: #fff; font-size: var(--t4); font-weight: 600; box-shadow: 0 8px 25px #15362630; pointer-events: none;
+  background: var(--ink); color: #fff; font-size: var(--t3); font-weight: 600; box-shadow: 0 8px 25px #15362630; pointer-events: none;
 }
 .message.error { background: var(--ink); }
 .message.visually-hidden { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
